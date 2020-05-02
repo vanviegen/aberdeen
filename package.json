@@ -9,12 +9,8 @@
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "@types/jsdom": "^16.2.1"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "jsdom": "^16.2.2",
-    "jsdom-global": "^3.0.2",
     "mocha": "^7.1.2",
     "typescript": "^3.8.3"
   }

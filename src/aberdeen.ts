@@ -497,7 +497,7 @@ export function node(tagClass: string, ...rest: any[]) {
     if (!currentContext) throw new Error(`node() outside of a render context`)
 
     let el;
-    if (tagClass.indexOf('.')) {
+    if (tagClass.indexOf('.')>=0) {
         let classes = tagClass.split('.')
         let tag = <string>classes.shift()
         el = document.createElement(tag)
@@ -536,6 +536,24 @@ export function node(tagClass: string, ...rest: any[]) {
 export function text(text: string) {
     if (!currentContext) throw  new Error(`text() outside of a render context`)
     currentContext.addNode(document.createTextNode(text))
+}
+
+/**
+ * Set properties and attributes for the containing DOM element. Doing it this way
+ * as opposed to setting them directly from node() allows changing them later on
+ * without recreating the element itself. Also, code can be more readible this way.
+ */
+export function prop(prop: string, value: any): void
+export function prop(props: object): void
+
+export function prop(prop: any, value: any = undefined) {
+    if (!currentContext) throw  new Error(`prop() outside of a render context`)
+    if (typeof prop === 'object') {
+        for(let k in prop) {
+            applyProp(currentContext.parentElement, k, prop[k])
+        }
+    }
+    applyProp(currentContext.parentElement, prop, value)
 }
 
 /**
