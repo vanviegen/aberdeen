@@ -92,7 +92,7 @@ class OnEachObserver implements Observer, QueueRunner {
         // TODO!
     }
 
-    clean() {
+    _clean() {
         this.store.observers.delete(this)
     }
 }
@@ -116,7 +116,7 @@ class GetAllObserver implements Observer {
         this.context.onChange()
     }
 
-    clean() {
+    _clean() {
         this.store.observers.delete(this)
     }
 }
@@ -150,7 +150,7 @@ class Context implements Observer, QueueRunner {
 
     // The list of clean functions to be called when this context is cleaned. These can
     // be for child contexts, subscriptions as well as `clean(..)` hooks.
-    cleaners: Array<{clean: (context: Context) => void}> = [] 
+    cleaners: Array<{_clean: (context: Context) => void}> = [] 
     
 
     flags: number = 0
@@ -215,13 +215,13 @@ class Context implements Observer, QueueRunner {
         this.lastChild = undefined
 
         // run cleaners
-        this.clean()
+        this._clean()
     }
 
-    clean() {
+    _clean() {
         this.flags |= Context.DEAD
         for(let cleaner of this.cleaners) {
-            cleaner.clean(this)
+            cleaner._clean(this)
         }
     }
 
@@ -236,7 +236,7 @@ class Context implements Observer, QueueRunner {
     }
 
     queueRun() {
-        if (!currentContext) internalError(2)
+        if (currentContext) internalError(2)
 
         if (this.flags & Context.DEAD) return
 
@@ -285,7 +285,7 @@ export class Store {
     ref(...indexes : Array<any>): Store | undefined {
         let obs: Store | undefined = this
         for(let index of indexes) {
-            obs.addObserver()
+            obs._addObserver()
             if (!(obs.data instanceof Map)) {
                 return;
             }
@@ -320,12 +320,12 @@ export class Store {
     }
 
     /**
-     * Return the value for this store, subscribing to the store
-     * and any nested sub-stores.
-     * If the value doesn't exist yet and `defaultValue` is specified, it
-     * is set on the observer (triggering other observers) and returned.
+     * Return the value for this store, subscribing to the store and any nested sub-stores.
+     * 
+     * @param defaultValue - If the value doesn't exist yet and `defaultValue` is specified, it is set on the observer (triggering other observers) and returned.
+     * @param useMaps - When this argument is `true`, objects are represented as Maps. By default, they are plain old JavaScript objects.
      */
-    get(defaultValue = undefined): any {
+    get(defaultValue = undefined, useMaps = false): any {
         if (this.data===undefined && defaultValue!==undefined) {
             this.set(defaultValue);
         }
@@ -336,31 +336,32 @@ export class Store {
                 currentContext.cleaners.push(observer)
                 this.observers.add(observer)
             }
-            let result: Map<any,any> = new Map()
-            this.data.forEach((k: any, v: any) => {
-                result.set(k, v instanceof Store ? v.get() : v)
-            })
-            return result
+            if (useMaps) {
+                let result: Map<any,any> = new Map()
+                this.data.forEach((v: any, k: any) => {
+                    if (v instanceof Store) {
+                        if (v.data!==undefined) result.set(k, v.get(undefined, true));
+                    } else {
+                        result.set(k, v);
+                    }
+                })
+                return result
+            } else {
+                let result: any = {};
+                this.data.forEach((v: any, k: any) => {
+                    if (v instanceof Store) {
+                        if (v.data!==undefined) result[k] = v.get();
+                    } else {
+                        result[k] = v;
+                    }
+                })
+                return result
+            }
         } else {
-            this.addObserver()
+            this._addObserver()
             return this.data
         }
     }
-
-    addObserver() {
-        if (currentContext && !this.observers.has(currentContext)) {
-            this.observers.add(currentContext)
-            currentContext.cleaners.push(this)
-        }
-    }
-
-    /**
-     * This method is called as a cleaner from Context.
-     */
-    clean(context: Context) {
-        this.observers.delete(context)
-    }
-
 
     // TODO: the iterator should subscribe on the the data not being 'undefined';
     // it doesn't need to trigger on other data changes. Although that would 
@@ -383,7 +384,8 @@ export class Store {
 
             // Walk the pairs of the new `value` map
             const data: Map<any,Store> = this.data;
-            value.forEach((k: any, v: any) => {
+            
+            value.forEach((v: any, k: any) => {
                 let sub = data.get(k);
                 if (sub) {
                     // Update existing item
@@ -395,7 +397,7 @@ export class Store {
                 }
             })
 
-            data.forEach((k: any, v: Store) => {
+            data.forEach((v: any, k: Store) => {
                 // If not merging, set items that are not in `value` to undefined.
                 if (!merge && v.data!==undefined && !value.has(k)) {
                     v.data = undefined;
@@ -422,6 +424,13 @@ export class Store {
     }
 
     /**
+     * Sets the value for the store to `undefined`, which causes it to be ommitted from any Maps it is part of.
+     */
+    delete() {
+        this.set(undefined);
+    }
+
+    /**
      * Does the same as merge, but in case of a top-level map, it doesn't
      * delete keys that don't exist in `value`.
      */
@@ -429,28 +438,7 @@ export class Store {
         this.set(value, true);
     }
 
-    static _valueToData(value: any) {
-        if (value==null) return undefined
-        if (typeof value !== "object" || value instanceof Array) return value
-
-        let result: Map<any,any> = new Map()
-        if (value instanceof Map) {
-            value.forEach((k,v) => {
-                result.set(k, new Store(v))
-            })
-        } else {
-            for(let k in value) {
-                result.set(k, new Store(value[k]))
-            }
-        }
-        return result;
-    }
-
-    static makeDefaultSortKey(index: any) {
-        return index
-    }
-
-    onEach(renderer: any, makeSortKey: (index: any, value: Store) => string = Store.makeDefaultSortKey) {
+    onEach(renderer: any, makeSortKey: (index: any, value: Store) => string = Store._makeDefaultSortKey) {
         if (!(this.data instanceof Map)) {
             if (this.data!==undefined) console.warn("onEach expects a map but got", this.data)
             return
@@ -462,6 +450,39 @@ export class Store {
 
         // TODO: if sortKey is undefined, return 0
         // toSortKey from happening
+    }
+    
+
+    static _valueToData(value: any) {
+        if (value==null) return undefined
+        if (typeof value !== "object" || value instanceof Array) return value
+
+        let result: Map<any,any> = new Map()
+        if (value instanceof Map) {
+            value.forEach((v,k) => {
+                result.set(k, new Store(v))
+            })
+        } else {
+            for(let k in value) {
+                result.set(k, new Store(value[k]))
+            }
+        }
+        return result;
+    }
+
+    static _makeDefaultSortKey(index: any) {
+        return index
+    }
+
+    _addObserver() {
+        if (currentContext && !this.observers.has(currentContext)) {
+            this.observers.add(currentContext)
+            currentContext.cleaners.push(this)
+        }
+    }
+
+    _clean(context: Context) {
+        this.observers.delete(context)
     }
 
     _emitChange() {
@@ -552,8 +573,9 @@ export function prop(prop: any, value: any = undefined) {
         for(let k in prop) {
             applyProp(currentContext.parentElement, k, prop[k])
         }
+    } else {
+        applyProp(currentContext.parentElement, prop, value)
     }
-    applyProp(currentContext.parentElement, prop, value)
 }
 
 /**
@@ -561,7 +583,7 @@ export function prop(prop: any, value: any = undefined) {
  */
 export function clean(clean: (context: Context) => void) {
     if (!currentContext) throw new Error(`clean() outside of a render context`)
-    currentContext.cleaners.push({clean})
+    currentContext.cleaners.push({_clean: clean})
 }
 
 /**

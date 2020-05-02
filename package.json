@@ -4,13 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "test": "tsc --project tsconfig.commonjs.json && mocha --file tests/_init.js tests/[^_]*.js"
+    "build": "tsc && terser --module --compress --mangle -- dist/aberdeen.js > dist/aberdeen.min.js",
+    "test": "([ src/aberdeen.ts -nt tests/build/aberdeen.js ] && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts) ; mocha --file tests/_init.js tests/[^_]*.js"
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {},
+  "dependencies": {
+    "terser": "^4.6.13"
+  },
   "devDependencies": {
+    "fast-deep-equal": "^3.1.1",
     "mocha": "^7.1.2",
     "typescript": "^3.8.3"
   }
