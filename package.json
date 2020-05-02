@@ -5,11 +5,17 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node dist/tests/test.js all"
+    "test": "tsc --project tsconfig.commonjs.json && mocha --file tests/_init.js tests/[^_]*.js"
   },
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "@types/jsdom": "^16.2.1"
+  },
   "devDependencies": {
+    "jsdom": "^16.2.2",
+    "jsdom-global": "^3.0.2",
+    "mocha": "^7.1.2",
     "typescript": "^3.8.3"
   }
 }
