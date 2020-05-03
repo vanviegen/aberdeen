@@ -49,14 +49,14 @@ function runQueue(): void {
  * distinction between new indexes being added to a pre-existing map (`onNewIndex`),
  * and all other types of changes (`onChange`).
  * 
- * The Context class (see below) is the most common observer; it will cause
+ * The Scope class (see below) is the most common observer; it will cause
  * a new run of its renderer `onChange`. It will not react to `onNewIndex`.
  * 
  * There are two other Observer implementations, that both have a reference to
- * the Context they are working on. They cause different behaviour on events
+ * the Scope they are working on. They cause different behaviour on events
  * than the default imlementation. The `OnEachObserver` is used to add items
  * to a list without redrawing the entire list `onNewIndex`. The `GetAllObserver`
- * causes the entire context to rerender `onNewIndex`. This is needed when a `.get()`
+ * causes the entire scope to rerender `onNewIndex`. This is needed when a `.get()`
  * is performed on a map.
  */
 
@@ -66,20 +66,20 @@ interface Observer {
 }
 
 class OnEachObserver implements Observer, QueueRunner {
-    context: Context
+    scope: Scope
     newIndexes: any[] = []
     queueOrder: number
     store: Store
 
-    constructor(context: Context, store: Store, depth: number) {
-        this.context = context
+    constructor(scope: Scope, store: Store, queueOrder: number) {
+        this.scope = scope
         this.store = store
-        this.queueOrder = depth
+        this.queueOrder = queueOrder
     }
 
     onChange() {
-        // Have the context schedule a refresh
-        this.context.onChange()
+        // Have the scope schedule a refresh
+        this.scope.onChange()
     }
 
     onNewIndex(index: any) {
@@ -88,7 +88,7 @@ class OnEachObserver implements Observer, QueueRunner {
     }
 
     queueRun() {
-        if (this.context.flags & Context.DEAD) return
+        if (this.scope.flags & Scope.DEAD) return
         // TODO!
     }
 
@@ -98,22 +98,22 @@ class OnEachObserver implements Observer, QueueRunner {
 }
 
 class GetAllObserver implements Observer {
-    context: Context
+    scope: Scope
     store: Store
 
-    constructor(context: Context, store: Store) {
-        this.context = context
+    constructor(scope: Scope, store: Store) {
+        this.scope = scope
         this.store = store
     }
 
     onChange() {
-        // Have the context schedule a refresh
-        this.context.onChange()
+        // Have the scope schedule a refresh
+        this.scope.onChange()
     }
 
     onNewIndex(index: any) {
-        // Have the context schedule a refresh
-        this.context.onChange()
+        // Have the scope schedule a refresh
+        this.scope.onChange()
     }
 
     _clean() {
@@ -124,33 +124,33 @@ class GetAllObserver implements Observer {
 
 
 /*
- * Context
+ * Scope
  *
- * A `Context` is created with a `render` function that is run initially,
+ * A `Scope` is created with a `render` function that is run initially,
  * and again when any of the `Store`s that this function reads are changed. Any
- * DOM elements that is given a `render` function for its contents has its own context.
- * The `Context` manages the position in the DOM tree elements created by `render`
+ * DOM elements that is given a `render` function for its contents has its own scope.
+ * The `Scope` manages the position in the DOM tree elements created by `render`
  * are inserted at. Before a rerender, all previously created elements are removed 
- * and the `clean` functions for the context and all sub-contexts are called.
+ * and the `clean` functions for the scope and all sub-scopes are called.
  */
 
-class Context implements Observer, QueueRunner {
+class Scope implements Observer, QueueRunner {
     renderer: () => void
     parentElement: HTMLElement
 
-    // How deep is this context nested in other contexts; we use this to make sure events
+    // How deep is this scope nested in other scopes; we use this to make sure events
     // at lower depths are handled before events at higher depths.
     queueOrder: number
     
-    // The node or context right before this context that has the same `parentElement`
-    precedingSibling: Node | Context | undefined
+    // The node or scope right before this scope that has the same `parentElement`
+    precedingSibling: Node | Scope | undefined
 
-    // The last child node or context within this context that has the same `parentElement`
-    lastChild: Node | Context | undefined 
+    // The last child node or scope within this scope that has the same `parentElement`
+    lastChild: Node | Scope | undefined 
 
-    // The list of clean functions to be called when this context is cleaned. These can
-    // be for child contexts, subscriptions as well as `clean(..)` hooks.
-    cleaners: Array<{_clean: (context: Context) => void}> = [] 
+    // The list of clean functions to be called when this scope is cleaned. These can
+    // be for child scopes, subscriptions as well as `clean(..)` hooks.
+    cleaners: Array<{_clean: (scope: Scope) => void}> = [] 
     
 
     flags: number = 0
@@ -159,25 +159,17 @@ class Context implements Observer, QueueRunner {
 
     constructor(
         parentElement: HTMLElement,
-        precedingSibling: Node | Context | undefined,
+        precedingSibling: Node | Scope | undefined,
         renderer: () => void,
-        depth: number
+        queueOrder: number
     ) {
         this.parentElement = parentElement
         this.precedingSibling = precedingSibling
         this.renderer = renderer
-        this.queueOrder = depth
+        this.queueOrder = queueOrder
     }
 
-    // Get a reference to the last Node within this context and parentElement
-    findLastNode(): Node | undefined {
-        if (this.lastChild instanceof Node) return this.lastChild
-        if (this.lastChild instanceof Context) {
-            let node = this.lastChild.findLastNode()
-            if (node) return node
-        }
-    }
-
+    // Get a reference to the last Node preceding 
     findPrecedingNode(): Node | undefined {
         let pre = this.precedingSibling
         while(pre) {
@@ -188,8 +180,15 @@ class Context implements Observer, QueueRunner {
         }
     }
 
+    // Get a reference to the last Node within this scope and parentElement
+    findLastNode(): Node | undefined {
+        if (this.lastChild instanceof Node) return this.lastChild
+        if (this.lastChild instanceof Scope) return this.lastChild.findPrecedingNode();
+    }
+
     addNode(node: Node) {
-        let prevNode = this.findLastNode()
+        let prevNode = this.findLastNode() || this.findPrecedingNode()
+
         this.parentElement.insertBefore(node, prevNode ? prevNode.nextSibling : this.parentElement.firstChild)
         this.lastChild = node
     }
@@ -219,7 +218,7 @@ class Context implements Observer, QueueRunner {
     }
 
     _clean() {
-        this.flags |= Context.DEAD
+        this.flags |= Scope.DEAD
         for(let cleaner of this.cleaners) {
             cleaner._clean(this)
         }
@@ -236,31 +235,31 @@ class Context implements Observer, QueueRunner {
     }
 
     queueRun() {
-        if (currentContext) internalError(2)
+        if (currentScope) internalError(2)
 
-        if (this.flags & Context.DEAD) return
+        if (this.flags & Scope.DEAD) return
 
         this.remove()
-        this.flags = this.flags & (~Context.DEAD)
+        this.flags = this.flags & (~Scope.DEAD)
 
-        currentContext = this
+        currentScope = this
         this.renderer()
-        currentContext = undefined
+        currentScope = undefined
     }
 }
 
 /**
- * This global is set during the execution of a `Context.render`. It is used by
+ * This global is set during the execution of a `Scope.render`. It is used by
  * functions like `node`, `text` and `clean`.
  */
-let currentContext: Context | undefined;
+let currentScope: Scope | undefined;
 
 
 
 /*
  * Store
  *
- * A data store that automatically subscribes the current Context to updates
+ * A data store that automatically subscribes the current Scope to updates
  * whenever data is read from it.
  * 
  * Supported data types are: `string`, `number`, `boolean`, `undefined` (`null`
@@ -331,9 +330,9 @@ export class Store {
         }
 
         if (this.data instanceof Map) {
-            if (currentContext) {
-                let observer = new GetAllObserver(currentContext, this)
-                currentContext.cleaners.push(observer)
+            if (currentScope) {
+                let observer = new GetAllObserver(currentScope, this)
+                currentScope.cleaners.push(observer)
                 this.observers.add(observer)
             }
             if (useMaps) {
@@ -444,9 +443,9 @@ export class Store {
             return
         }
 
-        if (!currentContext) throw new Error("onEach is only allowed from a render context")
+        if (!currentScope) throw new Error("onEach is only allowed from a render scope")
 
-        //let onEachContext = new OnEachContext(currentContext.parentElement, renderer);
+        //let onEachScope = new OnEachScope(currentScope.parentElement, renderer);
 
         // TODO: if sortKey is undefined, return 0
         // toSortKey from happening
@@ -475,14 +474,14 @@ export class Store {
     }
 
     _addObserver() {
-        if (currentContext && !this.observers.has(currentContext)) {
-            this.observers.add(currentContext)
-            currentContext.cleaners.push(this)
+        if (currentScope && !this.observers.has(currentScope)) {
+            this.observers.add(currentScope)
+            currentScope.cleaners.push(this)
         }
     }
 
-    _clean(context: Context) {
-        this.observers.delete(context)
+    _clean(scope: Scope) {
+        this.observers.delete(scope)
     }
 
     _emitChange() {
@@ -506,7 +505,7 @@ export class Store {
  * @param rest - The other arguments are flexible and interpreted based on their types:
  *   - `string`: Used as textContent for the element.
  *   - `object`: Used as attributes/properties for the element. See `applyProp` on how the distinction is made.
- *   - `function`: The render function used to draw the context of the element. This function gets its own `Context`, so that if any `Store` it reads changes, it will redraw by itself.
+ *   - `function`: The render function used to draw the scope of the element. This function gets its own `Scope`, so that if any `Store` it reads changes, it will redraw by itself.
  * @example
  * node('aside.editorial', 'Yada yada yada....', () => {
  *     node('a', {href: '/bio'}, () => {
@@ -515,7 +514,7 @@ export class Store {
  * })
  */
 export function node(tagClass: string, ...rest: any[]) {
-    if (!currentContext) throw new Error(`node() outside of a render context`)
+    if (!currentScope) throw new Error(`node() outside of a render scope`)
 
     let el;
     if (tagClass.indexOf('.')>=0) {
@@ -527,20 +526,20 @@ export function node(tagClass: string, ...rest: any[]) {
         el = document.createElement(tagClass);
     }
 
-    currentContext.addNode(el)
+    currentScope.addNode(el)
 
     for(let item of rest) {
         if (typeof item === 'function') {
-            let context = new Context(el, undefined, item, currentContext.queueOrder+1)
+            let scope = new Scope(el, undefined, item, currentScope.queueOrder+1)
 
-            let savedContext: Context = currentContext
-            currentContext = context
-            currentContext.renderer()
-            currentContext = savedContext
+            let savedScope: Scope = currentScope
+            currentScope = scope
+            currentScope.renderer()
+            currentScope = savedScope
 
-            // Add it to our list of cleaners. Even if `context` currently has
+            // Add it to our list of cleaners. Even if `scope` currently has
             // no cleaners, it may get them in a future refresh.
-            currentContext.cleaners.push(context)
+            currentScope.cleaners.push(scope)
         } else if (typeof item === 'string') {
             el.textContent = item;
         } else if (typeof item === 'object' && item) {
@@ -552,11 +551,11 @@ export function node(tagClass: string, ...rest: any[]) {
 }
 
 /**
- * Add a text node at the current Context position.
+ * Add a text node at the current Scope position.
  */
 export function text(text: string) {
-    if (!currentContext) throw  new Error(`text() outside of a render context`)
-    currentContext.addNode(document.createTextNode(text))
+    if (!currentScope) throw  new Error(`text() outside of a render scope`)
+    currentScope.addNode(document.createTextNode(text))
 }
 
 /**
@@ -568,22 +567,38 @@ export function prop(prop: string, value: any): void
 export function prop(props: object): void
 
 export function prop(prop: any, value: any = undefined) {
-    if (!currentContext) throw  new Error(`prop() outside of a render context`)
+    if (!currentScope) throw  new Error(`prop() outside of a render scope`)
     if (typeof prop === 'object') {
         for(let k in prop) {
-            applyProp(currentContext.parentElement, k, prop[k])
+            applyProp(currentScope.parentElement, k, prop[k])
         }
     } else {
-        applyProp(currentContext.parentElement, prop, value)
+        applyProp(currentScope.parentElement, prop, value)
     }
 }
 
+
+
 /**
- * Register a `clean` function that is executed when the current `Context` disappears or redraws.
+ * Register a `clean` function that is executed when the current `Scope` disappears or redraws.
  */
-export function clean(clean: (context: Context) => void) {
-    if (!currentContext) throw new Error(`clean() outside of a render context`)
-    currentContext.cleaners.push({_clean: clean})
+export function clean(clean: (scope: Scope) => void) {
+    if (!currentScope) throw new Error(`clean() outside of a render scope`)
+    currentScope.cleaners.push({_clean: clean})
+}
+
+/**
+ * Create a new Scope and execute the `renderer` within that Scope. When 
+ * `Store`s that the `renderer` reads are updated, only this Scope will
+ * need to be refreshed, leaving the parent Scope untouched.
+ */
+export function scope(renderer: () => void) {
+    if (!currentScope) throw new Error(`scope() outside of a render scope`)
+    let parentScope = currentScope
+    currentScope = new Scope(parentScope.parentElement, parentScope.lastChild, renderer, parentScope.queueOrder+1)
+    parentScope.lastChild = currentScope
+    currentScope.renderer()
+    currentScope = parentScope
 }
 
 /**
@@ -598,9 +613,10 @@ export function clean(clean: (context: Context) => void) {
  * })
  */
 export function mount(parentElement: HTMLElement, renderer: () => void) {
-    currentContext = new Context(parentElement, undefined, renderer, 0)
-    currentContext.renderer()
-    currentContext = undefined
+    if (currentScope) throw new Error('mount() from within a render scope')
+    currentScope = new Scope(parentElement, undefined, renderer, 0)
+    currentScope.renderer()
+    currentScope = undefined
 }
 
 

@@ -6,15 +6,23 @@ mocha.beforeEach(() => { document.body = document.createElement('body') })
 
 Object.assign(global, require('./build/aberdeen'));
 
+global.AssertionError = class extends Error {
+    constructor(text, actual, expected) {
+        super(text)
+        this.actual = actual
+        this.expected = expected
+    }
+}
+
 global.assert = function(bool, msg) {
-    if (!bool) throw new Error(`assert failed${msg ? ": "+msg : ""}`);
+    if (!bool) throw new AssertionError(`assert failed${msg ? ": "+msg : ""}`, bool);
 }
 
-global.assertEqual = function(actual, should, msg) {
-    if (!equal(actual,should)) throw new Error(`equal failed: ${JSON.stringify(actual)} should have been ${JSON.stringify(should)}${msg ? ": "+msg : ""}`);
+global.assertEqual = function(actual, expected, msg) {
+    if (!equal(actual,expected)) throw new AssertionError(`equal failed${msg ? ": "+msg : ""}`, actual, expected);
 }
 
-global.assertBody = function(should) {
+global.assertBody = function(expected) {
     let actual = document.body.toString().replace(/^body{/,'').replace(/}$/,'');
-    if (actual !== should) throw new Error(`assertBody failed: ${actual} should have been ${should}`)
+    if (actual !== expected) throw new AssertionError(`assertBody failed`, actual, expected)
 }
