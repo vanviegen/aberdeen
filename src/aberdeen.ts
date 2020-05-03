@@ -10,6 +10,8 @@
 interface QueueRunner {
     queueOrder: number
     queueRun(): void
+    // TODO: assign each QueueRunner an ascending id, so they can be executed in order
+    // of creating, in case the queueOrders are the same? 
 }
 
 let queueRunners: Set<QueueRunner> = new Set()
@@ -65,21 +67,92 @@ interface Observer {
     onNewIndex(index: any): void
 }
 
-class OnEachObserver implements Observer, QueueRunner {
+interface OnEachItem {
+    index: any
     scope: Scope
-    newIndexes: any[] = []
-    queueOrder: number
+    sortStr: string
+}
+
+type SortKeyType = number | string | Array<number|string>
+
+
+/**
+ * Given an integer number, a string or an array of these, this function returns a string that can be used
+ * to compare items in a natural sorting order. So `[3, 'ab']` should be smaller than `[3, 'ac']`.
+ */
+export function sortKeyToString(key: SortKeyType) {
+    if (key instanceof Array) {
+        return key.map(partToStr).join('\x01')
+    } else {
+        return partToStr(key)
+    }
+
+    function partToStr(part: number|string): string {
+        if (typeof part === 'string') {
+            return part
+        } else {
+            let result = positiveToString(Math.abs(Math.round(part)))
+            // Prefix the number of digits, counting down from 128 for negative and up for positive
+            return String.fromCharCode(128 + (part>0 ? result.length : -result.length))
+        }
+    }
+
+    function positiveToString(num: number): string {
+        let result = ''
+        while(num > 0) {
+            /*
+            * We're reserving a few character codes:
+            * 0 - for compatibility
+            * 1 - separator between array items
+            * 65535 - for compatibility
+            */
+            result += String.fromCharCode(2 + (num % 65533))
+            num = Math.floor(num / 65533)
+        }
+        return result
+    }
+}
+
+
+
+class OnEachObserver implements Observer, QueueRunner {
+
+    /** The Store we are iterating */
     store: Store
 
-    constructor(scope: Scope, store: Store, queueOrder: number) {
+    /** The scope containing the onEach as a whole */
+    scope: Scope
+
+    makeSortKey: (value: Store, index: any) => SortKeyType
+
+    renderer: () => void
+
+    /** The list of currently observing map items */
+    items: OnEachItem[] = []
+
+    /** Indexes that have been created and need to be handled in the next `queueRun` */
+    newIndexes: any[] = []
+
+    /** Our priority for QueueRunner */
+    queueOrder: number
+    
+
+    constructor(
+        scope: Scope,
+        store: Store,
+        renderer: () => void,
+        makeSortKey: (value: Store, index: any) => SortKeyType,
+        queueOrder: number
+    ) {
         this.scope = scope
         this.store = store
+        this.renderer = renderer
+        this.makeSortKey = makeSortKey
         this.queueOrder = queueOrder
     }
 
     onChange() {
-        // Have the scope schedule a refresh
-        this.scope.onChange()
+        // TODO: remove all elements and call renderInitial()
     }
 
     onNewIndex(index: any) {
@@ -95,6 +168,63 @@ class OnEachObserver implements Observer, QueueRunner {
     _clean() {
         this.store.observers.delete(this)
     }
+
+    renderInitial() {
+        let data = this.store.data
+        if (!(data instanceof Map)) {
+            if (data!==undefined) console.warn("onEach expects a map but got", data)
+            return
+        }
+
+        let savedScope = currentScope
+
+        data.forEach((itemStore, itemIndex) => {
+            currentScope = new Scope(this.scope.parentElement, undefined, this.renderer, this.scope.queueOrder)
+
+            // We're adding an observer here because we're checking for `undefined`. We could
+            // create a dedicated observer that only triggers changes when the value becomes
+            // undefined. That's probably not worthwhile though, as `makeSortKey` and/or `renderer`
+            // are very likely to observe the value anyway.
+            itemStore._addObserver()
+
+            let sortKey = this.makeSortKey(itemStore, itemIndex)
+            if (sortKey!=null) {
+                let sortStr = sortKeyToString(sortKey)
+                let pos = this.insertItem({
+                    index: itemIndex,
+                    scope: currentScope,
+                    sortStr: sortStr,
+                })
+                currentScope.precedingSibling = pos>0 ? this.items[pos-1].scope : (this.scope.lastChild || this.scope.precedingSibling)
+                return
+            }
+
+            // TODO: insert into different list?
+        })
+
+        currentScope = savedScope
+        
+        // TODO: if sortKey is undefined, return 0
+        // toSortKey from happening
+    }
+
+    insertItem(item: OnEachItem) {
+        // Binary search for the insert position
+        let items = this.items
+        let sortStr = item.sortStr
+        let min = 0, max = this.items.length-1
+        while(min<max) {
+            let mid = (min+max)>>1
+            if (items[mid].sortStr < sortStr) {
+                min = mid+1
+            } else {
+                max = mid-1
+            }
+        }
+        this.items.splice(min, 0, item)
+        return min
+    }
+
 }
 
 class GetAllObserver implements Observer {
@@ -243,8 +373,13 @@ class Scope implements Observer, QueueRunner {
         this.flags = this.flags & (~Scope.DEAD)
 
         currentScope = this
-        this.renderer()
-        currentScope = undefined
+        try {
+            this.renderer()
+        } catch(e) {
+            throw e
+        } finally {
+            currentScope = undefined
+        }
     }
 }
 
@@ -437,18 +572,15 @@ export class Store {
         this.set(value, true);
     }
 
-    onEach(renderer: any, makeSortKey: (index: any, value: Store) => string = Store._makeDefaultSortKey) {
-        if (!(this.data instanceof Map)) {
-            if (this.data!==undefined) console.warn("onEach expects a map but got", this.data)
-            return
-        }
-
+    onEach(renderer: any, makeSortKey: (index: any, value: Store) => SortKeyType | undefined = Store._makeDefaultSortKey) {
         if (!currentScope) throw new Error("onEach is only allowed from a render scope")
 
-        //let onEachScope = new OnEachScope(currentScope.parentElement, renderer);
+        // Subscribe to changes using the specialized OnEachObserver
+        let onEachObserver = new OnEachObserver(currentScope, this, currentScope.queueOrder+1);
+        this.observers.add(onEachObserver)
+        currentScope.cleaners.push(onEachObserver)
 
-        // TODO: if sortKey is undefined, return 0
-        // toSortKey from happening
+        onEachObserver.renderInitial()
     }
     
 
@@ -595,7 +727,7 @@ export function clean(clean: (scope: Scope) => void) {
 export function scope(renderer: () => void) {
     if (!currentScope) throw new Error(`scope() outside of a render scope`)
     let parentScope = currentScope
-    currentScope = new Scope(parentScope.parentElement, parentScope.lastChild, renderer, parentScope.queueOrder+1)
+    currentScope = new Scope(parentScope.parentElement, parentScope.lastChild || parentScope.precedingSibling, renderer, parentScope.queueOrder+1)
     parentScope.lastChild = currentScope
     currentScope.renderer()
     currentScope = parentScope
@@ -615,8 +747,13 @@ export function scope(renderer: () => void) {
 export function mount(parentElement: HTMLElement, renderer: () => void) {
     if (currentScope) throw new Error('mount() from within a render scope')
     currentScope = new Scope(parentElement, undefined, renderer, 0)
-    currentScope.renderer()
-    currentScope = undefined
+    try {
+        currentScope.renderer()
+    } catch(e) {
+        throw e
+    } finally {
+        currentScope = undefined
+    }
 }
 
 

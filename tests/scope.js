@@ -99,4 +99,17 @@ describe('Scope', () => {
         assertEqual(cnt1,4)
         assertEqual(cnt2,6)
     })
+
+    it('insert at right position with an empty parent scope', () => {
+        mount(document.body, () => {
+            node('a')
+            scope(() => {
+                scope(() => {
+                    node('b')
+                })
+            })
+        })
+        assertBody(`a{} b{}`)
+    })
+
 })
