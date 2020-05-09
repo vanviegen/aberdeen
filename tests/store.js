@@ -22,7 +22,7 @@ describe('Store', function() {
         let store = new Store();
         let map = new Map(Object.entries({a:1, b:2}));
         store.set(map)
-        let result = store.get(undefined,true);
+        let result = store.get(true);
         assertEqual(result, map);
         assert(result !== map, "A copy must be made");
     });

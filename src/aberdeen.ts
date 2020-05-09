@@ -7,6 +7,7 @@
  * `queueOrder` values.
  */
 
+
 interface QueueRunner {
     queueOrder: number
     queueRun(): void
@@ -14,28 +15,28 @@ interface QueueRunner {
     // of creating, in case the queueOrders are the same? 
 }
 
-let queueRunners: Set<QueueRunner> = new Set()
+let queued: Set<QueueRunner> = new Set()
 
-function queue(qu: QueueRunner) {
-    if (!queueRunners.size) {
+function queue(runner: QueueRunner) {
+    if (!queued.size) {
         setTimeout(runQueue, 0)
     }
-    queueRunners.add(qu)
+    queued.add(runner)
 }
 
 function runQueue(): void {
     // Order queued observers by depth, lowest first
     // TODO: polyfill Array.from for IE11
-    let ordered = Array.from(queueRunners)
+    let ordered = Array.from(queued)
     ordered.sort((a,b) => a.queueOrder - b.queueOrder)
 
-    for(let observer of ordered) {
-        queueRunners.delete(observer)
-        let size = queueRunners.size
+    for(let runner of ordered) {
+        queued.delete(runner)
+        let size = queued.size
 
-        observer.queueRun()
+        runner.queueRun()
         
-        if (queueRunners.size !== size) {
+        if (queued.size !== size) {
             // The queue was modified. We'll need to sort it again.
             return runQueue()
         }
@@ -63,8 +64,7 @@ function runQueue(): void {
  */
 
 interface Observer {
-    onChange(): void
-    onNewIndex(index: any): void
+    onChange(index: any, oldValue: DatumType): void
 }
 
 interface OnEachItem {
@@ -117,8 +117,8 @@ export function sortKeyToString(key: SortKeyType) {
 
 class OnEachObserver implements Observer, QueueRunner {
 
-    /** The Store we are iterating */
-    store: Store
+    /** The Node we are iterating */
+    obsMap: ObsMap
 
     /** The scope containing the onEach as a whole */
     scope: Scope
@@ -139,25 +139,24 @@ class OnEachObserver implements Observer, QueueRunner {
 
     constructor(
         scope: Scope,
-        store: Store,
+        obsMap: ObsMap,
         renderer: () => void,
         makeSortKey: (value: Store, index: any) => SortKeyType,
         queueOrder: number
     ) {
         this.scope = scope
-        this.store = store
+        this.obsMap = obsMap
         this.renderer = renderer
         this.makeSortKey = makeSortKey
         this.queueOrder = queueOrder
     }
 
-    onChange() {
-        // TODO: remove all elements and call renderInitial()
-    }
-
-    onNewIndex(index: any) {
-        this.newIndexes.push(index)
-        queue(this)
+    onChange(index: any, oldValue: any) {
+        if (oldValue===undefined) {
+            // a new index!
+            this.newIndexes.push(index)
+            queue(this)
+        }
     }
 
     queueRun() {
@@ -166,28 +165,18 @@ class OnEachObserver implements Observer, QueueRunner {
     }
 
     _clean() {
-        this.store.observers.delete(this)
+        this.obsMap.observers.delete(this)
     }
 
     renderInitial() {
-        let data = this.store.data
-        if (!(data instanceof Map)) {
-            if (data!==undefined) console.warn("onEach expects a map but got", data)
-            return
-        }
-
         let savedScope = currentScope
 
-        data.forEach((itemStore, itemIndex) => {
-            currentScope = new Scope(this.scope.parentElement, undefined, this.renderer, this.scope.queueOrder)
+        this.obsMap.forEach((_, itemIndex) => {
+            currentScope = new Scope(this.scope.parentElement, undefined, this.renderer, this.scope.queueOrder+1)
 
-            // We're adding an observer here because we're checking for `undefined`. We could
-            // create a dedicated observer that only triggers changes when the value becomes
-            // undefined. That's probably not worthwhile though, as `makeSortKey` and/or `renderer`
-            // are very likely to observe the value anyway.
-            itemStore._addObserver()
-
+            let itemStore = new Store(this.obsMap, itemIndex)
             let sortKey = this.makeSortKey(itemStore, itemIndex)
+
             if (sortKey!=null) {
                 let sortStr = sortKeyToString(sortKey)
                 let pos = this.insertItem({
@@ -229,11 +218,11 @@ class OnEachObserver implements Observer, QueueRunner {
 
 class GetAllObserver implements Observer {
     scope: Scope
-    store: Store
+    node: ObsMap
 
-    constructor(scope: Scope, store: Store) {
+    constructor(scope: Scope, node: ObsMap) {
         this.scope = scope
-        this.store = store
+        this.node = node
     }
 
     onChange() {
@@ -241,13 +230,8 @@ class GetAllObserver implements Observer {
         this.scope.onChange()
     }
 
-    onNewIndex(index: any) {
-        // Have the scope schedule a refresh
-        this.scope.onChange()
-    }
-
     _clean() {
-        this.store.observers.delete(this)
+        this.node.observers.delete(this)
     }
 }
 
@@ -284,7 +268,6 @@ class Scope implements Observer, QueueRunner {
     
 
     flags: number = 0
-    static TRIGGERED = 1 // currently in the `triggered` array
     static DEAD = 2 // cleaned
 
     constructor(
@@ -358,12 +341,6 @@ class Scope implements Observer, QueueRunner {
         queue(this)
     }
 
-    onNewIndex(index: any) {
-        // We can ignore new keys being added to a map, we just rely on the
-        // map staying a map (otherwise onChange would be triggered). Of course
-        // we may also be subscribed on the values of specific keys.
-    }
-
     queueRun() {
         if (currentScope) internalError(2)
 
@@ -389,9 +366,105 @@ class Scope implements Observer, QueueRunner {
  */
 let currentScope: Scope | undefined;
 
+/**
+ * A special Node observer index to subscribe to any value in the map changing.
+ */
+const ANY_INDEX = {}
 
 
-/*
+type DatumType = string | number | boolean | undefined | Array<any> | ObsMap
+
+
+export class ObsMap extends Map<any, DatumType> {
+     observers: Map<any, Set<Observer>> = new Map()
+
+     addObserver(index: any, observer: Observer) {
+        observer = observer
+        let obsSet = this.observers.get(index)
+        if (obsSet) {
+            if (obsSet.has(observer)) return false
+            obsSet.add(observer)
+        } else {
+            this.observers.set(index, new Set([observer]))
+        }
+        return true
+    }
+
+    emitChange(index: any, oldValue: DatumType) {
+        let obsSet = this.observers.get(index)
+        if (obsSet) obsSet.forEach(observer => observer.onChange(index, oldValue))
+        obsSet = this.observers.get(ANY_INDEX)
+        if (obsSet) obsSet.forEach(observer => observer.onChange(index, oldValue))
+    }
+
+    getTree(useMaps: boolean) {
+        if (currentScope) {
+            let observer = new GetAllObserver(currentScope, this)
+            this.addObserver(ANY_INDEX, observer)
+            currentScope.cleaners.push(observer)
+        }
+        if (useMaps) {
+            let result: Map<any,any> = new Map()
+            this.forEach((v: any, k: any) => {
+                result.set(k, (v instanceof ObsMap) ? v.getTree(true) : v)
+            })
+            return result
+        } else {
+            let result: any = {};
+            this.forEach((v: any, k: any) => {
+                result[k] = (v instanceof ObsMap) ? v.getTree(useMaps) : v
+            })
+            return result
+        }
+    }
+
+    setTree(index: any, newValue: any, merge: boolean): void {
+
+        const curData = this.get(index)
+        
+        if (curData instanceof ObsMap && typeof newValue==='object' && newValue && !(newValue instanceof Array)) {
+            // Both the old and the new value are maps; merge them instead of replacing.
+
+            if (newValue instanceof Map) {
+                // Walk the pairs of the new value map
+                newValue.forEach((v: any, k: any) => {
+                    curData.setTree(k, v, merge)
+                })
+
+                if (!merge) {
+                    curData.forEach((v: any, k: Store) => {
+                        if (!newValue.has(k)) curData.setTree(k, undefined, false)
+                    })
+                }
+            } else {
+                // Walk the pairs of the new value object
+                for(let k in newValue) {
+                    curData.setTree(k, newValue[k], merge)
+                }
+
+                if (!merge) {
+                    curData.forEach((v: any, k: Store) => {
+                        if (!newValue.hasOwnProperty(k)) curData.setTree(k, undefined, false)
+                    })
+                }
+            }
+        } else {
+            let newData = Store._valueToData(newValue)
+            if (newData !== curData) {
+                if (newData===undefined) {
+                    this.delete(index)
+                } else {
+                    this.set(index, newData)
+                }
+                this.emitChange(index, curData)
+            }
+        }
+    }
+
+ }
+
+
+ /*
  * Store
  *
  * A data store that automatically subscribes the current Scope to updates
@@ -402,13 +475,39 @@ let currentScope: Scope | undefined;
  * converted to `Map`s). Map values become separate `Store`s themselves.
  */
 
-
 export class Store {
-    data: string | number | boolean | undefined | Array<any> | Map<any,Store>
-    observers: Set<Observer> = new Set()
 
-    constructor(value: any = undefined) {
-        this.data = Store._valueToData(value)
+    map: ObsMap
+    index: any
+
+    constructor(obsMap: ObsMap, index: any)
+    constructor(value: any)
+
+    constructor(value: any, index: any = '') {
+        if (value instanceof ObsMap) {
+            this.map = value;
+            this.index = index;
+        } else {
+            this.map = new ObsMap()
+            this.index = ''
+            if (value!=null) {
+                this.map.set('', Store._valueToData(value))
+            }
+        }
+    }
+
+    observe() {
+        if (currentScope) {
+            if (this.map.addObserver(this.index, currentScope)) {
+                currentScope.cleaners.push(this)
+            }
+        }
+    }
+
+
+    _clean(scope: Scope) {
+        let obsSet = <Set<Observer>>this.map.observers.get(this.index)
+        obsSet.delete(scope)
     }
 
     /**
@@ -417,145 +516,66 @@ export class Store {
      * If any level does not exist, undefined is returned.
      */
     ref(...indexes : Array<any>): Store | undefined {
-        let obs: Store | undefined = this
-        for(let index of indexes) {
-            obs._addObserver()
-            if (!(obs.data instanceof Map)) {
-                return;
-            }
-            obs = obs.data.get(index);
-            if (!obs) {
+
+        let store: Store = this
+
+        for(let nextIndex of indexes) {
+            store.observe()
+            let value = store.map.get(store.index)
+            if (!(value instanceof ObsMap)) {
                 return
             }
+            store = new Store(value, nextIndex)
         }
-        return obs;
+
+        return store
     }
+
 
     /**
      * Return a sub-store, creating any intermediate Map stores if they
      * don't exist yet, triggering observers.
      */
     make(...indexes : Array<any>): Store {
-        let obs: Store = this
-        for(let index of indexes) {
-            if (!(obs.data instanceof Map)) {
-                obs.data = new Map();
-                obs._emitChange();
+
+        let {map, index} = this;
+
+        for(let nextIndex of indexes) {
+            let value = map.get(index)
+            if (!(value instanceof ObsMap)) {
+                map.emitChange(index, value)
+                value = new ObsMap()
+                map.set(index, value)
             }
-            let next = obs.data.get(index);
-            if (!next) {
-                next = new Store();
-                obs.data.set(index, next);
-                obs._emitNewIndex(index);
-            }
-            obs = next;
+            map = value
+            index = nextIndex
         }
-        return obs;
+
+        return new Store(map, index)
     }
 
     /**
      * Return the value for this store, subscribing to the store and any nested sub-stores.
      * 
-     * @param defaultValue - If the value doesn't exist yet and `defaultValue` is specified, it is set on the observer (triggering other observers) and returned.
+     * @param defaultValue - 
      * @param useMaps - When this argument is `true`, objects are represented as Maps. By default, they are plain old JavaScript objects.
      */
-    get(defaultValue = undefined, useMaps = false): any {
-        if (this.data===undefined && defaultValue!==undefined) {
-            this.set(defaultValue);
-        }
-
-        if (this.data instanceof Map) {
-            if (currentScope) {
-                let observer = new GetAllObserver(currentScope, this)
-                currentScope.cleaners.push(observer)
-                this.observers.add(observer)
-            }
-            if (useMaps) {
-                let result: Map<any,any> = new Map()
-                this.data.forEach((v: any, k: any) => {
-                    if (v instanceof Store) {
-                        if (v.data!==undefined) result.set(k, v.get(undefined, true));
-                    } else {
-                        result.set(k, v);
-                    }
-                })
-                return result
-            } else {
-                let result: any = {};
-                this.data.forEach((v: any, k: any) => {
-                    if (v instanceof Store) {
-                        if (v.data!==undefined) result[k] = v.get();
-                    } else {
-                        result[k] = v;
-                    }
-                })
-                return result
-            }
-        } else {
-            this._addObserver()
-            return this.data
-        }
-    }
-
-    // TODO: the iterator should subscribe on the the data not being 'undefined';
-    // it doesn't need to trigger on other data changes. Although that would 
-    // probably not be much of a problem, as the applications is very likely to
-    // do that anyway.
-
-    set(value: any, merge: boolean = false): void {
+    get(useMaps = false): any {
+        this.observe()
+        let val = this.map.get(this.index);
         
-        if (typeof value==='object' && this.data instanceof Map && value && !(value instanceof Array)) {
-            // Both the old and the new value are maps; merge them instead of replacing.
-
-            if (!(value instanceof Map)) {
-                // Convert object to map
-                let map = new Map();
-                for(let k in value) {
-                    map.set(k, value[k]);
-                }
-                value = map;
-            }
-
-            // Walk the pairs of the new `value` map
-            const data: Map<any,Store> = this.data;
-            
-            value.forEach((v: any, k: any) => {
-                let sub = data.get(k);
-                if (sub) {
-                    // Update existing item
-                    sub.set(v);
-                } else {
-                    // Create a new item
-                    data.set(k, new Store(v));
-                    this._emitNewIndex(k);
-                }
-            })
-
-            data.forEach((v: any, k: Store) => {
-                // If not merging, set items that are not in `value` to undefined.
-                if (!merge && v.data!==undefined && !value.has(k)) {
-                    v.data = undefined;
-                    v._emitChange();
-                }
-                // Lazily garbage collect items that have value `undefined` 
-                // not (or no longer) observed. We cannot remove the key for
-                // observed items, because when the value would change back 
-                // to something other than `undefined`, a new Obs would be
-                // created for it, and the observer would not know about it.
-                if (v.data===undefined && !v.observers.size) {
-                    // no observers, we can delete it from the map!
-                    data.delete(k);
-                }
-            });
-
+        if (val instanceof ObsMap) {
+            return val.getTree(useMaps)
         } else {
-            let newData = Store._valueToData(value)
-            if (newData !== this.data) {
-                this.data = newData
-                this._emitChange()
-            }
+            return val
         }
     }
+
+
+    set(newValue: any, merge: boolean = false): void {
+        this.map.setTree(this.index, newValue, merge)
+    }
+
 
     /**
      * Sets the value for the store to `undefined`, which causes it to be ommitted from any Maps it is part of.
@@ -572,15 +592,22 @@ export class Store {
         this.set(value, true);
     }
 
-    onEach(renderer: any, makeSortKey: (index: any, value: Store) => SortKeyType | undefined = Store._makeDefaultSortKey) {
-        if (!currentScope) throw new Error("onEach is only allowed from a render scope")
+    onEach(renderer: any, makeSortKey: (index: any, value: Store) => SortKeyType = Store._makeDefaultSortKey): void {
+        if (!currentScope) throw new Error("onEach() is only allowed from a render scope")
 
-        // Subscribe to changes using the specialized OnEachObserver
-        let onEachObserver = new OnEachObserver(currentScope, this, currentScope.queueOrder+1);
-        this.observers.add(onEachObserver)
-        currentScope.cleaners.push(onEachObserver)
+        this.observe()
+        let val = this.map.get(this.index);
+        
+        if (val instanceof ObsMap) {
+            // Subscribe to changes using the specialized OnEachObserver
+            let onEachObserver = new OnEachObserver(currentScope, val, renderer, makeSortKey, currentScope.queueOrder+1);
+            val.addObserver(ANY_INDEX, onEachObserver)
+            currentScope.cleaners.push(onEachObserver)
 
-        onEachObserver.renderInitial()
+            onEachObserver.renderInitial()
+        } else if (val!==undefined) {
+            throw new Error(`onEach() attempted on a value that is neither a Map/object nor undefined`)
+        }
     }
     
 
@@ -588,14 +615,14 @@ export class Store {
         if (value==null) return undefined
         if (typeof value !== "object" || value instanceof Array) return value
 
-        let result: Map<any,any> = new Map()
+        let result: ObsMap = new ObsMap()
         if (value instanceof Map) {
             value.forEach((v,k) => {
-                result.set(k, new Store(v))
+                result.set(k, Store._valueToData(v))
             })
         } else {
             for(let k in value) {
-                result.set(k, new Store(value[k]))
+                result.set(k, Store._valueToData(value[k]))
             }
         }
         return result;
@@ -605,29 +632,6 @@ export class Store {
         return index
     }
 
-    _addObserver() {
-        if (currentScope && !this.observers.has(currentScope)) {
-            this.observers.add(currentScope)
-            currentScope.cleaners.push(this)
-        }
-    }
-
-    _clean(scope: Scope) {
-        this.observers.delete(scope)
-    }
-
-    _emitChange() {
-        this.observers.forEach((observer: Observer) => {
-            observer.onChange()
-        })
-
-    }
-
-    _emitNewIndex(k: any) {
-        this.observers.forEach((observer: Observer) => {
-            observer.onNewIndex(k)
-        })
-    }
 }
 
 
