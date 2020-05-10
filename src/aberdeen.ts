@@ -45,51 +45,24 @@ function runQueue(): void {
 
 
 
-/*
- * Observers
- *
- * A `Observer` subscribes to changes in data `Store`s. There's a
- * distinction between new indexes being added to a pre-existing map (`onNewIndex`),
- * and all other types of changes (`onChange`).
- * 
- * The Scope class (see below) is the most common observer; it will cause
- * a new run of its renderer `onChange`. It will not react to `onNewIndex`.
- * 
- * There are two other Observer implementations, that both have a reference to
- * the Scope they are working on. They cause different behaviour on events
- * than the default imlementation. The `OnEachObserver` is used to add items
- * to a list without redrawing the entire list `onNewIndex`. The `GetAllObserver`
- * causes the entire scope to rerender `onNewIndex`. This is needed when a `.get()`
- * is performed on a map.
- */
-
-interface Observer {
-    onChange(index: any, oldValue: DatumType): void
-}
-
-interface OnEachItem {
-    index: any
-    scope: Scope
-    sortStr: string
-}
-
 type SortKeyType = number | string | Array<number|string>
 
 
 /**
  * Given an integer number, a string or an array of these, this function returns a string that can be used
  * to compare items in a natural sorting order. So `[3, 'ab']` should be smaller than `[3, 'ac']`.
+ * The resulting string is guaranteed to never be empty.
  */
 export function sortKeyToString(key: SortKeyType) {
     if (key instanceof Array) {
-        return key.map(partToStr).join('\x01')
+        return key.map(partToStr).join('')
     } else {
         return partToStr(key)
     }
 
     function partToStr(part: number|string): string {
         if (typeof part === 'string') {
-            return part
+            return part + '\x01'
         } else {
             let result = positiveToString(Math.abs(Math.round(part)))
             // Prefix the number of digits, counting down from 128 for negative and up for positive
@@ -115,127 +88,6 @@ export function sortKeyToString(key: SortKeyType) {
 
 
 
-class OnEachObserver implements Observer, QueueRunner {
-
-    /** The Node we are iterating */
-    obsMap: ObsMap
-
-    /** The scope containing the onEach as a whole */
-    scope: Scope
-
-    makeSortKey: (value: Store, index: any) => SortKeyType
-
-    renderer: () => void
-
-    /** The list of currently observing map items */
-    items: OnEachItem[] = []
-
-    /** Indexes that have been created and need to be handled in the next `queueRun` */
-    newIndexes: any[] = []
-
-    /** Our priority for QueueRunner */
-    queueOrder: number
-    
-
-    constructor(
-        scope: Scope,
-        obsMap: ObsMap,
-        renderer: () => void,
-        makeSortKey: (value: Store, index: any) => SortKeyType,
-        queueOrder: number
-    ) {
-        this.scope = scope
-        this.obsMap = obsMap
-        this.renderer = renderer
-        this.makeSortKey = makeSortKey
-        this.queueOrder = queueOrder
-    }
-
-    onChange(index: any, oldValue: any) {
-        if (oldValue===undefined) {
-            // a new index!
-            this.newIndexes.push(index)
-            queue(this)
-        }
-    }
-
-    queueRun() {
-        if (this.scope.flags & Scope.DEAD) return
-        // TODO!
-    }
-
-    _clean() {
-        this.obsMap.observers.delete(this)
-    }
-
-    renderInitial() {
-        let savedScope = currentScope
-
-        this.obsMap.forEach((_, itemIndex) => {
-            currentScope = new Scope(this.scope.parentElement, undefined, this.renderer, this.scope.queueOrder+1)
-
-            let itemStore = new Store(this.obsMap, itemIndex)
-            let sortKey = this.makeSortKey(itemStore, itemIndex)
-
-            if (sortKey!=null) {
-                let sortStr = sortKeyToString(sortKey)
-                let pos = this.insertItem({
-                    index: itemIndex,
-                    scope: currentScope,
-                    sortStr: sortStr,
-                })
-                currentScope.precedingSibling = pos>0 ? this.items[pos-1].scope : (this.scope.lastChild || this.scope.precedingSibling)
-                return
-            }
-
-            // TODO: insert into different list?
-        })
-
-        currentScope = savedScope
-        
-        // TODO: if sortKey is undefined, return 0
-        // toSortKey from happening
-    }
-
-    insertItem(item: OnEachItem) {
-        // Binary search for the insert position
-        let items = this.items
-        let sortStr = item.sortStr
-        let min = 0, max = this.items.length-1
-        while(min<max) {
-            let mid = (min+max)>>1
-            if (items[mid].sortStr < sortStr) {
-                min = mid+1
-            } else {
-                max = mid-1
-            }
-        }
-        this.items.splice(min, 0, item)
-        return min
-    }
-
-}
-
-class GetAllObserver implements Observer {
-    scope: Scope
-    node: ObsMap
-
-    constructor(scope: Scope, node: ObsMap) {
-        this.scope = scope
-        this.node = node
-    }
-
-    onChange() {
-        // Have the scope schedule a refresh
-        this.scope.onChange()
-    }
-
-    _clean() {
-        this.node.observers.delete(this)
-    }
-}
-
-
 
 /*
  * Scope
@@ -248,8 +100,7 @@ class GetAllObserver implements Observer {
  * and the `clean` functions for the scope and all sub-scopes are called.
  */
 
-class Scope implements Observer, QueueRunner {
-    renderer: () => void
+abstract class Scope implements QueueRunner {
     parentElement: HTMLElement
 
     // How deep is this scope nested in other scopes; we use this to make sure events
@@ -265,20 +116,16 @@ class Scope implements Observer, QueueRunner {
     // The list of clean functions to be called when this scope is cleaned. These can
     // be for child scopes, subscriptions as well as `clean(..)` hooks.
     cleaners: Array<{_clean: (scope: Scope) => void}> = [] 
-    
 
-    flags: number = 0
-    static DEAD = 2 // cleaned
+    isDead: boolean = false
 
     constructor(
         parentElement: HTMLElement,
         precedingSibling: Node | Scope | undefined,
-        renderer: () => void,
-        queueOrder: number
+        queueOrder: number,
     ) {
         this.parentElement = parentElement
         this.precedingSibling = precedingSibling
-        this.renderer = renderer
         this.queueOrder = queueOrder
     }
 
@@ -296,7 +143,7 @@ class Scope implements Observer, QueueRunner {
     // Get a reference to the last Node within this scope and parentElement
     findLastNode(): Node | undefined {
         if (this.lastChild instanceof Node) return this.lastChild
-        if (this.lastChild instanceof Scope) return this.lastChild.findPrecedingNode();
+        if (this.lastChild instanceof Scope) return this.lastChild.findLastNode() || this.lastChild.findPrecedingNode();
     }
 
     addNode(node: Node) {
@@ -331,34 +178,269 @@ class Scope implements Observer, QueueRunner {
     }
 
     _clean() {
-        this.flags |= Scope.DEAD
+        this.isDead = true
         for(let cleaner of this.cleaners) {
             cleaner._clean(this)
         }
     }
 
-    onChange() {
+    onChange(index: any, newData: DatumType, oldData: DatumType) {
         queue(this)
+    }
+
+    abstract queueRun(): void
+}
+
+class SimpleScope extends Scope {
+    renderer: () => void
+
+    constructor(
+        parentElement: HTMLElement,
+        precedingSibling: Node | Scope | undefined,
+        queueOrder: number,
+        renderer: () => void,
+    ) {
+        super(parentElement, precedingSibling, queueOrder)
+        this.renderer = renderer
     }
 
     queueRun() {
         if (currentScope) internalError(2)
 
-        if (this.flags & Scope.DEAD) return
-
+        if (this.isDead) return
         this.remove()
-        this.flags = this.flags & (~Scope.DEAD)
+        this.isDead = false
 
+        this.update()
+    }
+
+    update() {
+        let savedScope = currentScope
         currentScope = this
         try {
             this.renderer()
         } catch(e) {
             throw e
         } finally {
-            currentScope = undefined
+            currentScope = savedScope
         }
     }
 }
+
+class OnEachScope extends Scope {
+
+    /** The Node we are iterating */
+    obsMap: ObsMap
+
+    /** A function returning a number/string/array that defines the position of an item */
+    makeSortKey: (value: Store) => SortKeyType
+
+    /** A function that renders an item */
+    renderer: (itemStore: Store) => void
+
+    /** The ordered list of currently item scopes */
+    byPosition: OnEachItemScope[] = []
+
+    /** The item scopes in a Map by index */
+    byIndex: Map<any, OnEachItemScope> = new Map()
+
+    /** Indexes that have been created/removed and need to be handled in the next `queueRun` */
+    newIndexes: Set<any> = new Set()
+    removedIndexes: Set<any> = new Set()
+
+    constructor(
+        parentElement: HTMLElement,
+        precedingSibling: Node | Scope | undefined,
+        queueOrder: number,
+        obsMap: ObsMap,
+        renderer: (itemStore: Store) => void,
+        makeSortKey: (itemStore: Store) => SortKeyType
+    ) {
+        super(parentElement, precedingSibling, queueOrder)
+        this.obsMap = obsMap
+        this.renderer = renderer
+        this.makeSortKey = makeSortKey
+    }
+
+    onChange(index: any, newData: DatumType, oldData: DatumType) {
+        if (oldData===undefined) {
+            if (this.removedIndexes.has(index)) {
+                this.removedIndexes.delete(index)
+            } else {
+                this.newIndexes.add(index)
+                queue(this)
+            }
+        } else if (newData===undefined) {
+            if (this.newIndexes.has(index)) {
+                this.newIndexes.delete(index)
+            } else {
+                this.removedIndexes.add(index)
+                queue(this)
+            }
+        }
+    }
+
+    queueRun() {
+        if (this.isDead) return
+
+        let indexes = this.removedIndexes
+        this.removedIndexes = new Set()
+        indexes.forEach(index => {
+            this.removeChild(index)
+        })
+
+        indexes = this.newIndexes
+        this.newIndexes = new Set()
+        indexes.forEach(index => {
+            this.addChild(index)
+        })
+    }
+
+    _clean() {
+        super._clean()
+        this.obsMap.observers.delete(this)
+        for(let item of this.byPosition) {
+            item._clean()
+        }
+
+        // Help garbage collection:
+        this.byPosition.length = 0
+        this.byIndex.clear()
+    }
+
+    renderInitial() {
+        if (!currentScope) throw internalError(3)
+        let parentScope = currentScope
+
+        this.obsMap.forEach((_, itemIndex) => {
+            this.addChild(itemIndex)
+        })
+
+        currentScope = parentScope
+    }
+
+    addChild(itemIndex: any) {
+        let scope = new OnEachItemScope(this.parentElement, undefined, this.queueOrder+1, this, itemIndex)
+        this.byIndex.set(itemIndex, scope)
+        scope.update()
+        // We're not adding a cleaner here, as we'll be calling them from our _clean function
+    }
+
+    removeChild(itemIndex: any) {
+        let scope = this.byIndex.get(itemIndex)
+        if (!scope) throw internalError(6)
+        this.byIndex.delete(itemIndex)
+        this.removeFromPosition(scope)
+        scope.remove()
+    }
+
+    findPosition(sortStr: string) {
+        // Binary search for the insert position
+        let items = this.byPosition
+        let min = 0, max = this.byPosition.length-1
+        while(min<max) {
+            let mid = (min+max)>>1
+            if (items[mid].sortStr < sortStr) {
+                min = mid+1
+            } else {
+                max = mid-1
+            }
+        }
+        return min
+    }
+
+    insertAtPosition(child: OnEachItemScope) {
+        let pos = this.findPosition(child.sortStr)
+        this.byPosition.splice(pos, 0, child)
+
+        // Based on the position in the list, set the precedingSibling for the new Scope
+        child.precedingSibling = pos>0 ? this.byPosition[pos-1] : this.precedingSibling
+
+        // Now set the precedingSibling for the subsequent item to this new Scope
+        if (pos+1 < this.byPosition.length) {
+            this.byPosition[pos+1].precedingSibling = child
+        } else {
+            this.lastChild = child
+        }
+    }
+
+    removeFromPosition(child: OnEachItemScope) {
+        let pos = this.findPosition(child.sortStr)
+        while(true) {
+            if (this.byPosition[pos] === child) {
+                // Yep, this is the right scope
+                this.byPosition.splice(pos, 1)
+                if (pos < this.byPosition.length) {
+                    this.byPosition[pos].precedingSibling = pos>0 ? this.byPosition[pos-1] : this.precedingSibling
+                } else {
+                    this.lastChild = this.byPosition.length ? this.byPosition[this.byPosition.length-1] : undefined
+                }
+                return
+            }
+            // There may be another Scope with the same sortStr
+            if (++pos >= this.byPosition.length || this.byPosition[pos].sortStr !== child.sortStr) {
+                internalError(5)
+            }
+        }
+    }
+}
+
+
+class OnEachItemScope extends Scope {
+    parent: OnEachScope
+    itemIndex: any
+    sortStr: string = ""
+
+    constructor(
+        parentElement: HTMLElement,
+        precedingSibling: Node | Scope | undefined,
+        queueOrder: number,
+        parent: OnEachScope,
+        itemIndex: any
+    ) {
+        super(parentElement, precedingSibling, queueOrder)
+        this.parent = parent
+        this.itemIndex = itemIndex
+    }
+
+    queueRun() {
+        if (currentScope) internalError(4)
+
+        if (this.isDead) return
+        this.remove()
+        this.isDead = false
+
+        this.update()
+    }
+
+    update() {
+        // Have the makeSortKey function return an ordering int/string/array.
+        // Since makeSortKey may get() the Store, we'll need to set currentScope first.
+        let savedScope = currentScope
+        currentScope = this
+
+        let itemStore = new Store(this.parent.obsMap, this.itemIndex)
+        let sortKey = this.parent.makeSortKey(itemStore) // TODO: catch
+
+        let oldSortStr: string = this.sortStr
+        let newSortStr: string = sortKey ? sortKeyToString(sortKey) : '' 
+
+        if (oldSortStr!=='' && oldSortStr!==newSortStr) {
+            this.parent.removeFromPosition(this)
+        }
+
+        this.sortStr = newSortStr
+        if (newSortStr!=='') {
+            if (newSortStr !== oldSortStr) {
+                this.parent.insertAtPosition(this)
+            }
+            this.parent.renderer(itemStore) // TODO: catch
+        }
+
+        currentScope = savedScope
+    }
+}
+
 
 /**
  * This global is set during the execution of a `Scope.render`. It is used by
@@ -376,9 +458,9 @@ type DatumType = string | number | boolean | undefined | Array<any> | ObsMap
 
 
 export class ObsMap extends Map<any, DatumType> {
-     observers: Map<any, Set<Observer>> = new Map()
+     observers: Map<any, Set<Scope>> = new Map()
 
-     addObserver(index: any, observer: Observer) {
+     addObserver(index: any, observer: Scope) {
         observer = observer
         let obsSet = this.observers.get(index)
         if (obsSet) {
@@ -390,18 +472,23 @@ export class ObsMap extends Map<any, DatumType> {
         return true
     }
 
-    emitChange(index: any, oldValue: DatumType) {
+    removeObserver(index: any, observer: Scope) {
+        let obsSet = <Set<Scope>>this.observers.get(index)
+        obsSet.delete(observer)
+    }
+
+    emitChange(index: any, newData: DatumType, oldData: DatumType) {
         let obsSet = this.observers.get(index)
-        if (obsSet) obsSet.forEach(observer => observer.onChange(index, oldValue))
+        if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
         obsSet = this.observers.get(ANY_INDEX)
-        if (obsSet) obsSet.forEach(observer => observer.onChange(index, oldValue))
+        if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
     }
 
     getTree(useMaps: boolean) {
         if (currentScope) {
-            let observer = new GetAllObserver(currentScope, this)
-            this.addObserver(ANY_INDEX, observer)
-            currentScope.cleaners.push(observer)
+            if (this.addObserver(ANY_INDEX, currentScope)) {
+                currentScope.cleaners.push(this)
+            }
         }
         if (useMaps) {
             let result: Map<any,any> = new Map()
@@ -416,6 +503,10 @@ export class ObsMap extends Map<any, DatumType> {
             })
             return result
         }
+    }
+
+    _clean(observer: Scope) {
+        this.removeObserver(ANY_INDEX, observer)
     }
 
     setTree(index: any, newValue: any, merge: boolean): void {
@@ -456,7 +547,7 @@ export class ObsMap extends Map<any, DatumType> {
                 } else {
                     this.set(index, newData)
                 }
-                this.emitChange(index, curData)
+                this.emitChange(index, newData, curData)
             }
         }
     }
@@ -477,8 +568,8 @@ export class ObsMap extends Map<any, DatumType> {
 
 export class Store {
 
-    map: ObsMap
-    index: any
+    private map: ObsMap
+    private idx: any
 
     constructor(obsMap: ObsMap, index: any)
     constructor(value: any)
@@ -486,28 +577,32 @@ export class Store {
     constructor(value: any, index: any = '') {
         if (value instanceof ObsMap) {
             this.map = value;
-            this.index = index;
+            this.idx = index;
         } else {
             this.map = new ObsMap()
-            this.index = ''
+            this.idx = ''
             if (value!=null) {
                 this.map.set('', Store._valueToData(value))
             }
         }
     }
 
+    index() {
+        return this.idx
+    }
+
     observe() {
         if (currentScope) {
-            if (this.map.addObserver(this.index, currentScope)) {
+            if (this.map.addObserver(this.idx, currentScope)) {
                 currentScope.cleaners.push(this)
             }
         }
+        return this.map.get(this.idx)
     }
 
 
     _clean(scope: Scope) {
-        let obsSet = <Set<Observer>>this.map.observers.get(this.index)
-        obsSet.delete(scope)
+        this.map.removeObserver(this.idx, scope)
     }
 
     /**
@@ -521,7 +616,7 @@ export class Store {
 
         for(let nextIndex of indexes) {
             store.observe()
-            let value = store.map.get(store.index)
+            let value = store.map.get(store.idx)
             if (!(value instanceof ObsMap)) {
                 return
             }
@@ -538,14 +633,15 @@ export class Store {
      */
     make(...indexes : Array<any>): Store {
 
-        let {map, index} = this;
+        let {map, idx: index} = this;
 
         for(let nextIndex of indexes) {
             let value = map.get(index)
             if (!(value instanceof ObsMap)) {
-                map.emitChange(index, value)
-                value = new ObsMap()
-                map.set(index, value)
+                let newValue = new ObsMap()
+                map.set(index, newValue)
+                map.emitChange(index, newValue, value)
+                value = newValue
             }
             map = value
             index = nextIndex
@@ -561,19 +657,106 @@ export class Store {
      * @param useMaps - When this argument is `true`, objects are represented as Maps. By default, they are plain old JavaScript objects.
      */
     get(useMaps = false): any {
-        this.observe()
-        let val = this.map.get(this.index);
+        let value = this.observe()
         
-        if (val instanceof ObsMap) {
-            return val.getTree(useMaps)
+        if (value instanceof ObsMap) {
+            return value.getTree(useMaps)
         } else {
-            return val
+            return value
+        }
+    }
+
+    /**
+     * Return the value of this Store as a number. If is has a different type, an error is thrown.
+     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
+     */
+    getNumber(defaultValue?: number): number {
+        let value = this.observe()
+        if (typeof value === 'number') return value
+        if (value === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('number', value)
+    }
+
+    /**
+     * Return the value of this Store as a string. If is has a different type, an error is thrown.
+     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
+     */
+    getString(defaultValue?: string): string {
+        let value = this.observe()
+        if (typeof value === 'string') return value
+        if (value === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('string', value)
+    }
+
+    /**
+     * Return the value of this Store as a boolean. If is has a different type, an error is thrown.
+     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
+     */
+    getBoolean(defaultValue?: boolean): boolean {
+        let value = this.observe()
+        if (typeof value === 'boolean') return value
+        if (value === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('boolean', value)
+    }
+
+    /**
+     * Return the value of this Store as an Array. If is has a different type, an error is thrown.
+     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
+     */
+    getArray(defaultValue?: any[]): any[] {
+        let value = this.observe()
+        if (value instanceof Array) return value
+        if (value === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('array', value)
+    }
+
+    /**
+     * Return the value of this Store as an object. If the it contains anything other than a
+     * Map, an error is thrown. If the Store contains `undefined` and a defaultValue is given,
+     * it is returned instead.
+     */
+    getObject(defaultValue?: {[index: string]: Store}): { [index: string]: Store } {
+        const value = this.observe()
+        if (value instanceof ObsMap) {
+            let result: { [index: string]: Store } = {}
+            value.forEach((_, index: any) => {
+                result[index] = new Store(value, index)
+            })
+            return result
+        }
+        if (value === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('map', value)
+    }
+
+    /**
+     * Return the value of this Store as a Map. If the it contains anything other than a
+     * Map, an error is thrown. If the Store contains `undefined` and a defaultValue is given,
+     * it is returned instead.
+     */
+    getMap(defaultValue?: Map<any,Store>): Map<any,Store> {
+        const value = this.observe()
+        if (value instanceof ObsMap) {
+            let result: Map<any,Store> = new Map()
+            value.forEach((_, index: any) => {
+                result.set(index, new Store(value, index))
+            })
+            return result
+        }
+        if (value === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('map', value)
+    }
+
+    private getTypeError(type: string, value: any) {
+        if (value === undefined) {
+            return new Error(`Expecting ${type} but got undefined, an no default value was given`)
+        } else {
+            return new Error(`Expecting ${type} but got ${value instanceof ObsMap ? value.getTree(false) : JSON.stringify(value)}`)
         }
     }
 
 
     set(newValue: any, merge: boolean = false): void {
-        this.map.setTree(this.index, newValue, merge)
+        this.map.setTree(this.idx, newValue, merge)
     }
 
 
@@ -592,19 +775,21 @@ export class Store {
         this.set(value, true);
     }
 
-    onEach(renderer: any, makeSortKey: (index: any, value: Store) => SortKeyType = Store._makeDefaultSortKey): void {
+    onEach(renderer: (store: Store) => void, makeSortKey: (value: Store) => SortKeyType = Store._makeDefaultSortKey): void {
         if (!currentScope) throw new Error("onEach() is only allowed from a render scope")
 
         this.observe()
-        let val = this.map.get(this.index);
+        let val = this.map.get(this.idx);
         
         if (val instanceof ObsMap) {
-            // Subscribe to changes using the specialized OnEachObserver
-            let onEachObserver = new OnEachObserver(currentScope, val, renderer, makeSortKey, currentScope.queueOrder+1);
-            val.addObserver(ANY_INDEX, onEachObserver)
-            currentScope.cleaners.push(onEachObserver)
+            // Subscribe to changes using the specialized OnEachScope
+            let onEachScope = new OnEachScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder+1, val, renderer, makeSortKey)
+            val.addObserver(ANY_INDEX, onEachScope)
 
-            onEachObserver.renderInitial()
+            currentScope.cleaners.push(onEachScope)
+            currentScope.lastChild = onEachScope
+
+            onEachScope.renderInitial()
         } else if (val!==undefined) {
             throw new Error(`onEach() attempted on a value that is neither a Map/object nor undefined`)
         }
@@ -628,8 +813,8 @@ export class Store {
         return result;
     }
 
-    static _makeDefaultSortKey(index: any) {
-        return index
+    static _makeDefaultSortKey(store: Store) {
+        return store.index()
     }
 
 }
@@ -665,23 +850,22 @@ export function node(tagClass: string, ...rest: any[]) {
     currentScope.addNode(el)
 
     for(let item of rest) {
-        if (typeof item === 'function') {
-            let scope = new Scope(el, undefined, item, currentScope.queueOrder+1)
-
-            let savedScope: Scope = currentScope
-            currentScope = scope
-            currentScope.renderer()
-            currentScope = savedScope
+        let type = typeof item
+        if (type === 'function') {
+            let scope = new SimpleScope(el, undefined, currentScope.queueOrder+1, item)
+            scope.update()
 
             // Add it to our list of cleaners. Even if `scope` currently has
             // no cleaners, it may get them in a future refresh.
             currentScope.cleaners.push(scope)
-        } else if (typeof item === 'string') {
+        } else if (type === 'string' || type === 'number') {
             el.textContent = item;
-        } else if (typeof item === 'object' && item) {
+        } else if (type === 'object' && item && item.constructor === Object) {
             for(let k in item) {
                 applyProp(el, k, item[k])
             }
+        } else if (type != null) {
+            throw new Error(`Unexpected argument ${JSON.stringify(type)}`)
         }
     }
 }
@@ -730,11 +914,14 @@ export function clean(clean: (scope: Scope) => void) {
  */
 export function scope(renderer: () => void) {
     if (!currentScope) throw new Error(`scope() outside of a render scope`)
-    let parentScope = currentScope
-    currentScope = new Scope(parentScope.parentElement, parentScope.lastChild || parentScope.precedingSibling, renderer, parentScope.queueOrder+1)
-    parentScope.lastChild = currentScope
-    currentScope.renderer()
-    currentScope = parentScope
+    
+    let scope = new SimpleScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder+1, renderer)
+    currentScope.lastChild = scope
+    scope.update()
+
+    // Add it to our list of cleaners. Even if `scope` currently has
+    // no cleaners, it may get them in a future refresh.
+    currentScope.cleaners.push(scope)
 }
 
 /**
@@ -748,16 +935,24 @@ export function scope(renderer: () => void) {
  *     })
  * })
  */
+
+class Mount {
+    scope: Scope
+
+    constructor(scope: Scope) {
+        this.scope = scope
+    }
+
+    unmount() {
+        this.scope.remove()
+    }
+}
+
 export function mount(parentElement: HTMLElement, renderer: () => void) {
     if (currentScope) throw new Error('mount() from within a render scope')
-    currentScope = new Scope(parentElement, undefined, renderer, 0)
-    try {
-        currentScope.renderer()
-    } catch(e) {
-        throw e
-    } finally {
-        currentScope = undefined
-    }
+    let scope = new SimpleScope(parentElement, undefined, 0, renderer)
+    scope.update()
+    return new Mount(scope)
 }
 
 

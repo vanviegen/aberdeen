@@ -176,7 +176,7 @@ class Element extends Node {
 class TextNode extends Node {
 	constructor(textContent) {
 		super();
-		this.textContent = textContent;
+		this.textContent = '' + textContent;
 		newCount++;
 	}
 	toString(indent) {
