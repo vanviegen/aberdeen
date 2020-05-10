@@ -5,16 +5,24 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc && terser --module --compress --mangle -- dist/aberdeen.js > dist/aberdeen.min.js",
-    "test": "([ src/aberdeen.ts -nt tests/build/aberdeen.js ] && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts) ; mocha --file tests/_init.js tests/[^_]*.js"
+    "test": "([ src/aberdeen.ts -nt tests/build/aberdeen.js ] && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts) ; nyc mocha --file tests/_init.js tests/[^_]*.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "terser": "^4.6.13"
   },
   "devDependencies": {
+    "nyc": "^15.0.1",
+    "terser": "^4.6.13",
     "fast-deep-equal": "^3.1.1",
     "mocha": "^7.1.2",
     "typescript": "^3.8.3"
+  },
+  "nyc": {
+    "reporter": ["text-summary", "lcov"],
+    "temp-directory": "./coverage/.nyc_output",
+    "sourceMap": true,
+    "include": ["tests/build/**"],
+    "exclude": []
   }
 }

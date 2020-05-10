@@ -164,7 +164,9 @@ abstract class Scope implements QueueRunner {
             // Keep removing DOM nodes starting at our last node, until we encounter the preceding node
             // (which can be undefined)
             while(lastNode !== precedingNode) {
-                if (!lastNode) return internalError(1)
+                if (!lastNode) { /* istanbul ignore next */ 
+                    return internalError(1)
+                }
 
                 let nextLastNode: Node | undefined = lastNode.previousSibling || undefined
                 this.parentElement.removeChild(lastNode)
@@ -205,7 +207,9 @@ class SimpleScope extends Scope {
     }
 
     queueRun() {
-        if (currentScope) internalError(2)
+        if (currentScope) { /* istanbul ignore next */
+            internalError(2)
+        }
 
         if (this.isDead) return
         this.remove()
@@ -309,7 +313,9 @@ class OnEachScope extends Scope {
     }
 
     renderInitial() {
-        if (!currentScope) throw internalError(3)
+        if (!currentScope) { /* istanbul ignore next */
+            return internalError(3)
+        }
         let parentScope = currentScope
 
         this.obsMap.forEach((_, itemIndex) => {
@@ -328,7 +334,9 @@ class OnEachScope extends Scope {
 
     removeChild(itemIndex: any) {
         let scope = this.byIndex.get(itemIndex)
-        if (!scope) throw internalError(6)
+        if (!scope) { /* istanbul ignore next */
+            return internalError(6)  
+        } 
         this.byIndex.delete(itemIndex)
         this.removeFromPosition(scope)
         scope.remove()
@@ -379,7 +387,8 @@ class OnEachScope extends Scope {
             }
             // There may be another Scope with the same sortStr
             if (++pos >= this.byPosition.length || this.byPosition[pos].sortStr !== child.sortStr) {
-                internalError(5)
+                /* istanbul ignore next */
+                return internalError(5)
             }
         }
     }
@@ -404,7 +413,9 @@ class OnEachItemScope extends Scope {
     }
 
     queueRun() {
-        if (currentScope) internalError(4)
+        if (currentScope) { /* istanbul ignore next */
+            internalError(4)
+        }
 
         if (this.isDead) return
         this.remove()
@@ -979,4 +990,3 @@ function applyProp(el: HTMLElement, prop: any, value: any) {
 function internalError(code: number) {
     console.error(new Error("internal error "+code))
 }
-

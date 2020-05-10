@@ -112,4 +112,28 @@ describe('Scope', () => {
         assertBody(`a{} b{}`)
     })
 
+    it('refrains from rerendering dead scopes', () => {
+        let cnts = [0,0,0,0]
+        let store = new Store('a')
+        mount(document.body, () => {
+            cnts[0]++
+            scope(() => {
+                cnts[1]++
+                scope(() => {
+                    cnts[2]++
+                    if (store.get()==='b') return
+                    scope(() => {
+                        cnts[3]++
+                        store.get()
+                    })
+                })
+            })
+        })
+        assertEqual(cnts, [1,1,1,1])
+        store.set('b')
+        assertEqual(cnts, [1,1,1,1])
+        passTime()
+        assertEqual(cnts, [1,1,2,1])
+    })
+
 })

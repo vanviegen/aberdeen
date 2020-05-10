@@ -89,4 +89,5 @@ describe('onEach', function() {
         })
         assertBody(`p{"a"} p{"b"} p{"c"} div{}`)
     })
+    
 })
