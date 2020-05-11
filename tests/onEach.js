@@ -114,4 +114,81 @@ describe('onEach', function() {
         assertEqual(cnts, [2,2,2,2]);
     })
 
+    it('adds items in the right position', () => {
+        let store = new Store();
+
+        mount(document.body, () => {
+            store.onEach(item => {
+                node(item.index())
+            })
+        })
+
+        let items = ['d', 'a', 'b', 'f', 'c', 'e'];
+        let seen = [];
+
+        for(let item of items) {
+            seen.push(item+'{}')
+            seen.sort();
+
+            store.make(item).set(true);
+            passTime()
+            assertBody(seen.join(' '))
+        }
+    })
+
+    it('removes items and calls cleaners', () => {
+        let items = ['d', 'a', 'b', 'f', 'c', 'e']
+        let store = new Store()
+        for(let item of items) {
+            store.make(item).set(true)
+        }
+        let cleaned = [];
+
+        mount(document.body, () => {
+            store.onEach(item => {
+                node(item.index())
+                clean(() => {
+                    cleaned.push(item.index())
+                });
+            })
+        })
+
+        let current = items.slice().sort();
+
+        let cleanedExpected = [];
+
+        for(let item of items) {
+            current.splice(current.indexOf(item), 1)
+            
+            store.merge({[item]: undefined});
+            cleanedExpected.push(item);
+            passTime()
+            assertBody(current.map(s => s+'{}').join(' '))
+            assertEqual(cleaned, cleanedExpected)
+        }
+    })
+
+    it(`removes an entire map and calls cleaners`, () => {
+        let cleaned = {};
+        let store = new Store({b:2,c:3,a:1})
+        mount(document.body, () => {
+            if (store.getType()==="object") {
+                store.onEach(item => {
+                    node(item.index())
+                    clean(() => {
+                        cleaned[item.index()] = true;
+                    })
+                })
+            } else {
+                text(JSON.stringify(store.get()))
+            }
+        })
+        assertBody(`a{} b{} c{}`)
+        
+        store.set(true)
+        passTime()
+        assertBody(`"true"`)
+        assertEqual(cleaned, {a:true, b:true, c:true})
+    })
+
 })

@@ -19,7 +19,7 @@ global.assert = function(bool, msg) {
 }
 
 global.assertEqual = function(actual, expected, msg) {
-    if (!equal(actual,expected)) throw new AssertionError(`equal failed${msg ? ": "+msg : ""}`, actual, expected)
+    if (!equal(actual,expected)) throw new AssertionError(`equal failed${msg ? ": "+msg : ""}`, JSON.stringify(actual), JSON.stringify(expected))
 }
 
 global.assertBody = function(expected) {

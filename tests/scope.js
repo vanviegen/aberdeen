@@ -136,4 +136,34 @@ describe('Scope', () => {
         assertEqual(cnts, [1,1,2,1])
     })
 
+    it('inserts higher priority updates', () => {
+        let store = new Store({})
+        let pcnt = 0, ccnt = 0
+        mount(document.body, () => {
+            pcnt++
+            if (store.make('parent').get()) return
+            
+            node('a', () => {
+                ccnt++
+                if (store.make('children').get()) {
+                    store.merge({parent: true})
+                }
+            })
+            node('b', () => {
+                ccnt++
+                if (store.make('children').get()) {
+                    store.merge({parent: true})
+                }
+            })
+        })
+        assertBody(`a{} b{}`)
+
+        store.set({children: true})
+        passTime()
+        assertBody(``)
+        assertEqual(pcnt, 2)
+        assertEqual(ccnt, 3) // only a *or* b should have executed a second time, triggering parent
+
+    })
+
 })

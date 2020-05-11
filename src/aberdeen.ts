@@ -26,8 +26,13 @@ function queue(runner: QueueRunner) {
 
 function runQueue(): void {
     // Order queued observers by depth, lowest first
-    // TODO: polyfill Array.from for IE11
-    let ordered = Array.from(queued)
+    let ordered: QueueRunner[]
+    if (Array.from) {
+        ordered = Array.from(queued)
+    } else { // IE 11
+        ordered = []
+        queued.forEach(item => ordered.push(item))
+    }
     ordered.sort((a,b) => a.queueOrder - b.queueOrder)
 
     for(let runner of ordered) {
@@ -64,13 +69,13 @@ export function sortKeyToString(key: SortKeyType) {
         if (typeof part === 'string') {
             return part + '\x01'
         } else {
-            let result = positiveToString(Math.abs(Math.round(part)))
+            let result = numToString(Math.abs(Math.round(part)), part<0)
             // Prefix the number of digits, counting down from 128 for negative and up for positive
-            return String.fromCharCode(128 + (part>0 ? result.length : -result.length))
+            return String.fromCharCode(128 + (part>0 ? result.length : -result.length)) + result
         }
     }
 
-    function positiveToString(num: number): string {
+    function numToString(num: number, neg: boolean): string {
         let result = ''
         while(num > 0) {
             /*
@@ -79,7 +84,7 @@ export function sortKeyToString(key: SortKeyType) {
             * 1 - separator between array items
             * 65535 - for compatibility
             */
-            result += String.fromCharCode(2 + (num % 65533))
+            result += String.fromCharCode(neg ? 65535 - (num % 65533) : 2 + (num % 65533))
             num = Math.floor(num / 65533)
         }
         return result
@@ -164,7 +169,8 @@ abstract class Scope implements QueueRunner {
             // Keep removing DOM nodes starting at our last node, until we encounter the preceding node
             // (which can be undefined)
             while(lastNode !== precedingNode) {
-                if (!lastNode) { /* istanbul ignore next */ 
+                /* istanbul ignore next */ 
+                if (!lastNode) {
                     return internalError(1)
                 }
 
@@ -207,7 +213,8 @@ class SimpleScope extends Scope {
     }
 
     queueRun() {
-        if (currentScope) { /* istanbul ignore next */
+        /* istanbul ignore next */
+        if (currentScope) { 
             internalError(2)
         }
 
@@ -224,10 +231,10 @@ class SimpleScope extends Scope {
         try {
             this.renderer()
         } catch(e) {
-            throw e
-        } finally {
-            currentScope = savedScope
+            // Throw the error async, so the rest of the rendering can continue
+            setTimeout(() => {throw e}, 0)
         }
+        currentScope = savedScope
     }
 }
 
@@ -313,7 +320,8 @@ class OnEachScope extends Scope {
     }
 
     renderInitial() {
-        if (!currentScope) { /* istanbul ignore next */
+        /* istanbul ignore next */
+        if (!currentScope) { 
             return internalError(3)
         }
         let parentScope = currentScope
@@ -334,7 +342,8 @@ class OnEachScope extends Scope {
 
     removeChild(itemIndex: any) {
         let scope = this.byIndex.get(itemIndex)
-        if (!scope) { /* istanbul ignore next */
+        /* istanbul ignore next */
+        if (!scope) { 
             return internalError(6)  
         } 
         this.byIndex.delete(itemIndex)
@@ -386,8 +395,8 @@ class OnEachScope extends Scope {
                 return
             }
             // There may be another Scope with the same sortStr
+            /* istanbul ignore next */
             if (++pos >= this.byPosition.length || this.byPosition[pos].sortStr !== child.sortStr) {
-                /* istanbul ignore next */
                 return internalError(5)
             }
         }
@@ -413,7 +422,8 @@ class OnEachItemScope extends Scope {
     }
 
     queueRun() {
-        if (currentScope) { /* istanbul ignore next */
+        /* istanbul ignore next */
+        if (currentScope) { 
             internalError(4)
         }
 
@@ -431,7 +441,14 @@ class OnEachItemScope extends Scope {
         currentScope = this
 
         let itemStore = new Store(this.parent.obsMap, this.itemIndex)
-        let sortKey = this.parent.makeSortKey(itemStore) // TODO: catch
+
+        let sortKey
+        try {
+            sortKey = this.parent.makeSortKey(itemStore) // TODO: catch
+        } catch(e) {
+            // Throw the error async, so the rest of the rendering can continue
+            setTimeout(() => {throw e}, 0)
+        }
 
         let oldSortStr: string = this.sortStr
         let newSortStr: string = sortKey ? sortKeyToString(sortKey) : '' 
@@ -445,7 +462,12 @@ class OnEachItemScope extends Scope {
             if (newSortStr !== oldSortStr) {
                 this.parent.insertAtPosition(this)
             }
-            this.parent.renderer(itemStore) // TODO: catch
+            try {
+               this.parent.renderer(itemStore)
+            } catch(e) {
+                // Throw the error async, so the rest of the rendering can continue
+                setTimeout(() => {throw e}, 0)
+            }
         }
 
         currentScope = savedScope
@@ -465,7 +487,7 @@ let currentScope: Scope | undefined;
 const ANY_INDEX = {}
 
 
-type DatumType = string | number | boolean | undefined | Array<any> | ObsMap
+type DatumType = string | number | Function | boolean | undefined | Array<any> | ObsMap
 
 
 export class ObsMap extends Map<any, DatumType> {
@@ -675,6 +697,16 @@ export class Store {
         } else {
             return value
         }
+    }
+
+    /**
+     * Returns "undefined", "boolean", "number", "string", "function", "array" or "object".
+     */
+    getType(): any {
+        let value = this.observe()
+        let type = typeof value
+        if (value && type === 'object') return value instanceof Array ? "array" : "object"
+        return type
     }
 
     /**
