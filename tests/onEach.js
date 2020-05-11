@@ -89,5 +89,29 @@ describe('onEach', function() {
         })
         assertBody(`p{"a"} p{"b"} p{"c"} div{}`)
     })
-    
+
+    it('maintains position for items', () => {
+        let store = new Store({0: false, 1: false, 2: false, 3: false})
+        let cnts = [0,0,0,0];
+        mount(document.body, () => {
+            store.onEach(item => {
+                cnts[item.index()]++;
+                if (item.getBoolean()) node('p', {id: item.index()})
+            })
+        })
+
+        assertBody(``);
+        assertEqual(cnts, [1,1,1,1]);
+
+        store.merge({1: true});
+        passTime();
+        assertBody(`p{@id="1"}`)
+        assertEqual(cnts, [1,2,1,1]);
+
+        store.merge({0: true, 2: true, 3: true});
+        passTime();
+        assertBody(`p{@id="0"} p{@id="1"} p{@id="2"} p{@id="3"}`)
+        assertEqual(cnts, [2,2,2,2]);
+    })
+
 })

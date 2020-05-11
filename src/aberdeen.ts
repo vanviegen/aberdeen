@@ -345,13 +345,13 @@ class OnEachScope extends Scope {
     findPosition(sortStr: string) {
         // Binary search for the insert position
         let items = this.byPosition
-        let min = 0, max = this.byPosition.length-1
+        let min = 0, max = this.byPosition.length
         while(min<max) {
             let mid = (min+max)>>1
             if (items[mid].sortStr < sortStr) {
                 min = mid+1
             } else {
-                max = mid-1
+                max = mid
             }
         }
         return min
