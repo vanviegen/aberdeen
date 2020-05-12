@@ -59,4 +59,25 @@ describe('Sort', () => {
         assertEqual(p, 1)
         assertEqual(c, 7)
     })
+
+    it('have items disappear when the sort key is null', () => {
+        let store = new Store({a: true, b: false, c: true, d: false})
+        let p = 0, c = 0;
+        mount(document.body, () => {
+            p++
+            store.onEach(item => {
+                c++
+                node(item.index())
+            }, item => item.getBoolean() ? item.index() : null)
+        })
+        assertBody(`a{} c{}`)
+        assertEqual(p, 1)
+        assertEqual(c, 2)
+
+        store.merge({a: false, d: true})
+        passTime()
+        assertBody(`c{} d{}`)
+        assertEqual(p, 1)
+        assertEqual(c, 3)
+    })
 })

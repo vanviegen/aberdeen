@@ -58,4 +58,43 @@ describe('DOM creator', function() {
         passTime();
         assertBody(`a{@href="/" @target="_blank" disabled=true}`)
     });
+
+    it('sets style objects', () => {
+        mount(document.body, () => {
+            node('a', {style: 'color: red;'})
+            node('b', {style: {color: 'green'}})
+            node('c', () => {
+                prop({style: {color: 'orange'}})
+            })
+            node('d', () => {
+                prop('style', {color: 'purple'})
+            })
+            node('e', () => {
+                prop('style', 'color: magento;')
+            })
+            node('f', () => {
+                prop({style: 'color: cyan;'})
+            })
+
+        })
+        assertBody(`a{@style="color: red;"} b{:color="green"} c{:color="orange"} d{:color="purple"} e{@style="color: magento;"} f{@style="color: cyan;"}`)
+    })
+
+    it('unmounts', () => {
+        let store = new Store('Hej world')
+        let cnt = 0
+        let myMount = mount(document.body, () => {
+            cnt++
+            node('p', store.get())
+        })
+        assertBody(`p{"Hej world"}`)
+
+        myMount.unmount()
+        passTime()
+
+        assertBody(``)
+        store.set('Updated')
+        passTime()
+        assertEqual(cnt, 1)
+    })
 });

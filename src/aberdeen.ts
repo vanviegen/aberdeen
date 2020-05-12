@@ -646,8 +646,7 @@ export class Store {
         let store: Store = this
 
         for(let nextIndex of indexes) {
-            store.observe()
-            let value = store.map.get(store.idx)
+            let value = store.observe()
             if (!(value instanceof ObsMap)) {
                 return
             }
@@ -689,7 +688,6 @@ export class Store {
      */
     get(useMaps = false): any {
         let value = this.observe()
-        
         if (value instanceof ObsMap) {
             return value.getTree(useMaps)
         } else {
@@ -819,8 +817,7 @@ export class Store {
     onEach(renderer: (store: Store) => void, makeSortKey: (value: Store) => SortKeyType = Store._makeDefaultSortKey): void {
         if (!currentScope) throw new Error("onEach() is only allowed from a render scope")
 
-        this.observe()
-        let val = this.map.get(this.idx);
+        let val = this.observe()
         
         if (val instanceof ObsMap) {
             // Subscribe to changes using the specialized OnEachScope
@@ -996,6 +993,17 @@ export function mount(parentElement: HTMLElement, renderer: () => void) {
     return new Mount(scope)
 }
 
+export function peek(func: () => void) {
+    let savedScope = currentScope
+    currentScope = undefined
+    try {
+        return func()
+    } finally {
+        currentScope = savedScope
+    }
+}
+
+    
 
 /*
  * Helper functions

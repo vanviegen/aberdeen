@@ -163,7 +163,26 @@ describe('Scope', () => {
         assertBody(``)
         assertEqual(pcnt, 2)
         assertEqual(ccnt, 3) // only a *or* b should have executed a second time, triggering parent
+    })
 
+    it('does not rerender on peek', () => {
+        let store = new Store('before')
+        let cnt1 = 0, cnt2 = 0
+        mount(document.body, () => {
+            node('a', () => {
+                cnt1++
+                node('span', () => {
+                    cnt2++
+                    text(peek(() => store.get()))
+                })
+            })
+        })
+        assertBody(`a{span{"before"}}`)
+        store.set("after")
+        passTime()
+        assertBody(`a{span{"before"}}`)
+        assertEqual(cnt1,1)
+        assertEqual(cnt2,1)
     })
 
 })

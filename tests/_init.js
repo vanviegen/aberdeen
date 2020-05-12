@@ -22,8 +22,12 @@ global.assertEqual = function(actual, expected, msg) {
     if (!equal(actual,expected)) throw new AssertionError(`equal failed${msg ? ": "+msg : ""}`, JSON.stringify(actual), JSON.stringify(expected))
 }
 
+global.getBody = function() {
+    return document.body.toString().replace(/^body{/,'').replace(/}$/,'')
+}
+
 global.assertBody = function(expected) {
-    let actual = document.body.toString().replace(/^body{/,'').replace(/}$/,'')
+    let actual = getBody()
     if (actual !== expected) throw new AssertionError(`assertBody failed`, actual, expected)
 }
 

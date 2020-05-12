@@ -191,4 +191,66 @@ describe('onEach', function() {
         assertEqual(cleaned, {a:true, b:true, c:true})
     })
 
+    it('should ignore on delete followed by set', () => {
+        let store = new Store({a:1, b:2})
+        let cnt = 0
+        mount(document.body, () => {
+            store.onEach(item => {
+                node(item.index())
+                cnt++
+            })
+        })
+        assertBody(`a{} b{}`)
+        assertEqual(cnt, 2)
+
+        store.ref('a').delete()
+        assertEqual(store.get(), {b: 2})
+        store.ref('a').set(3)
+        passTime()
+        assertBody(`a{} b{}`)
+        assertEqual(cnt, 2) // should not trigger again as the value is not subscribed
+    });
+
+    it('should do nothing on set followed by delete', () => {
+        let store = new Store({a:1})
+        let cnt = 0
+        mount(document.body, () => {
+            store.onEach(item => {
+                node(item.index())
+                cnt++
+            })
+        })
+        assertBody(`a{}`)
+        assertEqual(cnt, 1)
+
+        store.ref('b').set(2)
+        assertEqual(store.get(), {a: 1, b: 2})
+        store.ref('b').delete()
+        passTime()
+        assertBody(`a{}`)
+        assertEqual(cnt, 1)
+    })
+
+    it(`should handle items with identical sort keys`, () => {
+        let store = new Store({a: 1, b: 1, c: 1, d: 1})
+        mount(document.body, () => {
+            store.onEach(item => {
+                node(item.index())
+            }, item => item.getNumber())
+        })
+        assertEqual(getBody().split(' ').sort().join(' '), `a{} b{} c{} d{}`)
+
+        store.ref('b').delete()
+        passTime()
+        assertEqual(getBody().split(' ').sort().join(' '), `a{} c{} d{}`)
+
+        store.ref('d').delete()
+        passTime()
+        assertEqual(getBody().split(' ').sort().join(' '), `a{} c{}`)
+
+        store.ref('a').delete()
+        passTime()
+        assertEqual(getBody().split(' ').sort().join(' '), `c{}`)
+
+    })
 })
