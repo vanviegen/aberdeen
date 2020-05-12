@@ -10,11 +10,8 @@ describe('Sort', () => {
 
         let sort = new Store()
 
-        let p = 0, c = 0
         mount(document.body, () => {
-            p++
             store.onEach(item => {
-                c++
                 node(item.index())
             }, sort.get())
         })
@@ -28,5 +25,38 @@ describe('Sort', () => {
         sort.set(item => [item.ref('x').get(), item.ref('y').getNumber(), item.index()] )
         passTime()
         assertBody(`e{} c{} d{} b{} a{}`)
+    })
+
+    it('changes position shen sort key changes', () => {
+        let store = new Store({
+            a: 5,
+            b: 3,
+            c: 1,
+            d: -1,
+            e: -3
+        })
+        let p = 0, c = 0
+        mount(document.body, () => {
+            p++
+            store.onEach(item => {
+                c++
+                node(item.index())
+            }, item => item.getNumber())
+        })
+        assertBody(`e{} d{} c{} b{} a{}`)
+        assertEqual(p, 1)
+        assertEqual(c, 5)
+
+        store.ref('c').set(-20)
+        passTime()
+        assertBody(`c{} e{} d{} b{} a{}`)
+        assertEqual(p, 1)
+        assertEqual(c, 6)
+
+        store.ref('e').set(4)
+        passTime()
+        assertBody(`c{} d{} b{} e{} a{}`)
+        assertEqual(p, 1)
+        assertEqual(c, 7)
     })
 })

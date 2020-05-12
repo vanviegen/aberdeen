@@ -232,7 +232,7 @@ class SimpleScope extends Scope {
             this.renderer()
         } catch(e) {
             // Throw the error async, so the rest of the rendering can continue
-            setTimeout(() => {throw e}, 0)
+            handleError(e)
         }
         currentScope = savedScope
     }
@@ -446,8 +446,7 @@ class OnEachItemScope extends Scope {
         try {
             sortKey = this.parent.makeSortKey(itemStore) // TODO: catch
         } catch(e) {
-            // Throw the error async, so the rest of the rendering can continue
-            setTimeout(() => {throw e}, 0)
+            handleError(e)
         }
 
         let oldSortStr: string = this.sortStr
@@ -463,10 +462,9 @@ class OnEachItemScope extends Scope {
                 this.parent.insertAtPosition(this)
             }
             try {
-               this.parent.renderer(itemStore)
+                this.parent.renderer(itemStore)
             } catch(e) {
-                // Throw the error async, so the rest of the rendering can continue
-                setTimeout(() => {throw e}, 0)
+                handleError(e)
             }
         }
 
@@ -1021,4 +1019,10 @@ function applyProp(el: HTMLElement, prop: any, value: any) {
 
 function internalError(code: number) {
     console.error(new Error("internal error "+code))
+}
+
+function handleError(e: Error) {
+    console.error(e)
+    // Throw the error async, so the rest of the rendering can continue
+    setTimeout(() => {throw e}, 0)
 }
