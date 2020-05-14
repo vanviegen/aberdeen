@@ -1,4 +1,3 @@
-
 describe('Store', function() {
     it('is empty by default', () => {
         let store = new Store()
@@ -7,16 +6,10 @@ describe('Store', function() {
 
     it('holds basic types', () => {
         let store = new Store()
-        for(let val of [false,true,'x',undefined,123,-10.1]) {
+        for(let val of [false,true,'x',null,undefined,123,-10.1]) {
             store.set(val)
             assertEqual(store.get(), val)
         }
-    })
-
-    it('converts null to undefined', () => {
-        let store = new Store()
-        store.set(null)
-        assertEqual(store.get(), undefined)
     })
 
     it('stores Maps', () => {
@@ -67,9 +60,8 @@ describe('Store', function() {
     })
 
     it('stores and retrieves deep trees', () => {
-        let arr = [3]
-        let obj = {a: {b: {c: {d: {e: {f: {g: arr}}}}}}}
-        let map = new Map([['a', new Map([['b', new Map([['c', new Map([['d', new Map([['e', new Map([['f', new Map([['g', arr]])]])]])]])]])]])]])
+        let obj = {a: {b: {c: {d: {e: {f: {g: 5}}}}}}}
+        let map = new Map([['a', new Map([['b', new Map([['c', new Map([['d', new Map([['e', new Map([['f', new Map([['g', 5]])]])]])]])]])]])]])
         let store = new Store(obj)
         let data
         let cnt = 0
@@ -115,5 +107,48 @@ describe('Store', function() {
         assert(store.ref('a', 'c') instanceof Store)
         assert(store.ref('a', 'c', 'd')===undefined)
         assert(store.ref('a', 'b', 'c')===undefined)
+    })
+
+    it(`stores arrays`, () => {
+        let store = new Store([1,2,3, [4,5,6]])
+        assertEqual(store.get(), {0:1, 1:2, 2:3, 3:{0:4, 1:5, 2:6}})
+        assertEqual(store.ref(3).get(), {0:4, 1:5, 2:6})
+    })
+
+    it(`reads arrays`, () => {
+        let store = new Store([1,2,3, [4,5,6]])
+        let res = store.getArray()
+        res[3] = res[3].getArray()
+        assertEqual(res, [1,2,3, [4,5,6]])
+
+        assertEqual(new Store([]).getArray(), [])
+        assertEqual(new Store(new Map([[0,'a'], [1,'b']])).getArray(), ['a', 'b'])
+        assertEqual(new Store(new Map([[0,'a'], [2,'c']])).getArray(), ['a', undefined, 'c'])
+        assertEqual(new Store(['a', null]).getArray(), ['a', null])
+    })
+
+    it(`fails to read invalid arrays`, () => {
+        assertThrow('is not a valid array index', () => {
+            new Store({0: 'a', 1: 'b'}).getArray()
+        })
+        assertThrow('is not a valid array index', () => {
+            new Store(new Map([[0,'a'], [-2,'b']])).getArray()
+        })
+        assertThrow('is not a valid array index', () => {
+            new Store(new Map([[0,'a'], [0.5,'b']])).getArray()
+        })
+    })
+
+    it(`pushes into arrays`, () => {
+        let store = new Store([1,2])
+        store.push(3)
+        store.push(4)
+        assertEqual(store.getArray(), [1,2,3,4])
+
+        store = new Store()
+        store.push(1)
+        store.push(2)
+        assertEqual(store.getArray(), [1,2])
+
     })
 })

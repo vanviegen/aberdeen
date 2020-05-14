@@ -10,7 +10,7 @@ describe('onEach', function() {
     })
 
     it('handles unsuitable store values', () => {
-        for(let value of [3, "", false, []]) {
+        for(let value of [3, "", false]) {
             let cnt = 0
             mount(document.body, () => {
                 let store = new Store(value)

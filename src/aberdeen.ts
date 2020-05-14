@@ -485,7 +485,8 @@ let currentScope: Scope | undefined;
 const ANY_INDEX = {}
 
 
-type DatumType = string | number | Function | boolean | undefined | Array<any> | ObsMap
+type DatumType = string | number | Function | boolean | null | undefined | ObsMap
+type GetObjectType = string | number | Function | boolean | null | undefined | Store
 
 
 export class ObsMap extends Map<any, DatumType> {
@@ -515,25 +516,30 @@ export class ObsMap extends Map<any, DatumType> {
         if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
     }
 
-    getTree(useMaps: boolean) {
+    getTree() {
         if (currentScope) {
             if (this.addObserver(ANY_INDEX, currentScope)) {
                 currentScope.cleaners.push(this)
             }
         }
-        if (useMaps) {
-            let result: Map<any,any> = new Map()
-            this.forEach((v: any, k: any) => {
-                result.set(k, (v instanceof ObsMap) ? v.getTree(true) : v)
-            })
-            return result
-        } else {
-            let result: any = {};
-            this.forEach((v: any, k: any) => {
-                result[k] = (v instanceof ObsMap) ? v.getTree(useMaps) : v
-            })
-            return result
+        let result: any = {};
+        this.forEach((v: any, k: any) => {
+            result[k] = (v instanceof ObsMap) ? v.getTree() : v
+        })
+        return result
+    }
+
+    getMaps() {
+        if (currentScope) {
+            if (this.addObserver(ANY_INDEX, currentScope)) {
+                currentScope.cleaners.push(this)
+            }
         }
+        let result: Map<any,any> = new Map()
+        this.forEach((v: any, k: any) => {
+            result.set(k, (v instanceof ObsMap) ? v.getMaps() : v)
+        })
+        return result
     }
 
     _clean(observer: Scope) {
@@ -543,8 +549,8 @@ export class ObsMap extends Map<any, DatumType> {
     setTree(index: any, newValue: any, merge: boolean): void {
 
         const curData = this.get(index)
-        
-        if (curData instanceof ObsMap && typeof newValue==='object' && newValue && !(newValue instanceof Array)) {
+
+        if (curData instanceof ObsMap && typeof newValue==='object' && newValue) {
             // Both the old and the new value are maps; merge them instead of replacing.
 
             if (newValue instanceof Map) {
@@ -554,8 +560,18 @@ export class ObsMap extends Map<any, DatumType> {
                 })
 
                 if (!merge) {
-                    curData.forEach((v: any, k: Store) => {
+                    curData.forEach((v: DatumType, k: any) => {
                         if (!newValue.has(k)) curData.setTree(k, undefined, false)
+                    })
+                }
+            } else if (newValue instanceof Array) {
+                for(let i=0; i<newValue.length; i++) {
+                    curData.setTree(i, newValue[i], merge)
+                }
+
+                if (!merge) {
+                    curData.forEach((v: DatumType, k: any) => {
+                        if ((0|k)!==k || k<0 || k>=newValue.length) curData.setTree(k, undefined, false)
                     })
                 }
             } else {
@@ -565,7 +581,7 @@ export class ObsMap extends Map<any, DatumType> {
                 }
 
                 if (!merge) {
-                    curData.forEach((v: any, k: Store) => {
+                    curData.forEach((v: DatumType, k: any) => {
                         if (!newValue.hasOwnProperty(k)) curData.setTree(k, undefined, false)
                     })
                 }
@@ -592,9 +608,9 @@ export class ObsMap extends Map<any, DatumType> {
  * A data store that automatically subscribes the current Scope to updates
  * whenever data is read from it.
  * 
- * Supported data types are: `string`, `number`, `boolean`, `undefined` (`null`
- * is mapped to `undefined`), `Array` and `Map` (all objects except `Array` are
- * converted to `Map`s). Map values become separate `Store`s themselves.
+ * Supported data types are: `string`, `number`, `boolean`, `undefined`, `null`,
+ * `Array` and `Map` (all objects including `Array` are converted to `Map`s).
+ * Map values become separate `Store`s themselves.
  */
 
 export class Store {
@@ -612,7 +628,7 @@ export class Store {
         } else {
             this.map = new ObsMap()
             this.idx = ''
-            if (value!=null) {
+            if (value!==undefined) {
                 this.map.set('', Store._valueToData(value))
             }
         }
@@ -689,7 +705,7 @@ export class Store {
     get(useMaps = false): any {
         let value = this.observe()
         if (value instanceof ObsMap) {
-            return value.getTree(useMaps)
+            return useMaps ? value.getMaps() : value.getTree()
         } else {
             return value
         }
@@ -739,14 +755,28 @@ export class Store {
     }
 
     /**
-     * Return the value of this Store as an Array. If is has a different type, an error is thrown.
+     * Return the values of this Store as an Array. If is has a different type, an error is thrown.
      * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
      */
     getArray(defaultValue?: any[]): any[] {
-        let value = this.observe()
-        if (value instanceof Array) return value
-        if (value === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('array', value)
+        const obsMap = this.observe()
+        if (obsMap instanceof ObsMap) {
+            if (currentScope) {
+                if (obsMap.addObserver(ANY_INDEX, currentScope)) {
+                    currentScope.cleaners.push(this)
+                }
+            }
+            let result: any[] = []
+            obsMap.forEach((value, index: any) => {
+                if ((0|index) !== index || index<0 || index>99999) {
+                    throw new Error(`Index ${JSON.stringify(index)} is not a valid array index`)
+                }
+                result[index] = value instanceof ObsMap ? new Store(obsMap, index) : value
+            })
+            return result
+        }
+        if (obsMap === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('array', obsMap)
     }
 
     /**
@@ -754,17 +784,22 @@ export class Store {
      * Map, an error is thrown. If the Store contains `undefined` and a defaultValue is given,
      * it is returned instead.
      */
-    getObject(defaultValue?: {[index: string]: Store}): { [index: string]: Store } {
-        const value = this.observe()
-        if (value instanceof ObsMap) {
-            let result: { [index: string]: Store } = {}
-            value.forEach((_, index: any) => {
-                result[index] = new Store(value, index)
+    getObject(defaultValue?: {[index: string]: Store}): { [index: string]: GetObjectType } {
+        const obsMap = this.observe()
+        if (obsMap instanceof ObsMap) {
+            if (currentScope) {
+                if (obsMap.addObserver(ANY_INDEX, currentScope)) {
+                    currentScope.cleaners.push(this)
+                }
+            }
+            let result: { [index: string]: GetObjectType } = {}
+            obsMap.forEach((value, index: any) => {
+                result[index] = value instanceof ObsMap ? new Store(obsMap, index) : value
             })
             return result
         }
-        if (value === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('map', value)
+        if (obsMap === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('map', obsMap)
     }
 
     /**
@@ -789,7 +824,7 @@ export class Store {
         if (value === undefined) {
             return new Error(`Expecting ${type} but got undefined, an no default value was given`)
         } else {
-            return new Error(`Expecting ${type} but got ${value instanceof ObsMap ? value.getTree(false) : JSON.stringify(value)}`)
+            return new Error(`Expecting ${type} but got ${value instanceof ObsMap ? value.getTree() : JSON.stringify(value)}`)
         }
     }
 
@@ -798,6 +833,36 @@ export class Store {
         this.map.setTree(this.idx, newValue, merge)
     }
 
+    /**
+     * Adds `newValue` as a value to a Map, indexed by the old `size()` of the Map. An
+     * error is thrown if that index already exists.
+     * In case the Store does not refers to `undefined`, the Array is created first.
+     * @param newValue 
+     */
+    push(newValue: any): number {
+        let newData = Store._valueToData(newValue)
+        let obsMap = this.map.get(this.idx)
+        if (obsMap instanceof ObsMap) {
+            // Insert at position size(), unless something is already here
+            let pos = obsMap.size
+            if (obsMap.has(pos)) {
+                throw new Error(`Map is not a sequential array: ${JSON.stringify(Array.from(obsMap.keys()))}`)
+            }
+            obsMap.set(pos, newData)
+            obsMap.emitChange(pos, newData, undefined)
+            return pos
+        }
+        if (obsMap===undefined) {
+            // Create the array
+            obsMap = new ObsMap([[0, newData]])
+
+            this.map.set(this.idx, obsMap)
+            this.map.emitChange(this.idx, obsMap, undefined)
+            return 0
+        } else {
+            throw new Error(`Refusing to implicitly convert ${JSON.stringify(obsMap)} to array`)
+        }
+    }
 
     /**
      * Sets the value for the store to `undefined`, which causes it to be ommitted from any Maps it is part of.
@@ -835,17 +900,23 @@ export class Store {
     
 
     static _valueToData(value: any) {
-        if (value==null) return undefined
-        if (typeof value !== "object" || value instanceof Array) return value
+        if (typeof value !== "object" || !value) return value
 
         let result: ObsMap = new ObsMap()
         if (value instanceof Map) {
             value.forEach((v,k) => {
-                result.set(k, Store._valueToData(v))
+                let d = Store._valueToData(v)
+                if (d!==undefined) result.set(k, d)
             })
+        } else if (value instanceof Array) {
+            for(let i=0; i<value.length; i++) {
+                let d = Store._valueToData(value[i])
+                if (d!==undefined) result.set(i, d)
+            }
         } else {
             for(let k in value) {
-                result.set(k, Store._valueToData(value[k]))
+                let d = Store._valueToData(value[k])
+                if (d!==undefined) result.set(k, d)
             }
         }
         return result;
