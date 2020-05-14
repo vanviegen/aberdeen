@@ -450,7 +450,7 @@ class OnEachItemScope extends Scope {
         }
 
         let oldSortStr: string = this.sortStr
-        let newSortStr: string = sortKey ? sortKeyToString(sortKey) : '' 
+        let newSortStr: string = sortKey==null ? '' : sortKeyToString(sortKey)
 
         if (oldSortStr!=='' && oldSortStr!==newSortStr) {
             this.parent.removeFromPosition(this)
@@ -548,6 +548,10 @@ export class ObsMap extends Map<any, DatumType> {
 
     setTree(index: any, newValue: any, merge: boolean): void {
 
+        if (newValue instanceof Store) {
+            newValue = newValue._read()
+        }
+
         const curData = this.get(index)
 
         if (curData instanceof ObsMap && typeof newValue==='object' && newValue) {
@@ -618,10 +622,11 @@ export class Store {
     private map: ObsMap
     private idx: any
 
-    constructor(obsMap: ObsMap, index: any)
+    constructor()
     constructor(value: any)
+    constructor(obsMap: ObsMap, index: any)
 
-    constructor(value: any, index: any = '') {
+    constructor(value: any = undefined, index: any = '') {
         if (value instanceof ObsMap) {
             this.map = value;
             this.idx = index;
@@ -647,6 +652,9 @@ export class Store {
         return this.map.get(this.idx)
     }
 
+    _read() {
+        return this.map.get(this.idx)
+    }
 
     _clean(scope: Scope) {
         this.map.removeObserver(this.idx, scope)
@@ -840,6 +848,10 @@ export class Store {
      * @param newValue 
      */
     push(newValue: any): number {
+        if (newValue instanceof Store) {
+            newValue = newValue._read()
+        }
+
         let newData = Store._valueToData(newValue)
         let obsMap = this.map.get(this.idx)
         if (obsMap instanceof ObsMap) {
@@ -1085,7 +1097,11 @@ function applyProp(el: HTMLElement, prop: any, value: any) {
         // All boolean values and a few specific keys should be set as a property
         (el as any)[prop] = value
     } else if (typeof value === 'function') {
-        (el as any)['on'+prop] = value
+        // Set an event listener; remove it again on clean.
+        el.addEventListener(prop, value)
+        if (currentScope) {
+            clean(() => el.removeEventListener(prop, value))
+        }
     } else if (prop==='style' && typeof value === 'object') {
         // `style` can receive an object
         Object.assign(el.style, value)

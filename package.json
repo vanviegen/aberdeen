@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.0.0",
+  "version": "0.0.5",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -24,5 +24,6 @@
     "sourceMap": true,
     "include": ["tests/build/**"],
     "exclude": []
-  }
+  },
+  "files": ["dist"]
 }
