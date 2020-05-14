@@ -1013,9 +1013,11 @@ function applyProp(el: HTMLElement, prop: any, value: any) {
     if (prop==='value' || prop==='className' || prop==='selectedIndex' || value===true || value===false) {
         // All boolean values and a few specific keys should be set as a property
         (el as any)[prop] = value
+    } else if (typeof value === 'function') {
+        (el as any)['on'+prop] = value
     } else if (prop==='style' && typeof value === 'object') {
         // `style` can receive an object
-        Object.assign(el.style, value);
+        Object.assign(el.style, value)
     } else if (prop==='text') {
         // `text` is set as textContent
         el.textContent = value
