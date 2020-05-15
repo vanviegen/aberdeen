@@ -93,6 +93,9 @@ export function sortKeyToString(key: SortKeyType) {
 
 
 
+interface Observer {
+    onChange(collection: ObsCollection, index: any, newData: DatumType, oldData: DatumType): void
+}
 
 /*
  * Scope
@@ -105,7 +108,7 @@ export function sortKeyToString(key: SortKeyType) {
  * and the `clean` functions for the scope and all sub-scopes are called.
  */
 
-abstract class Scope implements QueueRunner {
+abstract class Scope implements QueueRunner, Observer {
     parentElement: HTMLElement
 
     // How deep is this scope nested in other scopes; we use this to make sure events
@@ -192,7 +195,7 @@ abstract class Scope implements QueueRunner {
         }
     }
 
-    onChange(index: any, newData: DatumType, oldData: DatumType) {
+    onChange(collection: ObsCollection, index: any, newData: DatumType, oldData: DatumType) {
         queue(this)
     }
 
@@ -241,7 +244,7 @@ class SimpleScope extends Scope {
 class OnEachScope extends Scope {
 
     /** The Node we are iterating */
-    obsMap: ObsMap
+    collection: ObsCollection
 
     /** A function returning a number/string/array that defines the position of an item */
     makeSortKey: (value: Store) => SortKeyType
@@ -263,17 +266,17 @@ class OnEachScope extends Scope {
         parentElement: HTMLElement,
         precedingSibling: Node | Scope | undefined,
         queueOrder: number,
-        obsMap: ObsMap,
+        collection: ObsCollection,
         renderer: (itemStore: Store) => void,
         makeSortKey: (itemStore: Store) => SortKeyType
     ) {
         super(parentElement, precedingSibling, queueOrder)
-        this.obsMap = obsMap
+        this.collection = collection
         this.renderer = renderer
         this.makeSortKey = makeSortKey
     }
 
-    onChange(index: any, newData: DatumType, oldData: DatumType) {
+    onChange(collection: ObsCollection, index: any, newData: DatumType, oldData: DatumType) {
         if (oldData===undefined) {
             if (this.removedIndexes.has(index)) {
                 this.removedIndexes.delete(index)
@@ -309,7 +312,7 @@ class OnEachScope extends Scope {
 
     _clean() {
         super._clean()
-        this.obsMap.observers.delete(this)
+        this.collection.observers.delete(this)
         for(let item of this.byPosition) {
             item._clean()
         }
@@ -326,9 +329,7 @@ class OnEachScope extends Scope {
         }
         let parentScope = currentScope
 
-        this.obsMap.forEach((_, itemIndex) => {
-            this.addChild(itemIndex)
-        })
+        this.collection.iterateIndexes(this)
 
         currentScope = parentScope
     }
@@ -352,9 +353,13 @@ class OnEachScope extends Scope {
     }
 
     findPosition(sortStr: string) {
-        // Binary search for the insert position
         let items = this.byPosition
         let min = 0, max = this.byPosition.length
+        
+        // Fast-path for elements that are already ordered (as is the case when working with arrays ordered by index)
+        if (!max || sortStr > items[max-1].sortStr) return max
+
+        // Binary search for the insert position        
         while(min<max) {
             let mid = (min+max)>>1
             if (items[mid].sortStr < sortStr) {
@@ -440,7 +445,7 @@ class OnEachItemScope extends Scope {
         let savedScope = currentScope
         currentScope = this
 
-        let itemStore = new Store(this.parent.obsMap, this.itemIndex)
+        let itemStore = new Store(this.parent.collection, this.itemIndex)
 
         let sortKey
         try {
@@ -485,125 +490,267 @@ let currentScope: Scope | undefined;
 const ANY_INDEX = {}
 
 
-type DatumType = string | number | Function | boolean | null | undefined | ObsMap
-type GetObjectType = string | number | Function | boolean | null | undefined | Store
+type DatumType = string | number | Function | boolean | null | undefined | ObsMap | ObsArray
 
 
-export class ObsMap extends Map<any, DatumType> {
-     observers: Map<any, Set<Scope>> = new Map()
+abstract class ObsCollection {
+    observers: Map<any, Set<Observer>> = new Map()
 
-     addObserver(index: any, observer: Scope) {
-        observer = observer
-        let obsSet = this.observers.get(index)
-        if (obsSet) {
-            if (obsSet.has(observer)) return false
-            obsSet.add(observer)
-        } else {
-            this.observers.set(index, new Set([observer]))
+    addObserver(index: any, observer: Observer) {
+       observer = observer
+       let obsSet = this.observers.get(index)
+       if (obsSet) {
+           if (obsSet.has(observer)) return false
+           obsSet.add(observer)
+       } else {
+           this.observers.set(index, new Set([observer]))
+       }
+       return true
+   }
+
+   removeObserver(index: any, observer: Observer) {
+       let obsSet = <Set<Observer>>this.observers.get(index)
+       obsSet.delete(observer)
+   }
+
+   emitChange(index: any, newData: DatumType, oldData: DatumType) {
+       let obsSet = this.observers.get(index)
+       if (obsSet) obsSet.forEach(observer => observer.onChange(this, index, newData, oldData))
+       obsSet = this.observers.get(ANY_INDEX)
+       if (obsSet) obsSet.forEach(observer => observer.onChange(this, index, newData, oldData))
+   }
+
+   _clean(observer: Observer) {
+        this.removeObserver(ANY_INDEX, observer)
+    }
+
+    setIndex(index: any, newValue: any, deleteMissing: boolean): void {
+        const curData = this.rawGet(index)
+
+        if (!(curData instanceof ObsCollection) || newValue instanceof Store || !curData.merge(newValue, deleteMissing)) {
+            let newData = Store._valueToData(newValue)
+            if (newData !== curData) {
+                this.rawSet(index, newData)
+                this.emitChange(index, newData, curData)
+            }
         }
-        return true
     }
 
-    removeObserver(index: any, observer: Scope) {
-        let obsSet = <Set<Scope>>this.observers.get(index)
-        obsSet.delete(observer)
+    abstract rawGet(index: any): DatumType
+    abstract rawSet(index: any, data: DatumType): void
+    abstract merge(newValue: any, deleteMissing: boolean): void
+    abstract getType(): string
+    abstract getRecursive(depth: number): object | Set<any> | Array<any>
+    abstract iterateIndexes(scope: OnEachScope): void
+}
+
+
+class ObsArray extends ObsCollection {
+    data: Array<DatumType> = []
+
+    getType() {
+        return "array"
     }
 
-    emitChange(index: any, newData: DatumType, oldData: DatumType) {
-        let obsSet = this.observers.get(index)
-        if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
-        obsSet = this.observers.get(ANY_INDEX)
-        if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
-    }
-
-    getTree() {
+    getRecursive(depth: number) {
+        
         if (currentScope) {
             if (this.addObserver(ANY_INDEX, currentScope)) {
                 currentScope.cleaners.push(this)
             }
         }
-        let result: any = {};
-        this.forEach((v: any, k: any) => {
-            result[k] = (v instanceof ObsMap) ? v.getTree() : v
-        })
+        let result: any[] = []
+        for(let i=0; i<this.data.length; i++) {
+            let v = this.data[i]
+            result.push(v instanceof ObsCollection ? (depth ? v.getRecursive(depth-1) : new Store(this,i)) : v)
+        }
         return result
     }
 
-    getMaps() {
+    rawGet(index: any): DatumType {
+        return this.data[index]
+    }
+
+    rawSet(index: any, newData: DatumType): void {
+        if (index !== (0|index) || index<0 || index>99999) {
+            throw new Error(`Invalid array index ${JSON.stringify(index)}`)
+        }
+        this.data[index] = newData
+        // Remove trailing `undefined`s
+        while(this.data.length>0 && this.data[this.data.length-1]===undefined) {
+            this.data.pop()
+        }
+    }
+
+    merge(newValue: any, deleteMissing: boolean): boolean {
+        if (!(newValue instanceof Array)) {
+            return false
+        }
+        // newValue is an array
+
+        for(let i=0; i<newValue.length; i++) {
+            this.setIndex(i, newValue[i], deleteMissing)
+        }
+
+        if (deleteMissing && this.data.length > newValue.length) {
+            for(let i=newValue.length; i<this.data.length; i++) {
+                let old = this.data[i]
+                if (old!==undefined) {
+                    this.emitChange(i, undefined, old)
+                }
+            }
+            this.data.length = newValue.length
+        }
+        return true
+    }
+
+
+    iterateIndexes(scope: OnEachScope): void {
+        for(let i=0; i<this.data.length; i++) {
+            scope.addChild(i)
+        }
+    }
+}
+
+class ObsMap extends ObsCollection {
+    data: Map<any, DatumType> = new Map()
+
+    getType() {
+        return "map"
+    }
+
+    getRecursive(depth: number) {
         if (currentScope) {
             if (this.addObserver(ANY_INDEX, currentScope)) {
                 currentScope.cleaners.push(this)
             }
         }
         let result: Map<any,any> = new Map()
-        this.forEach((v: any, k: any) => {
-            result.set(k, (v instanceof ObsMap) ? v.getMaps() : v)
+        this.data.forEach((v: any, k: any) => {
+            result.set(k, (v instanceof ObsCollection) ? (depth ? v.getRecursive(depth-1) : new Store(this, k)) : v)
         })
         return result
     }
 
-    _clean(observer: Scope) {
-        this.removeObserver(ANY_INDEX, observer)
+    rawGet(index: any): DatumType {
+        return this.data.get(index)
     }
 
-    setTree(index: any, newValue: any, merge: boolean): void {
-
-        if (newValue instanceof Store) {
-            newValue = newValue._read()
-        }
-
-        const curData = this.get(index)
-
-        if (curData instanceof ObsMap && typeof newValue==='object' && newValue) {
-            // Both the old and the new value are maps; merge them instead of replacing.
-
-            if (newValue instanceof Map) {
-                // Walk the pairs of the new value map
-                newValue.forEach((v: any, k: any) => {
-                    curData.setTree(k, v, merge)
-                })
-
-                if (!merge) {
-                    curData.forEach((v: DatumType, k: any) => {
-                        if (!newValue.has(k)) curData.setTree(k, undefined, false)
-                    })
-                }
-            } else if (newValue instanceof Array) {
-                for(let i=0; i<newValue.length; i++) {
-                    curData.setTree(i, newValue[i], merge)
-                }
-
-                if (!merge) {
-                    curData.forEach((v: DatumType, k: any) => {
-                        if ((0|k)!==k || k<0 || k>=newValue.length) curData.setTree(k, undefined, false)
-                    })
-                }
-            } else {
-                // Walk the pairs of the new value object
-                for(let k in newValue) {
-                    curData.setTree(k, newValue[k], merge)
-                }
-
-                if (!merge) {
-                    curData.forEach((v: DatumType, k: any) => {
-                        if (!newValue.hasOwnProperty(k)) curData.setTree(k, undefined, false)
-                    })
-                }
-            }
+    rawSet(index: any, newData: DatumType): void {
+        if (newData===undefined) {
+            this.data.delete(index)
         } else {
-            let newData = Store._valueToData(newValue)
-            if (newData !== curData) {
-                if (newData===undefined) {
-                    this.delete(index)
-                } else {
-                    this.set(index, newData)
-                }
-                this.emitChange(index, newData, curData)
-            }
+            this.data.set(index, newData)
         }
     }
 
+    merge(newValue: any, deleteMissing: boolean): boolean {
+        if (!(newValue instanceof Map)) {
+            return false
+        }
+
+        // Walk the pairs of the new value map
+        newValue.forEach((v: any, k: any) => {
+            this.setIndex(k, v, deleteMissing)
+        })
+
+        if (deleteMissing) {
+            this.data.forEach((v: DatumType, k: any) => {
+                if (!newValue.has(k)) this.setIndex(k, undefined, false)
+            })
+        }
+        return true
+    }
+
+    iterateIndexes(scope: OnEachScope): void {
+        this.data.forEach((_, itemIndex) => {
+            scope.addChild(itemIndex)
+        })
+    }
  }
+
+ class ObsObject extends ObsMap {
+
+    getType() {
+        return "object"
+    }
+
+    getRecursive(depth: number) {
+        if (currentScope) {
+            if (this.addObserver(ANY_INDEX, currentScope)) {
+                currentScope.cleaners.push(this)
+            }
+        }
+        let result: any = {};
+        this.data.forEach((v: any, k: any) => {
+            result[k] = (v instanceof ObsCollection) ? (depth ? v.getRecursive(depth-1) : new Store(this,k)) : v
+        })
+        return result
+    }
+
+    merge(newValue: any, deleteMissing: boolean): boolean {
+        if (!newValue || newValue.constructor !== Object) {
+            return false
+        }
+
+        // Walk the pairs of the new value object
+        for(let k in newValue) {
+            this.setIndex(k, newValue[k], deleteMissing)
+        }
+
+        if (deleteMissing) {
+            this.data.forEach((v: DatumType, k: any) => {
+                if (!newValue.hasOwnProperty(k)) this.setIndex(k, undefined, false)
+            })
+        }
+        
+        return true
+    }
+ }
+
+
+class ObsDetached extends ObsCollection {
+    getType() {
+        return "obect"
+    }
+
+    getRecursive(depth: number) {
+        return {}
+    }
+
+    rawGet(index: any) {
+        return undefined
+    }
+
+    rawSet(index: any) {
+        throw new Error("Updating a detached Store does not make sense")
+    }
+
+    merge(newValue: any, deleteMissing: boolean): boolean {
+        throw new Error("Updating a detached Store does not make sense")
+    }
+
+    iterateIndexes(scope: OnEachScope): void {
+    }
+}
+
+const obsDetached = new ObsDetached()
+
+
+class StoreAttacher implements Observer {
+    sourceStore: Store
+    targetData: DatumType
+
+    constructor(source: Store, target: DatumType) {
+        this.sourceStore = source
+        this.targetData = target
+    }
+
+    onChange(collection: ObsCollection, index: any, newData: DatumType, oldData: DatumType): void {
+        this.sourceStore.set(this.targetData)
+        collection.removeObserver(index, this)
+    }
+}
 
 
  /*
@@ -619,23 +766,26 @@ export class ObsMap extends Map<any, DatumType> {
 
 export class Store {
 
-    private map: ObsMap
+    private collection: ObsCollection
     private idx: any
 
     constructor()
     constructor(value: any)
-    constructor(obsMap: ObsMap, index: any)
+    constructor(collection: ObsCollection, index: any)
 
-    constructor(value: any = undefined, index: any = '') {
-        if (value instanceof ObsMap) {
-            this.map = value;
-            this.idx = index;
-        } else {
-            this.map = new ObsMap()
-            this.idx = ''
+    constructor(value: any = undefined, index: any = undefined) {
+        if (index===undefined) {
+            this.collection = new ObsArray()
+            this.idx = 0
             if (value!==undefined) {
-                this.map.set('', Store._valueToData(value))
+                this.collection.rawSet(0, Store._valueToData(value))
             }
+        } else {
+            if (!(value instanceof ObsCollection)) {
+                throw new Error("1st parameter should be an ObsCollection if the 2nd is also given")
+            }
+            this.collection = value
+            this.idx = index
         }
     }
 
@@ -643,90 +793,43 @@ export class Store {
         return this.idx
     }
 
-    observe() {
-        if (currentScope) {
-            if (this.map.addObserver(this.idx, currentScope)) {
-                currentScope.cleaners.push(this)
-            }
-        }
-        return this.map.get(this.idx)
+    _read() {
+        return this.collection.rawGet(this.idx)
     }
 
-    _read() {
-        return this.map.get(this.idx)
-    }
 
     _clean(scope: Scope) {
-        this.map.removeObserver(this.idx, scope)
+        this.collection.removeObserver(this.idx, scope)
     }
 
-    /**
-     * Return an store deeper within the tree by resolving each of the
-     * arguments as Map indexes, while subscribing to each level.
-     * If any level does not exist, undefined is returned.
-     */
-    ref(...indexes : Array<any>): Store | undefined {
-
-        let store: Store = this
-
-        for(let nextIndex of indexes) {
-            let value = store.observe()
-            if (!(value instanceof ObsMap)) {
-                return
-            }
-            store = new Store(value, nextIndex)
-        }
-
-        return store
-    }
-
-
-    /**
-     * Return a sub-store, creating any intermediate Map stores if they
-     * don't exist yet, triggering observers.
-     */
-    make(...indexes : Array<any>): Store {
-
-        let {map, idx: index} = this;
-
-        for(let nextIndex of indexes) {
-            let value = map.get(index)
-            if (!(value instanceof ObsMap)) {
-                let newValue = new ObsMap()
-                map.set(index, newValue)
-                map.emitChange(index, newValue, value)
-                value = newValue
-            }
-            map = value
-            index = nextIndex
-        }
-
-        return new Store(map, index)
-    }
 
     /**
      * Return the value for this store, subscribing to the store and any nested sub-stores.
      * 
      * @param defaultValue - 
      * @param useMaps - When this argument is `true`, objects are represented as Maps. By default, they are plain old JavaScript objects.
+     * 
+     * options:
+     * - path
+     * - peek
+     * - throw if not type
+     * - default value (if undefined)
+     * - depth
      */
-    get(useMaps = false): any {
-        let value = this.observe()
-        if (value instanceof ObsMap) {
-            return useMaps ? value.getMaps() : value.getTree()
-        } else {
-            return value
+    get(defaultValue?: any, depth?: number) : any {
+        let value = this._observe()
+        if (value instanceof ObsCollection) {
+            return value.getRecursive(depth==null ? -1 : depth)
         }
+        return value===undefined ? defaultValue : value
     }
 
     /**
-     * Returns "undefined", "boolean", "number", "string", "function", "array" or "object".
+     * Returns "undefined", "null", "boolean", "number", "string", "function", "array", "map" or "object"
      */
-    getType(): any {
-        let value = this.observe()
-        let type = typeof value
-        if (value && type === 'object') return value instanceof Array ? "array" : "object"
-        return type
+    getType(): string {
+        let value = this._observe()
+        return (value instanceof ObsCollection) ? value.getType() : typeof value
     }
 
     /**
@@ -734,7 +837,7 @@ export class Store {
      * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
      */
     getNumber(defaultValue?: number): number {
-        let value = this.observe()
+        let value = this._observe()
         if (typeof value === 'number') return value
         if (value === undefined && defaultValue!==undefined) return defaultValue
         throw this.getTypeError('number', value)
@@ -745,7 +848,7 @@ export class Store {
      * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
      */
     getString(defaultValue?: string): string {
-        let value = this.observe()
+        let value = this._observe()
         if (typeof value === 'string') return value
         if (value === undefined && defaultValue!==undefined) return defaultValue
         throw this.getTypeError('string', value)
@@ -756,7 +859,7 @@ export class Store {
      * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
      */
     getBoolean(defaultValue?: boolean): boolean {
-        let value = this.observe()
+        let value = this._observe()
         if (typeof value === 'boolean') return value
         if (value === undefined && defaultValue!==undefined) return defaultValue
         throw this.getTypeError('boolean', value)
@@ -766,63 +869,36 @@ export class Store {
      * Return the values of this Store as an Array. If is has a different type, an error is thrown.
      * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
      */
-    getArray(defaultValue?: any[]): any[] {
-        const obsMap = this.observe()
-        if (obsMap instanceof ObsMap) {
-            if (currentScope) {
-                if (obsMap.addObserver(ANY_INDEX, currentScope)) {
-                    currentScope.cleaners.push(this)
-                }
-            }
-            let result: any[] = []
-            obsMap.forEach((value, index: any) => {
-                if ((0|index) !== index || index<0 || index>99999) {
-                    throw new Error(`Index ${JSON.stringify(index)} is not a valid array index`)
-                }
-                result[index] = value instanceof ObsMap ? new Store(obsMap, index) : value
-            })
-            return result
+    getArray(defaultValue?: any[], depth?: number): any[] {
+        let value = this._observe()
+        if (value instanceof ObsArray) {
+            return value.getRecursive(depth==null ? -1 : depth)
         }
-        if (obsMap === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('array', obsMap)
+        if (value === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('array', value)
     }
 
     /**
-     * Return the value of this Store as an object. If the it contains anything other than a
-     * Map, an error is thrown. If the Store contains `undefined` and a defaultValue is given,
-     * it is returned instead.
+     * Return the values of this Store as an Object. If is has a different type, an error is thrown.
+     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
      */
-    getObject(defaultValue?: {[index: string]: Store}): { [index: string]: GetObjectType } {
-        const obsMap = this.observe()
-        if (obsMap instanceof ObsMap) {
-            if (currentScope) {
-                if (obsMap.addObserver(ANY_INDEX, currentScope)) {
-                    currentScope.cleaners.push(this)
-                }
-            }
-            let result: { [index: string]: GetObjectType } = {}
-            obsMap.forEach((value, index: any) => {
-                result[index] = value instanceof ObsMap ? new Store(obsMap, index) : value
-            })
-            return result
+    getObject(defaultValue?: object, depth?: number): object {
+        let value = this._observe()
+        if (value instanceof ObsObject) {
+            return value.getRecursive(depth==null ? -1 : depth)
         }
-        if (obsMap === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('map', obsMap)
+        if (value === undefined && defaultValue!==undefined) return defaultValue
+        throw this.getTypeError('object', value)
     }
 
     /**
-     * Return the value of this Store as a Map. If the it contains anything other than a
-     * Map, an error is thrown. If the Store contains `undefined` and a defaultValue is given,
-     * it is returned instead.
+     * Return the values of this Store as an Object. If is has a different type, an error is thrown.
+     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
      */
-    getMap(defaultValue?: Map<any,Store>): Map<any,Store> {
-        const value = this.observe()
+    getMap(defaultValue?: Map<any,any>, depth?: number): Map<any,any> {
+        let value = this._observe()
         if (value instanceof ObsMap) {
-            let result: Map<any,Store> = new Map()
-            value.forEach((_, index: any) => {
-                result.set(index, new Store(value, index))
-            })
-            return result
+            return value.getRecursive(depth==null ? -1 : depth)
         }
         if (value === undefined && defaultValue!==undefined) return defaultValue
         throw this.getTypeError('map', value)
@@ -830,16 +906,80 @@ export class Store {
 
     private getTypeError(type: string, value: any) {
         if (value === undefined) {
-            return new Error(`Expecting ${type} but got undefined, an no default value was given`)
+            return new Error(`Expecting ${type} but got undefined, and no default value was given`)
         } else {
-            return new Error(`Expecting ${type} but got ${value instanceof ObsMap ? value.getTree() : JSON.stringify(value)}`)
+            return new Error(`Expecting ${type} but got ${value instanceof ObsCollection ? value.getRecursive(-1) : JSON.stringify(value)}`)
         }
     }
 
-
-    set(newValue: any, merge: boolean = false): void {
-        this.map.setTree(this.idx, newValue, merge)
+    set(newValue: any): void {
+        this.collection.setIndex(this.idx, newValue, true)
     }
+
+    /**
+     * Does the same as merge, but in case of a top-level map, it doesn't
+     * delete keys that don't exist in `value`.
+     */
+    merge(newValue: any): void {
+        this.collection.setIndex(this.idx, newValue, false)
+    }
+
+    /**
+     * Sets the value for the store to `undefined`, which causes it to be ommitted from the map (or array, if it's at the end)
+     */
+    delete() {
+        this.collection.setIndex(this.idx, undefined, true)
+    }
+
+
+    /**
+     * Return an store deeper within the tree by resolving each of the
+     * arguments as Map indexes, while subscribing to each level.
+     * If any level does not exist, a detached Store object is returned,
+     * that will be automatically attached if it is written to.
+     */
+    $(...indexes : Array<any>): Store {
+
+        let store: Store = this
+
+        for(let i=0; i<indexes.length; i++) {
+            let value = store._observe()
+            if (value instanceof ObsCollection) {
+                store = new Store(value, indexes[i])
+            } else {
+                if (value!==undefined) throw new Error(`Value ${JSON.stringify(value)} is not a collection (nor undefined) in step ${i} of $(${JSON.stringify(indexes)})`)
+
+                // The rest of the path will be created in a detached state
+                let detachedObject = new ObsObject()
+                let object = detachedObject
+
+                for(; i<indexes.length-1; i++) {
+                    let newObject = new ObsObject()
+                    object.data.set(indexes[i], newObject)
+                    object = newObject
+                }
+
+                let index = indexes[indexes.length-1]
+                object.addObserver(index, new StoreAttacher(store, detachedObject))
+
+                return new Store(object, index)
+
+            }
+        }
+
+        return store
+    }
+
+
+    _observe() {
+        if (currentScope) {
+            if (this.collection.addObserver(this.idx, currentScope)) {
+                currentScope.cleaners.push(this)
+            }
+        }
+        return this.collection.rawGet(this.idx)
+    }
+
 
     /**
      * Adds `newValue` as a value to a Map, indexed by the old `size()` of the Map. An
@@ -848,55 +988,28 @@ export class Store {
      * @param newValue 
      */
     push(newValue: any): number {
-        if (newValue instanceof Store) {
-            newValue = newValue._read()
+        let obsArray = this.collection.rawGet(this.idx)
+        if (obsArray===undefined) {
+            obsArray = new ObsArray()
+            this.collection.setIndex(this.idx, obsArray, true)
+        } else if (!(obsArray instanceof ObsArray)) {
+            throw new Error(`push() is only allowed for an array or undefined (which would become an array)`)
         }
 
         let newData = Store._valueToData(newValue)
-        let obsMap = this.map.get(this.idx)
-        if (obsMap instanceof ObsMap) {
-            // Insert at position size(), unless something is already here
-            let pos = obsMap.size
-            if (obsMap.has(pos)) {
-                throw new Error(`Map is not a sequential array: ${JSON.stringify(Array.from(obsMap.keys()))}`)
-            }
-            obsMap.set(pos, newData)
-            obsMap.emitChange(pos, newData, undefined)
-            return pos
-        }
-        if (obsMap===undefined) {
-            // Create the array
-            obsMap = new ObsMap([[0, newData]])
-
-            this.map.set(this.idx, obsMap)
-            this.map.emitChange(this.idx, obsMap, undefined)
-            return 0
-        } else {
-            throw new Error(`Refusing to implicitly convert ${JSON.stringify(obsMap)} to array`)
-        }
+        let pos = obsArray.data.length
+        obsArray.data.push(newData)
+        obsArray.emitChange(pos, newData, undefined)
+        return pos
     }
 
-    /**
-     * Sets the value for the store to `undefined`, which causes it to be ommitted from any Maps it is part of.
-     */
-    delete() {
-        this.set(undefined);
-    }
-
-    /**
-     * Does the same as merge, but in case of a top-level map, it doesn't
-     * delete keys that don't exist in `value`.
-     */
-    merge(value: any): void {
-        this.set(value, true);
-    }
 
     onEach(renderer: (store: Store) => void, makeSortKey: (value: Store) => SortKeyType = Store._makeDefaultSortKey): void {
         if (!currentScope) throw new Error("onEach() is only allowed from a render scope")
 
-        let val = this.observe()
+        let val = this._observe()
         
-        if (val instanceof ObsMap) {
+        if (val instanceof ObsCollection) {
             // Subscribe to changes using the specialized OnEachScope
             let onEachScope = new OnEachScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder+1, val, renderer, makeSortKey)
             val.addObserver(ANY_INDEX, onEachScope)
@@ -906,38 +1019,50 @@ export class Store {
 
             onEachScope.renderInitial()
         } else if (val!==undefined) {
-            throw new Error(`onEach() attempted on a value that is neither a Map/object nor undefined`)
+            throw new Error(`onEach() attempted on a value that is neither a collection nor undefined`)
         }
     }
-    
 
     static _valueToData(value: any) {
-        if (typeof value !== "object" || !value) return value
-
-        let result: ObsMap = new ObsMap()
-        if (value instanceof Map) {
+        if (typeof value !== "object" || !value) {
+            // Simple data types
+            return value
+        } else if (value instanceof Store) {
+            // When a Store is passed pointing at a collection, a reference
+            // is made to that collection.
+            return value._observe()
+        } else if (value instanceof Map) {
+            let result = new ObsMap()
             value.forEach((v,k) => {
                 let d = Store._valueToData(v)
-                if (d!==undefined) result.set(k, d)
+                if (d!==undefined) result.rawSet(k, d)
             })
-        } else if (value instanceof Array) {
+            return result
+        }
+        else if (value instanceof Array) {
+            let result = new ObsArray()
             for(let i=0; i<value.length; i++) {
                 let d = Store._valueToData(value[i])
-                if (d!==undefined) result.set(i, d)
+                if (d!==undefined) result.rawSet(i, d)
             }
-        } else {
+            return result
+        } else if (value.constructor === Object) {
+            // A plain (literal) object
+            let result = new ObsObject()
             for(let k in value) {
                 let d = Store._valueToData(value[k])
-                if (d!==undefined) result.set(k, d)
+                if (d!==undefined) result.rawSet(k, d)
             }
+            return result
+        } else {
+            // Any other type of object (including ObsCollection)
+            return value
         }
-        return result;
     }
 
     static _makeDefaultSortKey(store: Store) {
         return store.index()
     }
-
 }
 
 
@@ -985,8 +1110,8 @@ export function node(tagClass: string, ...rest: any[]) {
             for(let k in item) {
                 applyProp(el, k, item[k])
             }
-        } else if (type != null) {
-            throw new Error(`Unexpected argument ${JSON.stringify(type)}`)
+        } else if (item != null) {
+            throw new Error(`Unexpected argument ${JSON.stringify(item)}`)
         }
     }
 }

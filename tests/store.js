@@ -12,20 +12,35 @@ describe('Store', function() {
         }
     })
 
-    it('stores Maps', () => {
+    it('stores and modifies objects', () => {
         let store = new Store()
-        let map = new Map(Object.entries({a:1, b:2}))
-        store.set(map)
-        let result = store.get(true)
-        assertEqual(result, map)
-        assert(result !== map, "A copy must be made")
+        store.set({a: 1, b: 2})
+        store.$('c').set(3)
+        let result = store.get()
+        assertEqual(result, {a:1, b:2, c:3})
     })
 
-    it('returns Maps as objects by default', () => {
+    it('dups data when storing and when returning', () => {
+        let org = {a: 1}
+        let store = new Store(org)
+        assertEqual(store.get(), org)
+        assert(store.get()!==org, "a copy must be made")
+        org.b = 2
+        assertEqual(store.get(), {a: 1})
+    })
+
+    it('stores and modifies maps', () => {
         let store = new Store()
-        let obj = {a:1, b:2}
-        store.set(new Map(Object.entries(obj)))
-        assertEqual(store.get(), obj)
+        store.set(new Map(Object.entries({a: 1, b: 2})))
+        store.$('c').set(3)
+        assertEqual(store.get(), new Map(Object.entries({a: 1, b: 2, c: 3})))
+    })
+
+    it('stores and modifies arrays', () => {
+        let store = new Store()
+        store.set(['a', 'b'])
+        store.$(3).set('c')
+        assertEqual(store.get(), ['a', 'b', undefined, 'c'])
     })
 
     it('merges objects', () => {
@@ -52,10 +67,10 @@ describe('Store', function() {
     it('references nested stores', () => {
         let obj = {a: 1, b: 2, c: {d: 3, e: {f: 4}}}
         let store = new Store(obj)
-        assertEqual(store.ref('c', 'e', 'f').get(), 4)
+        assertEqual(store.$('c', 'e', 'f').get(), 4)
 
-        store.ref('c','e').set(undefined)
-        store.ref('b').set(5)
+        store.$('c','e').set(undefined)
+        store.$('b').set(5)
         assertEqual(store.get(), {a: 1, b: 5, c: {d: 3}})
     })
 
@@ -71,7 +86,10 @@ describe('Store', function() {
         })
 
         assertEqual(data, obj)
-        assertEqual(store.get(true), map)
+
+        store.set(map)
+        passTime()
+        assertEqual(data, map)
 
         store.delete()
         passTime()
@@ -80,12 +98,12 @@ describe('Store', function() {
         store.set(obj)
         passTime()
         assertEqual(data, obj)
-        assertEqual(cnt, 3)
+        assertEqual(cnt, 4)
 
-        store.set(map) // no change!
+        store.set(obj) // no change!
         passTime()
         assertEqual(data, obj)
-        assertEqual(cnt, 3) // should not have fired again
+        assertEqual(cnt, 4) // should not have fired again
     })
 
     it('merges deep trees', () => {
@@ -93,48 +111,59 @@ describe('Store', function() {
         store.merge({c: 7, b: {j: 8, i: {n: 9}}})
         assertEqual(store.get(), {a: 3, c: 7, b: {h: 4, j: 8, i: {l: 5, n: 9, m: 6}}})
 
-        store.merge(new Map([['d', 10], ['b', new Map([['k', 11], ['i', new Map([['o', 12]])]])]]))
+        store.merge({d: 10, b: {k: 11, i: {o: 12}}})
         assertEqual(store.get(), {a: 3, c: 7, d: 10, b: {h: 4, j: 8, k: 11, i: {l: 5, n: 9, o: 12, m: 6}}})
 
-        store.set(new Map([['b', new Map()]]))
+        store.set({b: {}})
         assertEqual(store.get(), {b: {}})
     })
 
-    it(`returns undefined when ref()ing non-maps`, () => {
+    it(`returns undefined when $()ing non-maps`, () => {
         let store = new Store({a: {b: 3}})
-        assert(store.ref('a') instanceof Store)
-        assert(store.ref('a', 'b') instanceof Store)
-        assert(store.ref('a', 'c') instanceof Store)
-        assert(store.ref('a', 'c', 'd')===undefined)
-        assert(store.ref('a', 'b', 'c')===undefined)
+        assert(store.$('a') instanceof Store)
+        assert(store.$('a', 'b') instanceof Store)
+        assert(store.$('a', 'c') instanceof Store)
+        
+        // This should create a detached store
+        let detached = store.$('a', 'c', 'd')
+        assert(detached instanceof Store)
+        passTime()
+        // It hasn't been created yet
+        assertEqual(store.$('a', 'c').get(), undefined)
+        detached.set('x')
+        passTime()
+        // But now it should have
+        assertEqual(store.$('a', 'c').get(), {d: 'x'})
+
+        assertThrow('is not a collection', () => {
+            store.$('a', 'b', 'c').get()
+        })
     })
 
     it(`stores arrays`, () => {
-        let store = new Store([1,2,3, [4,5,6]])
-        assertEqual(store.get(), {0:1, 1:2, 2:3, 3:{0:4, 1:5, 2:6}})
-        assertEqual(store.ref(3).get(), {0:4, 1:5, 2:6})
+        let arr = [1,2,3, [4,5,6]]
+        let store = new Store(arr)
+        assertEqual(store.get(), arr)
+        assertEqual(store.$(3).get(), arr[3])
     })
 
     it(`reads arrays`, () => {
         let store = new Store([1,2,3, [4,5,6]])
         let res = store.getArray()
-        res[3] = res[3].getArray()
         assertEqual(res, [1,2,3, [4,5,6]])
 
         assertEqual(new Store([]).getArray(), [])
-        assertEqual(new Store(new Map([[0,'a'], [1,'b']])).getArray(), ['a', 'b'])
-        assertEqual(new Store(new Map([[0,'a'], [2,'c']])).getArray(), ['a', undefined, 'c'])
         assertEqual(new Store(['a', null]).getArray(), ['a', null])
     })
 
     it(`fails to read invalid arrays`, () => {
-        assertThrow('is not a valid array index', () => {
+        assertThrow('Expecting array but got', () => {
             new Store({0: 'a', 1: 'b'}).getArray()
         })
-        assertThrow('is not a valid array index', () => {
+        assertThrow('Expecting array but got', () => {
             new Store(new Map([[0,'a'], [-2,'b']])).getArray()
         })
-        assertThrow('is not a valid array index', () => {
+        assertThrow('Expecting array but got', () => {
             new Store(new Map([[0,'a'], [0.5,'b']])).getArray()
         })
     })

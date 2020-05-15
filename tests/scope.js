@@ -141,17 +141,17 @@ describe('Scope', () => {
         let pcnt = 0, ccnt = 0
         mount(document.body, () => {
             pcnt++
-            if (store.make('parent').get()) return
+            if (store.$('parent').get()) return
             
             node('a', () => {
                 ccnt++
-                if (store.make('children').get()) {
+                if (store.$('children').get()) {
                     store.merge({parent: true})
                 }
             })
             node('b', () => {
                 ccnt++
-                if (store.make('children').get()) {
+                if (store.$('children').get()) {
                     store.merge({parent: true})
                 }
             })

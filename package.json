@@ -1,11 +1,13 @@
 {
   "name": "aberdeen",
-  "version": "0.0.5",
+  "version": "0.0.7",
   "description": "",
   "main": "index.js",
   "scripts": {
     "build": "tsc && terser --module --compress --mangle -- dist/aberdeen.js > dist/aberdeen.min.js",
-    "test": "([ src/aberdeen.ts -nt tests/build/aberdeen.js ] && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts) ; nyc mocha --file tests/_init.js tests/[^_]*.js"
+    "coverage": "([ src/aberdeen.ts -nt tests/build/aberdeen.js ] && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts) ; nyc mocha --file tests/_init.js tests/[^_]*.js",
+    "test": "([ src/aberdeen.ts -nt tests/build/aberdeen.js ] && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts) ; mocha --file tests/_init.js tests/[^_]*.js",
+    "prepack": "npm run build"
   },
   "author": "",
   "license": "ISC",

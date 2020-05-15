@@ -115,7 +115,7 @@ describe('onEach', function() {
     })
 
     it('adds items in the right position', () => {
-        let store = new Store();
+        let store = new Store({});
 
         mount(document.body, () => {
             store.onEach(item => {
@@ -130,7 +130,7 @@ describe('onEach', function() {
             seen.push(item+'{}')
             seen.sort();
 
-            store.make(item).set(true);
+            store.$(item).set(true);
             passTime()
             assertBody(seen.join(' '))
         }
@@ -138,9 +138,9 @@ describe('onEach', function() {
 
     it('removes items and calls cleaners', () => {
         let items = ['d', 'a', 'b', 'f', 'c', 'e']
-        let store = new Store()
+        let store = new Store({})
         for(let item of items) {
-            store.make(item).set(true)
+            store.$(item).set(true)
         }
         let cleaned = [];
 
@@ -168,12 +168,14 @@ describe('onEach', function() {
         }
     })
 
-    it(`removes an entire map and calls cleaners`, () => {
+    it(`removes an entire object and calls cleaners`, () => {
         let cleaned = {};
         let store = new Store({b:2,c:3,a:1})
+        let cnt = 0
         mount(document.body, () => {
             if (store.getType()==="object") {
                 store.onEach(item => {
+                    cnt++
                     node(item.index())
                     clean(() => {
                         cleaned[item.index()] = true;
@@ -189,6 +191,7 @@ describe('onEach', function() {
         passTime()
         assertBody(`"true"`)
         assertEqual(cleaned, {a:true, b:true, c:true})
+        assertEqual(cnt, 3)
     })
 
     it('should ignore on delete followed by set', () => {
@@ -203,9 +206,9 @@ describe('onEach', function() {
         assertBody(`a{} b{}`)
         assertEqual(cnt, 2)
 
-        store.ref('a').delete()
+        store.$('a').delete()
         assertEqual(store.get(), {b: 2})
-        store.ref('a').set(3)
+        store.$('a').set(3)
         passTime()
         assertBody(`a{} b{}`)
         assertEqual(cnt, 2) // should not trigger again as the value is not subscribed
@@ -223,9 +226,9 @@ describe('onEach', function() {
         assertBody(`a{}`)
         assertEqual(cnt, 1)
 
-        store.ref('b').set(2)
+        store.$('b').set(2)
         assertEqual(store.get(), {a: 1, b: 2})
-        store.ref('b').delete()
+        store.$('b').delete()
         passTime()
         assertBody(`a{}`)
         assertEqual(cnt, 1)
@@ -240,17 +243,53 @@ describe('onEach', function() {
         })
         assertEqual(getBody().split(' ').sort().join(' '), `a{} b{} c{} d{}`)
 
-        store.ref('b').delete()
+        store.$('b').delete()
         passTime()
         assertEqual(getBody().split(' ').sort().join(' '), `a{} c{} d{}`)
 
-        store.ref('d').delete()
+        store.$('d').delete()
         passTime()
         assertEqual(getBody().split(' ').sort().join(' '), `a{} c{}`)
 
-        store.ref('a').delete()
+        store.$('a').delete()
         passTime()
         assertEqual(getBody().split(' ').sort().join(' '), `c{}`)
 
+    })
+
+    it(`iterates arrays`, () => {
+        let store = new Store(['e', 'b', 'a', 'd'])
+        mount(document.body, () => {
+            store.onEach(item => {
+                node('h'+item.index())
+            })
+            store.onEach(item => {
+                node('i'+item.index())
+            }, item => item.getString())
+        })
+
+        assertBody(`h0{} h1{} h2{} h3{} i2{} i1{} i3{} i0{}`)
+
+        store.$(4).set('c')
+
+        passTime()
+        assertBody(`h0{} h1{} h2{} h3{} h4{} i2{} i1{} i4{} i3{} i0{}`)
+    })
+
+    it(`iterates arrays that are pushed into`, () => {
+        let store = new Store(['e', 'b', 'a', 'd'])
+        mount(document.body, () => {
+            store.onEach(item => {
+                node('h'+item.index())
+            })
+            store.onEach(item => {
+                node('i'+item.index())
+            }, item => item.getString())
+        })
+
+        store.push('c')
+        
+        passTime()
+        assertBody(`h0{} h1{} h2{} h3{} h4{} i2{} i1{} i4{} i3{} i0{}`) 
     })
 })
