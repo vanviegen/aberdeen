@@ -94,7 +94,7 @@ export function sortKeyToString(key: SortKeyType) {
 
 
 interface Observer {
-    onChange(collection: ObsCollection, index: any, newData: DatumType, oldData: DatumType): void
+    onChange(index: any, newData: DatumType, oldData: DatumType): void
 }
 
 /*
@@ -195,7 +195,7 @@ abstract class Scope implements QueueRunner, Observer {
         }
     }
 
-    onChange(collection: ObsCollection, index: any, newData: DatumType, oldData: DatumType) {
+    onChange(index: any, newData: DatumType, oldData: DatumType) {
         queue(this)
     }
 
@@ -276,7 +276,7 @@ class OnEachScope extends Scope {
         this.makeSortKey = makeSortKey
     }
 
-    onChange(collection: ObsCollection, index: any, newData: DatumType, oldData: DatumType) {
+    onChange(index: any, newData: DatumType, oldData: DatumType) {
         if (oldData===undefined) {
             if (this.removedIndexes.has(index)) {
                 this.removedIndexes.delete(index)
@@ -515,9 +515,9 @@ abstract class ObsCollection {
 
    emitChange(index: any, newData: DatumType, oldData: DatumType) {
        let obsSet = this.observers.get(index)
-       if (obsSet) obsSet.forEach(observer => observer.onChange(this, index, newData, oldData))
+       if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
        obsSet = this.observers.get(ANY_INDEX)
-       if (obsSet) obsSet.forEach(observer => observer.onChange(this, index, newData, oldData))
+       if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
    }
 
    _clean(observer: Observer) {
@@ -528,7 +528,7 @@ abstract class ObsCollection {
         const curData = this.rawGet(index)
 
         if (!(curData instanceof ObsCollection) || newValue instanceof Store || !curData.merge(newValue, deleteMissing)) {
-            let newData = Store._valueToData(newValue)
+            let newData = valueToData(newValue)
             if (newData !== curData) {
                 this.rawSet(index, newData)
                 this.emitChange(index, newData, curData)
@@ -758,7 +758,7 @@ export class Store {
             this.collection = new ObsArray()
             this.idx = 0
             if (value!==undefined) {
-                this.collection.rawSet(0, Store._valueToData(value))
+                this.collection.rawSet(0, valueToData(value))
             }
         } else {
             if (!(value instanceof ObsCollection)) {
@@ -831,8 +831,10 @@ export class Store {
     /**
      * Returns "undefined", "null", "boolean", "number", "string", "function", "array", "map" or "object"
      */
-    getType(): string {
-        let value = this._observe()
+    getType(...path: any): string {
+        let store = this.ref(...path)
+        if (!store) return "undefined"
+        let value = store._observe()
         return (value instanceof ObsCollection) ? value.getType() : typeof value
     }
 
@@ -921,28 +923,40 @@ export class Store {
      * In case the Store does not refers to `undefined`, the Array is created first.
      * @param newValue 
      */
-    push(newValue: any): number {
-        let obsArray = this.collection.rawGet(this.idx)
+    push(...pathAndValue: any): number {
+        let newValue = pathAndValue.pop()
+        let store = this.makeRef(...pathAndValue)
+
+        let obsArray = store.collection.rawGet(store.idx)
         if (obsArray===undefined) {
             obsArray = new ObsArray()
-            this.collection.setIndex(this.idx, obsArray, true)
+            store.collection.setIndex(store.idx, obsArray, true)
         } else if (!(obsArray instanceof ObsArray)) {
             throw new Error(`push() is only allowed for an array or undefined (which would become an array)`)
         }
 
-        let newData = Store._valueToData(newValue)
+        let newData = valueToData(newValue)
         let pos = obsArray.data.length
         obsArray.data.push(newData)
         obsArray.emitChange(pos, newData, undefined)
         return pos
     }
 
+    onEach(...pathAndFuncs: any): void {
+        let makeSortKey = defaultMakeSortKey
+        let renderer = pathAndFuncs.pop()
+        if (typeof pathAndFuncs[pathAndFuncs.length-1]==='function' && (typeof renderer==='function' || renderer==null)) {
+            if (renderer!=null) makeSortKey = renderer
+            renderer = pathAndFuncs.pop()
+        }
+        if (typeof renderer !== 'function') throw new Error(`onEach() expects a render function as its last argument but got ${JSON.stringify(renderer)}`)
 
-    onEach(renderer: (store: Store) => void, makeSortKey: (value: Store) => SortKeyType = Store._makeDefaultSortKey): void {
         if (!currentScope) throw new Error("onEach() is only allowed from a render scope")
 
-        let val = this._observe()
-        
+        let store = this.ref(...pathAndFuncs)
+        if (!store) return
+
+        let val = store._observe()
         if (val instanceof ObsCollection) {
             // Subscribe to changes using the specialized OnEachScope
             let onEachScope = new OnEachScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder+1, val, renderer, makeSortKey)
@@ -955,47 +969,6 @@ export class Store {
         } else if (val!==undefined) {
             throw new Error(`onEach() attempted on a value that is neither a collection nor undefined`)
         }
-    }
-
-    static _valueToData(value: any) {
-        if (typeof value !== "object" || !value) {
-            // Simple data types
-            return value
-        } else if (value instanceof Store) {
-            // When a Store is passed pointing at a collection, a reference
-            // is made to that collection.
-            return value._observe()
-        } else if (value instanceof Map) {
-            let result = new ObsMap()
-            value.forEach((v,k) => {
-                let d = Store._valueToData(v)
-                if (d!==undefined) result.rawSet(k, d)
-            })
-            return result
-        }
-        else if (value instanceof Array) {
-            let result = new ObsArray()
-            for(let i=0; i<value.length; i++) {
-                let d = Store._valueToData(value[i])
-                if (d!==undefined) result.rawSet(i, d)
-            }
-            return result
-        } else if (value.constructor === Object) {
-            // A plain (literal) object
-            let result = new ObsObject()
-            for(let k in value) {
-                let d = Store._valueToData(value[k])
-                if (d!==undefined) result.rawSet(k, d)
-            }
-            return result
-        } else {
-            // Any other type of object (including ObsCollection)
-            return value
-        }
-    }
-
-    static _makeDefaultSortKey(store: Store) {
-        return store.index()
     }
 }
 
@@ -1172,6 +1145,47 @@ function applyProp(el: HTMLElement, prop: any, value: any) {
         // Everything else is an HTML attribute
         el.setAttribute(prop, value)
     }
+}
+
+function valueToData(value: any) {
+    if (typeof value !== "object" || !value) {
+        // Simple data types
+        return value
+    } else if (value instanceof Store) {
+        // When a Store is passed pointing at a collection, a reference
+        // is made to that collection.
+        return value._observe()
+    } else if (value instanceof Map) {
+        let result = new ObsMap()
+        value.forEach((v,k) => {
+            let d = valueToData(v)
+            if (d!==undefined) result.rawSet(k, d)
+        })
+        return result
+    }
+    else if (value instanceof Array) {
+        let result = new ObsArray()
+        for(let i=0; i<value.length; i++) {
+            let d = valueToData(value[i])
+            if (d!==undefined) result.rawSet(i, d)
+        }
+        return result
+    } else if (value.constructor === Object) {
+        // A plain (literal) object
+        let result = new ObsObject()
+        for(let k in value) {
+            let d = valueToData(value[k])
+            if (d!==undefined) result.rawSet(k, d)
+        }
+        return result
+    } else {
+        // Any other type of object (including ObsCollection)
+        return value
+    }
+}
+
+function defaultMakeSortKey(store: Store) {
+    return store.index()
 }
 
 function internalError(code: number) {

@@ -27,7 +27,7 @@ describe('Sort', () => {
         assertBody(`e{} c{} d{} b{} a{}`)
     })
 
-    it('changes position shen sort key changes', () => {
+    it('changes position when sort key changes', () => {
         let store = new Store({
             a: 5,
             b: 3,
