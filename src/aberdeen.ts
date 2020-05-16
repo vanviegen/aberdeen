@@ -613,7 +613,14 @@ class ObsArray extends ObsCollection {
     }
 
     normalizeIndex(index: any): any {
-        return 0|index
+        if (typeof index==='number') return index
+        if (typeof index==='string') {
+            // Convert to int
+            let num = 0 | <number><unknown>index
+            // Check if the number is still the same after conversion
+            if (index.length && num==<unknown>index) return index
+        }
+        throw new Error(`Invalid index ${JSON.stringify(index)} for array`)
     }
 }
 
@@ -717,57 +724,13 @@ class ObsMap extends ObsCollection {
     }
 
     normalizeIndex(index: any): any {
-        return ''+index
+        let type = typeof index
+        if (type==='string') return index
+        if (type==='number') return ''+index
+        throw new Error(`Invalid index ${JSON.stringify(index)} for object`)
     }
  }
 
-
-class ObsDetached extends ObsCollection {
-    getType() {
-        return "obect"
-    }
-
-    getRecursive(depth: number) {
-        return {}
-    }
-
-    rawGet(index: any) {
-        return undefined
-    }
-
-    rawSet(index: any) {
-        throw new Error("Updating a detached Store does not make sense")
-    }
-
-    merge(newValue: any, deleteMissing: boolean): boolean {
-        throw new Error("Updating a detached Store does not make sense")
-    }
-
-    iterateIndexes(scope: OnEachScope): void {
-    }
-
-    normalizeIndex(index: any): any {
-        return index
-    }
-}
-
-const obsDetached = new ObsDetached()
-
-
-class StoreAttacher implements Observer {
-    sourceStore: Store
-    targetData: DatumType
-
-    constructor(source: Store, target: DatumType) {
-        this.sourceStore = source
-        this.targetData = target
-    }
-
-    onChange(collection: ObsCollection, index: any, newData: DatumType, oldData: DatumType): void {
-        this.sourceStore.set(this.targetData)
-        collection.removeObserver(index, this)
-    }
-}
 
 
  /*
@@ -821,24 +784,48 @@ export class Store {
 
 
     /**
-     * Return the value for this store, subscribing to the store and any nested sub-stores.
-     * 
-     * @param defaultValue - 
-     * @param useMaps - When this argument is `true`, objects are represented as Maps. By default, they are plain old JavaScript objects.
-     * 
-     * options:
-     * - path
-     * - peek
-     * - throw if not type
-     * - default value (if undefined)
-     * - depth
+     * Resolves `path` using `ref` and then retrieves the value that is there, subscribing
+     * to all read Store values. If `path` does not exist, `undefined` is returned.
      */
-    get(defaultValue?: any, depth?: number) : any {
-        let value = this._observe()
-        if (value instanceof ObsCollection) {
-            return value.getRecursive(depth==null ? -1 : depth)
+    get(...path: any) : any {
+        return this.query({path})
+    }
+
+    /** Like `get()`, but throw an exception if the resulting value is not of the named type.
+     * Using these instead of `query()` directly is especially useful when using TypeScript.
+     */
+    getNumber(...path: any): number { return <number>this.query({path, type: 'number'}) }
+    getString(...path: any): string { return <string>this.query({path, type: 'string'}) }
+    getBoolean(...path: any): boolean { return <boolean>this.query({path, type: 'boolean'}) }
+    getFunction(...path: any): (Function) { return <Function>this.query({path, type: 'function'}) }
+    getArray(...path: any): any[] { return <any[]>this.query({path, type: 'array'}) }
+    getObject(...path: any): object { return <object>this.query({path, type: 'object'}) }
+    getMap(...path: any): Map<any,any> { return <Map<any,any>>this.query({path, type: 'map'}) }
+
+    /** The first parameter is the default value (returned when the Store contains `undefined`).
+     * This default value is also used to determine the expected time, and to throw otherwise.
+     */
+    getOr<T>(defaultValue: T, ...path: any): T {
+        let type: string = typeof defaultValue
+        if (type==='object') {
+            if (defaultValue instanceof Map) type = 'map'
+            else if (defaultValue instanceof Array) type = 'array'
         }
-        return value===undefined ? defaultValue : value
+        return this.query({type, defaultValue, path})
+    }
+
+    query(opts: {path?: any[], type?: string, depth?: number, defaultValue?: any, peek?: boolean}): any {
+        let store = opts.path && opts.path.length ? this.ref(...opts.path) : this
+        let value = store ? store._observe() : undefined
+
+        if (opts.type && (value!==undefined || opts.defaultValue===undefined)) {
+            let type = (value instanceof ObsCollection) ? value.getType() : typeof value
+            if (type !== opts.type) throw new Error(`Expecting ${opts.type} but got ${type}`)
+        }
+        if (value instanceof ObsCollection) {
+            return value.getRecursive(opts.depth==null ? -1 : opts.depth)
+        }
+        return value===undefined ? opts.defaultValue : value
     }
 
     /**
@@ -850,102 +837,32 @@ export class Store {
     }
 
     /**
-     * Return the value of this Store as a number. If is has a different type, an error is thrown.
-     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
+     * Sets the Store value to the last given argument. And earlier argument are a Store-path that is first
+     * resolved/created using `makeRef`.
      */
-    getNumber(defaultValue?: number): number {
-        let value = this._observe()
-        if (typeof value === 'number') return value
-        if (value === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('number', value)
+    set(...pathAndValue: any): void {
+        let newValue = pathAndValue.pop()
+        let store = this.makeRef(...pathAndValue)
+        store.collection.setIndex(store.idx, newValue, true)
     }
 
     /**
-     * Return the value of this Store as a string. If is has a different type, an error is thrown.
-     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
-     */
-    getString(defaultValue?: string): string {
-        let value = this._observe()
-        if (typeof value === 'string') return value
-        if (value === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('string', value)
-    }
-
-    /**
-     * Return the value of this Store as a boolean. If is has a different type, an error is thrown.
-     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
-     */
-    getBoolean(defaultValue?: boolean): boolean {
-        let value = this._observe()
-        if (typeof value === 'boolean') return value
-        if (value === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('boolean', value)
-    }
-
-    /**
-     * Return the values of this Store as an Array. If is has a different type, an error is thrown.
-     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
-     */
-    getArray(defaultValue?: any[], depth?: number): any[] {
-        let value = this._observe()
-        if (value instanceof ObsArray) {
-            return value.getRecursive(depth==null ? -1 : depth)
-        }
-        if (value === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('array', value)
-    }
-
-    /**
-     * Return the values of this Store as an Object. If is has a different type, an error is thrown.
-     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
-     */
-    getObject(defaultValue?: object, depth?: number): object {
-        let value = this._observe()
-        if (value instanceof ObsObject) {
-            return value.getRecursive(depth==null ? -1 : depth)
-        }
-        if (value === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('object', value)
-    }
-
-    /**
-     * Return the values of this Store as an Object. If is has a different type, an error is thrown.
-     * If the Store contains `undefined` and a defaultValue is given, it is returned instead.
-     */
-    getMap(defaultValue?: Map<any,any>, depth?: number): Map<any,any> {
-        let value = this._observe()
-        if (value instanceof ObsMap) {
-            return value.getRecursive(depth==null ? -1 : depth)
-        }
-        if (value === undefined && defaultValue!==undefined) return defaultValue
-        throw this.getTypeError('map', value)
-    }
-
-    private getTypeError(type: string, value: any) {
-        if (value === undefined) {
-            return new Error(`Expecting ${type} but got undefined, and no default value was given`)
-        } else {
-            return new Error(`Expecting ${type} but got ${value instanceof ObsCollection ? value.getRecursive(-1) : JSON.stringify(value)}`)
-        }
-    }
-
-    set(newValue: any): void {
-        this.collection.setIndex(this.idx, newValue, true)
-    }
-
-    /**
-     * Does the same as merge, but in case of a top-level map, it doesn't
+     * Does the same as set, but in case of a top-level collection, it doesn't
      * delete keys that don't exist in `value`.
      */
-    merge(newValue: any): void {
-        this.collection.setIndex(this.idx, newValue, false)
+    merge(...pathAndValue: any): void {
+        let newValue = pathAndValue.pop()
+        let store = this.makeRef(...pathAndValue)
+        store.collection.setIndex(store.idx, newValue, false)
+
     }
 
     /**
      * Sets the value for the store to `undefined`, which causes it to be ommitted from the map (or array, if it's at the end)
      */
-    delete() {
-        this.collection.setIndex(this.idx, undefined, true)
+    delete(...path: any) {
+        let store = this.makeRef(...path)
+        store.collection.setIndex(store.idx, undefined, true)
     }
 
 
@@ -955,8 +872,7 @@ export class Store {
      * If any level does not exist, a detached Store object is returned,
      * that will be automatically attached if it is written to.
      */
-    ref(...indexes : Array<any>): Store {
-
+    ref(...indexes: any[]): Store | undefined {
         let store: Store = this
 
         for(let i=0; i<indexes.length; i++) {
@@ -965,28 +881,29 @@ export class Store {
                 store = new Store(value, value.normalizeIndex(indexes[i]))
             } else {
                 if (value!==undefined) throw new Error(`Value ${JSON.stringify(value)} is not a collection (nor undefined) in step ${i} of $(${JSON.stringify(indexes)})`)
-
-                // The rest of the path will be created in a detached state
-                let detachedObject = new ObsObject()
-                let object = detachedObject
-
-                for(; i<indexes.length-1; i++) {
-                    let newObject = new ObsObject()
-                    object.data.set(""+indexes[i], newObject)
-                    object = newObject
-                }
-
-                let index = ""+indexes[indexes.length-1]
-                object.addObserver(index, new StoreAttacher(store, detachedObject))
-
-                return new Store(object, index)
-
+                return
             }
         }
 
         return store
     }
 
+    makeRef(...indexes: any[]): Store {
+        let store: Store = this
+
+        for(let i=0; i<indexes.length; i++) {
+            let value = store.collection.rawGet(store.idx)
+            if (!(value instanceof ObsCollection)) {
+                if (value!==undefined) throw new Error(`Value ${JSON.stringify(value)} is not a collection (nor undefined) in step ${i} of $(${JSON.stringify(indexes)})`)
+                value = new ObsObject()
+                store.collection.rawSet(store.idx, value)
+                store.collection.emitChange(store.idx, value, undefined)
+            }
+            store = new Store(value, value.normalizeIndex(indexes[i]))
+        }
+
+        return store      
+    }
 
     _observe() {
         if (currentScope) {

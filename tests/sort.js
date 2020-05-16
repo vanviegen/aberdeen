@@ -18,11 +18,11 @@ describe('Sort', () => {
 
         assertBody(`a{} b{} c{} d{} e{}`)
 
-        sort.set(item => item.ref('z').getNumber())
+        sort.set(item => item.get('z'))
         passTime()
         assertBody(`a{} c{} b{} e{} d{}`)
 
-        sort.set(item => [item.ref('x').get(), item.ref('y').getNumber(), item.index()] )
+        sort.set(item => [item.get('x'), item.get('y'), item.index()] )
         passTime()
         assertBody(`e{} c{} d{} b{} a{}`)
     })
@@ -47,13 +47,13 @@ describe('Sort', () => {
         assertEqual(p, 1)
         assertEqual(c, 5)
 
-        store.ref('c').set(-20)
+        store.set('c', -20)
         passTime()
         assertBody(`c{} e{} d{} b{} a{}`)
         assertEqual(p, 1)
         assertEqual(c, 6)
 
-        store.ref('e').set(4)
+        store.set('e', 4)
         passTime()
         assertBody(`c{} d{} b{} e{} a{}`)
         assertEqual(p, 1)

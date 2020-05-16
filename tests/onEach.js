@@ -130,7 +130,7 @@ describe('onEach', function() {
             seen.push(item+'{}')
             seen.sort();
 
-            store.ref(item).set(true);
+            store.set(item, true);
             passTime()
             assertBody(seen.join(' '))
         }
@@ -140,7 +140,7 @@ describe('onEach', function() {
         let items = ['d', 'a', 'b', 'f', 'c', 'e']
         let store = new Store({})
         for(let item of items) {
-            store.ref(item).set(true)
+            store.set(item, true)
         }
         let cleaned = [];
 
@@ -206,9 +206,9 @@ describe('onEach', function() {
         assertBody(`a{} b{}`)
         assertEqual(cnt, 2)
 
-        store.ref('a').delete()
+        store.delete('a')
         assertEqual(store.get(), {b: 2})
-        store.ref('a').set(3)
+        store.set('a', 3)
         passTime()
         assertBody(`a{} b{}`)
         assertEqual(cnt, 2) // should not trigger again as the value is not subscribed
@@ -226,9 +226,9 @@ describe('onEach', function() {
         assertBody(`a{}`)
         assertEqual(cnt, 1)
 
-        store.ref('b').set(2)
+        store.set('b', 2)
         assertEqual(store.get(), {a: 1, b: 2})
-        store.ref('b').delete()
+        store.delete('b')
         passTime()
         assertBody(`a{}`)
         assertEqual(cnt, 1)
@@ -243,15 +243,15 @@ describe('onEach', function() {
         })
         assertEqual(getBody().split(' ').sort().join(' '), `a{} b{} c{} d{}`)
 
-        store.ref('b').delete()
+        store.delete('b')
         passTime()
         assertEqual(getBody().split(' ').sort().join(' '), `a{} c{} d{}`)
 
-        store.ref('d').delete()
+        store.delete('d')
         passTime()
         assertEqual(getBody().split(' ').sort().join(' '), `a{} c{}`)
 
-        store.ref('a').delete()
+        store.delete('a')
         passTime()
         assertEqual(getBody().split(' ').sort().join(' '), `c{}`)
 
@@ -270,7 +270,7 @@ describe('onEach', function() {
 
         assertBody(`h0{} h1{} h2{} h3{} i2{} i1{} i3{} i0{}`)
 
-        store.ref(4).set('c')
+        store.set(4,'c')
 
         passTime()
         assertBody(`h0{} h1{} h2{} h3{} h4{} i2{} i1{} i4{} i3{} i0{}`)

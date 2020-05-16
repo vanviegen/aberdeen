@@ -141,17 +141,17 @@ describe('Scope', () => {
         let pcnt = 0, ccnt = 0
         mount(document.body, () => {
             pcnt++
-            if (store.ref('parent').get()) return
+            if (store.get('parent')) return
             
             node('a', () => {
                 ccnt++
-                if (store.ref('children').get()) {
+                if (store.get('children')) {
                     store.merge({parent: true})
                 }
             })
             node('b', () => {
                 ccnt++
-                if (store.ref('children').get()) {
+                if (store.get('children')) {
                     store.merge({parent: true})
                 }
             })
@@ -185,13 +185,13 @@ describe('Scope', () => {
         assertEqual(cnt2,1)
     })
 
-    it('emits for objects with numeric ref()s', () => {
+    it('emits for objects with numeric get() paths', () => {
         let values = new Store({})
 
         mount(document.body, () => {
             for(let i=0; i<4; i++) {
                 node('p', () => {
-                    text(values.ref(i).get())
+                    text(values.get(i))
                 })
             }
         })
