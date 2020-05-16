@@ -141,17 +141,17 @@ describe('Scope', () => {
         let pcnt = 0, ccnt = 0
         mount(document.body, () => {
             pcnt++
-            if (store.$('parent').get()) return
+            if (store.ref('parent').get()) return
             
             node('a', () => {
                 ccnt++
-                if (store.$('children').get()) {
+                if (store.ref('children').get()) {
                     store.merge({parent: true})
                 }
             })
             node('b', () => {
                 ccnt++
-                if (store.$('children').get()) {
+                if (store.ref('children').get()) {
                     store.merge({parent: true})
                 }
             })
@@ -185,4 +185,20 @@ describe('Scope', () => {
         assertEqual(cnt2,1)
     })
 
+    it('emits for objects with numeric ref()s', () => {
+        let values = new Store({})
+
+        mount(document.body, () => {
+            for(let i=0; i<4; i++) {
+                node('p', () => {
+                    text(values.ref(i).get())
+                })
+            }
+        })
+        assertBody(`p{} p{} p{} p{}`)
+
+        values.set({1:'x', 3:'x'})
+        passTime()
+        assertBody(`p{} p{"x"} p{} p{"x"}`)
+    })
 })

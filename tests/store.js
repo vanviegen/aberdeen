@@ -15,7 +15,7 @@ describe('Store', function() {
     it('stores and modifies objects', () => {
         let store = new Store()
         store.set({a: 1, b: 2})
-        store.$('c').set(3)
+        store.ref('c').set(3)
         let result = store.get()
         assertEqual(result, {a:1, b:2, c:3})
     })
@@ -32,14 +32,14 @@ describe('Store', function() {
     it('stores and modifies maps', () => {
         let store = new Store()
         store.set(new Map(Object.entries({a: 1, b: 2})))
-        store.$('c').set(3)
+        store.ref('c').set(3)
         assertEqual(store.get(), new Map(Object.entries({a: 1, b: 2, c: 3})))
     })
 
     it('stores and modifies arrays', () => {
         let store = new Store()
         store.set(['a', 'b'])
-        store.$(3).set('c')
+        store.ref(3).set('c')
         assertEqual(store.get(), ['a', 'b', undefined, 'c'])
     })
 
@@ -67,10 +67,10 @@ describe('Store', function() {
     it('references nested stores', () => {
         let obj = {a: 1, b: 2, c: {d: 3, e: {f: 4}}}
         let store = new Store(obj)
-        assertEqual(store.$('c', 'e', 'f').get(), 4)
+        assertEqual(store.ref('c', 'e', 'f').get(), 4)
 
-        store.$('c','e').set(undefined)
-        store.$('b').set(5)
+        store.ref('c','e').set(undefined)
+        store.ref('b').set(5)
         assertEqual(store.get(), {a: 1, b: 5, c: {d: 3}})
     })
 
@@ -120,23 +120,23 @@ describe('Store', function() {
 
     it(`returns undefined when $()ing non-maps`, () => {
         let store = new Store({a: {b: 3}})
-        assert(store.$('a') instanceof Store)
-        assert(store.$('a', 'b') instanceof Store)
-        assert(store.$('a', 'c') instanceof Store)
+        assert(store.ref('a') instanceof Store)
+        assert(store.ref('a', 'b') instanceof Store)
+        assert(store.ref('a', 'c') instanceof Store)
         
         // This should create a detached store
-        let detached = store.$('a', 'c', 'd')
+        let detached = store.ref('a', 'c', 'd')
         assert(detached instanceof Store)
         passTime()
         // It hasn't been created yet
-        assertEqual(store.$('a', 'c').get(), undefined)
+        assertEqual(store.ref('a', 'c').get(), undefined)
         detached.set('x')
         passTime()
         // But now it should have
-        assertEqual(store.$('a', 'c').get(), {d: 'x'})
+        assertEqual(store.ref('a', 'c').get(), {d: 'x'})
 
         assertThrow('is not a collection', () => {
-            store.$('a', 'b', 'c').get()
+            store.ref('a', 'b', 'c').get()
         })
     })
 
@@ -144,7 +144,7 @@ describe('Store', function() {
         let arr = [1,2,3, [4,5,6]]
         let store = new Store(arr)
         assertEqual(store.get(), arr)
-        assertEqual(store.$(3).get(), arr[3])
+        assertEqual(store.ref(3).get(), arr[3])
     })
 
     it(`reads arrays`, () => {

@@ -542,6 +542,7 @@ abstract class ObsCollection {
     abstract getType(): string
     abstract getRecursive(depth: number): object | Set<any> | Array<any>
     abstract iterateIndexes(scope: OnEachScope): void
+    abstract normalizeIndex(index: any): any
 }
 
 
@@ -610,6 +611,10 @@ class ObsArray extends ObsCollection {
             scope.addChild(i)
         }
     }
+
+    normalizeIndex(index: any): any {
+        return 0|index
+    }
 }
 
 class ObsMap extends ObsCollection {
@@ -667,6 +672,10 @@ class ObsMap extends ObsCollection {
             scope.addChild(itemIndex)
         })
     }
+
+    normalizeIndex(index: any): any {
+        return index
+    }
  }
 
  class ObsObject extends ObsMap {
@@ -706,6 +715,10 @@ class ObsMap extends ObsCollection {
         
         return true
     }
+
+    normalizeIndex(index: any): any {
+        return ''+index
+    }
  }
 
 
@@ -731,6 +744,10 @@ class ObsDetached extends ObsCollection {
     }
 
     iterateIndexes(scope: OnEachScope): void {
+    }
+
+    normalizeIndex(index: any): any {
+        return index
     }
 }
 
@@ -938,14 +955,14 @@ export class Store {
      * If any level does not exist, a detached Store object is returned,
      * that will be automatically attached if it is written to.
      */
-    $(...indexes : Array<any>): Store {
+    ref(...indexes : Array<any>): Store {
 
         let store: Store = this
 
         for(let i=0; i<indexes.length; i++) {
             let value = store._observe()
             if (value instanceof ObsCollection) {
-                store = new Store(value, indexes[i])
+                store = new Store(value, value.normalizeIndex(indexes[i]))
             } else {
                 if (value!==undefined) throw new Error(`Value ${JSON.stringify(value)} is not a collection (nor undefined) in step ${i} of $(${JSON.stringify(indexes)})`)
 
@@ -955,11 +972,11 @@ export class Store {
 
                 for(; i<indexes.length-1; i++) {
                     let newObject = new ObsObject()
-                    object.data.set(indexes[i], newObject)
+                    object.data.set(""+indexes[i], newObject)
                     object = newObject
                 }
 
-                let index = indexes[indexes.length-1]
+                let index = ""+indexes[indexes.length-1]
                 object.addObserver(index, new StoreAttacher(store, detachedObject))
 
                 return new Store(object, index)
@@ -1121,6 +1138,7 @@ export function node(tagClass: string, ...rest: any[]) {
  */
 export function text(text: string) {
     if (!currentScope) throw  new Error(`text() outside of a render scope`)
+    if (!text) return
     currentScope.addNode(document.createTextNode(text))
 }
 
