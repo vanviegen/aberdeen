@@ -292,4 +292,24 @@ describe('onEach', function() {
         passTime()
         assertBody(`h0{} h1{} h2{} h3{} h4{} i2{} i1{} i4{} i3{} i0{}`) 
     })
+
+    it(`removes all children before redrawing`, () => {
+        let store = new Store({a:1, b:2})
+        let select = new Store(1)
+        mount(document.body, () => {
+            select.get();
+            store.onEach(item => {
+                node(item.index())
+            }, item => {
+                if (select.get() == item.get()) {
+                    return item.index();
+                }
+            })
+        })
+        assertBody(`a{}`) 
+
+        select.set('2')
+        passTime()
+        assertBody(`b{}`) 
+    })
 })

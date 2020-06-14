@@ -11,8 +11,7 @@
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
     "nyc": "^15.0.1",
     "terser": "^4.6.13",
@@ -21,11 +20,18 @@
     "typescript": "^3.8.3"
   },
   "nyc": {
-    "reporter": ["text-summary", "lcov"],
+    "reporter": [
+      "text-summary",
+      "lcov"
+    ],
     "temp-directory": "./coverage/.nyc_output",
     "sourceMap": true,
-    "include": ["tests/build/**"],
+    "include": [
+      "tests/build/**"
+    ],
     "exclude": []
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ]
 }

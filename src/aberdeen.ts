@@ -109,7 +109,7 @@ interface Observer {
  */
 
 abstract class Scope implements QueueRunner, Observer {
-    parentElement: HTMLElement
+    parentElement: Element
 
     // How deep is this scope nested in other scopes; we use this to make sure events
     // at lower depths are handled before events at higher depths.
@@ -128,7 +128,7 @@ abstract class Scope implements QueueRunner, Observer {
     isDead: boolean = false
 
     constructor(
-        parentElement: HTMLElement,
+        parentElement: Element,
         precedingSibling: Node | Scope | undefined,
         queueOrder: number,
     ) {
@@ -206,7 +206,7 @@ class SimpleScope extends Scope {
     renderer: () => void
 
     constructor(
-        parentElement: HTMLElement,
+        parentElement: Element,
         precedingSibling: Node | Scope | undefined,
         queueOrder: number,
         renderer: () => void,
@@ -241,6 +241,36 @@ class SimpleScope extends Scope {
     }
 }
 
+class IsEmptyObserver implements Observer {
+    scope: Scope
+    collection: ObsCollection
+    count: number
+    triggerCount: boolean
+
+    constructor(scope: Scope, collection: ObsCollection, triggerCount: boolean) {
+        this.scope = scope
+        this.collection = collection
+        this.triggerCount = triggerCount
+        this.count = collection.getCount()
+
+        collection.addObserver(ANY_INDEX, this)
+        scope.cleaners.push(this)
+    }
+
+    onChange(index: any, newData: DatumType, oldData: DatumType) {
+        if (newData===undefined) {
+            if (oldData===undefined) return
+            if (this.triggerCount || !--this.count) queue(this.scope)
+        } else if (oldData===undefined) {
+            if (this.triggerCount || !this.count++) queue(this.scope)
+        }
+    }
+
+    _clean() {
+        this.collection.removeObserver(ANY_INDEX, this)
+    }
+}
+
 class OnEachScope extends Scope {
 
     /** The Node we are iterating */
@@ -263,7 +293,7 @@ class OnEachScope extends Scope {
     removedIndexes: Set<any> = new Set()
 
     constructor(
-        parentElement: HTMLElement,
+        parentElement: Element,
         precedingSibling: Node | Scope | undefined,
         queueOrder: number,
         collection: ObsCollection,
@@ -313,8 +343,8 @@ class OnEachScope extends Scope {
     _clean() {
         super._clean()
         this.collection.observers.delete(this)
-        for(let item of this.byPosition) {
-            item._clean()
+        for (const [index, scope] of this.byIndex) {
+            scope._clean()
         }
 
         // Help garbage collection:
@@ -354,7 +384,7 @@ class OnEachScope extends Scope {
 
     findPosition(sortStr: string) {
         let items = this.byPosition
-        let min = 0, max = this.byPosition.length
+        let min = 0, max = items.length
         
         // Fast-path for elements that are already ordered (as is the case when working with arrays ordered by index)
         if (!max || sortStr > items[max-1].sortStr) return max
@@ -415,7 +445,7 @@ class OnEachItemScope extends Scope {
     sortStr: string = ""
 
     constructor(
-        parentElement: HTMLElement,
+        parentElement: Element,
         precedingSibling: Node | Scope | undefined,
         queueOrder: number,
         parent: OnEachScope,
@@ -449,7 +479,7 @@ class OnEachItemScope extends Scope {
 
         let sortKey
         try {
-            sortKey = this.parent.makeSortKey(itemStore) // TODO: catch
+            sortKey = this.parent.makeSortKey(itemStore)
         } catch(e) {
             handleError(e)
         }
@@ -543,6 +573,7 @@ abstract class ObsCollection {
     abstract getRecursive(depth: number): object | Set<any> | Array<any>
     abstract iterateIndexes(scope: OnEachScope): void
     abstract normalizeIndex(index: any): any
+    abstract getCount(): number
 }
 
 
@@ -622,6 +653,10 @@ class ObsArray extends ObsCollection {
         }
         throw new Error(`Invalid index ${JSON.stringify(index)} for array`)
     }
+
+    getCount() {
+        return this.data.length
+    }
 }
 
 class ObsMap extends ObsCollection {
@@ -683,6 +718,10 @@ class ObsMap extends ObsCollection {
     normalizeIndex(index: any): any {
         return index
     }
+
+    getCount() {
+        return this.data.size
+    }
  }
 
  class ObsObject extends ObsMap {
@@ -728,6 +767,12 @@ class ObsMap extends ObsCollection {
         if (type==='string') return index
         if (type==='number') return ''+index
         throw new Error(`Invalid index ${JSON.stringify(index)} for object`)
+    }
+
+    getCount() {
+        let cnt = 0
+        for(let key of this.data) cnt++
+        return cnt
     }
  }
 
@@ -791,6 +836,13 @@ export class Store {
         return this.query({path})
     }
 
+	/**
+	 * The same as get(), but doesn't subscribe to changes
+	 */
+    peek(...path: any): any {
+	    return this.peekQuery({path})
+    }
+
     /** Like `get()`, but throw an exception if the resulting value is not of the named type.
      * Using these instead of `query()` directly is especially useful when using TypeScript.
      */
@@ -814,7 +866,7 @@ export class Store {
         return this.query({type, defaultValue, path})
     }
 
-    query(opts: {path?: any[], type?: string, depth?: number, defaultValue?: any, peek?: boolean}): any {
+    query(opts: {path?: any[], type?: string, depth?: number, defaultValue?: any}): any {
         let store = opts.path && opts.path.length ? this.ref(...opts.path) : this
         let value = store ? store._observe() : undefined
 
@@ -826,6 +878,78 @@ export class Store {
             return value.getRecursive(opts.depth==null ? -1 : opts.depth)
         }
         return value===undefined ? opts.defaultValue : value
+    }
+
+    isEmpty(...path: any): boolean {
+        let store = this.ref(...path)
+        if (!store) return true
+        
+        let value = store._observe()
+        if (value instanceof ObsCollection) {
+            if (currentScope) {
+                let observer = new IsEmptyObserver(currentScope, value, false)
+                return !observer.count
+            } else {
+                return !value.getCount()
+            }
+        } else if (value===undefined) {
+            return true
+        } else {
+            throw new Error(`isEmpty() expects a collection or undefined, but got ${JSON.stringify(value)}`)
+        }
+    }
+
+    count(...path: any): number {
+        let store = this.ref(...path)
+        if (!store) return 0
+        
+        let value = store._observe()
+        if (value instanceof ObsCollection) {
+            if (currentScope) {
+                let observer = new IsEmptyObserver(currentScope, value, true)
+                return observer.count
+            } else {
+                return value.getCount()
+            }
+        } else if (value===undefined) {
+            return 0
+        } else {
+            throw new Error(`count() expects a collection or undefined, but got ${JSON.stringify(value)}`)
+        }
+    }
+
+    filterMap(...pathAndFunc: any): Store {
+        let func = pathAndFunc.pop()
+        
+        let store = new Store(new Map())
+        this.onEach(...pathAndFunc, (item: any) => {
+            let res = func(item)
+            if (res!==false && res!=null) {
+                let index = item.index()
+                let value = item
+                if (res instanceof Array) {
+                    [index,value] = res
+                } else if (res!==true) {
+                    value = res
+                }
+                store.set(index, value)
+                if (currentScope) {
+                    currentScope.cleaners.push({_clean: function() { store.delete(index) }})
+                }
+            }
+        })
+
+        return store
+    }
+
+    peekQuery(opts: {path?: any[], type?: string, depth?: number, defaultValue?: any}): any {
+		let savedScope = currentScope
+		try {
+			currentScope = undefined
+		    return this.query(opts)
+		} finally {
+		    currentScope = savedScope
+		}
     }
 
     /**
@@ -987,17 +1111,21 @@ export class Store {
  *     })
  * })
  */
-export function node(tagClass: string, ...rest: any[]) {
+export function node(tagClass: string|Element, ...rest: any[]) {
     if (!currentScope) throw new Error(`node() outside of a render scope`)
 
     let el;
-    if (tagClass.indexOf('.')>=0) {
-        let classes = tagClass.split('.')
-        let tag = <string>classes.shift()
-        el = document.createElement(tag)
-        el.className = classes.join(' ')
+    if (tagClass instanceof Element) {
+	    el = tagClass
     } else {
-        el = document.createElement(tagClass);
+	    if (tagClass.indexOf('.')>=0) {
+	        let classes = tagClass.split('.')
+	        let tag = <string>classes.shift()
+	        el = document.createElement(tag)
+	        el.className = classes.join(' ')
+	    } else {
+	        el = document.createElement(tagClass);
+	    }
     }
 
     currentScope.addNode(el)
@@ -1052,6 +1180,19 @@ export function prop(prop: any, value: any = undefined) {
 }
 
 
+/**
+ * Return the browser Element that `node()`s would be rendered to at this point.
+ * NOTE: Manually changing the DOM is not recommended in most cases. There is
+ * usually a better, declarative way. Although there are no hard guarantees on
+ * how your changes interact with Aberdeen, in most cases results will not be
+ * terribly surprising. Be careful within the parent element of onEach() though.
+ */
+export function getParentElement(): Element {
+    if (!currentScope) throw new Error(`getParentElement() outside of a render scope`)
+	return currentScope.parentElement
+}
+
+
 
 /**
  * Register a `clean` function that is executed when the current `Scope` disappears or redraws.
@@ -1102,7 +1243,7 @@ class Mount {
     }
 }
 
-export function mount(parentElement: HTMLElement, renderer: () => void) {
+export function mount(parentElement: Element, renderer: () => void) {
     if (currentScope) throw new Error('mount() from within a render scope')
     let scope = new SimpleScope(parentElement, undefined, 0, renderer)
     scope.update()
@@ -1125,7 +1266,7 @@ export function peek(func: () => void) {
  * Helper functions
  */
 
-function applyProp(el: HTMLElement, prop: any, value: any) {
+function applyProp(el: Element, prop: any, value: any) {
     if (prop==='value' || prop==='className' || prop==='selectedIndex' || value===true || value===false) {
         // All boolean values and a few specific keys should be set as a property
         (el as any)[prop] = value
@@ -1137,7 +1278,7 @@ function applyProp(el: HTMLElement, prop: any, value: any) {
         }
     } else if (prop==='style' && typeof value === 'object') {
         // `style` can receive an object
-        Object.assign(el.style, value)
+        Object.assign((<HTMLElement>el).style, value)
     } else if (prop==='text') {
         // `text` is set as textContent
         el.textContent = value
