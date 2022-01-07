@@ -25,13 +25,13 @@ global.setTimeout = function(func,time) {
 };
 
 global.passTime = function(ms=1) {
-    timeBase += ms;
-    while(true) {
-        if (!timeouts.length) return;
-        timeouts.sort( (a,b) => a.time-b.time );
-        if (timeouts[0] > timeBase) return;
-        timeouts.shift().func();
-    }
+	timeBase += ms;
+	while(true) {
+		if (!timeouts.length) return;
+		timeouts.sort( (a,b) => a.time-b.time );
+		if (timeouts[0] > timeBase) return;
+		timeouts.shift().func();
+	}
 }
 
 
@@ -105,10 +105,10 @@ class Element extends Node {
 		if (val !== '') throw new Error("non-empty style string cannot be emulated");
 		this._style = {};
 		changeCount++;
-    }
-    set textContent(text) {
-        this.childNodes = [new TextNode(text)]
-    }
+	}
+	set textContent(text) {
+		this.childNodes = [new TextNode(text)]
+	}
 	get style() {
 		return this._style;
 	}
@@ -133,13 +133,6 @@ class Element extends Node {
 		for(let child of this.childNodes) arr.push(child.toString());
 
 		return this.tag + `{${arr.join(' ')}}`;
-	}
-
-	assertChildren(desired) {
-		let result = this.childNodes.join(' ');
-		desired = desired.toString();
-		if (verbose>2) console.log(`  assert ${desired}`);
-		if (result!==desired) throw new Error(`invalid result\n\t${result} instead of\n\t${desired}`);
 	}
 
 	addEventListener(name, func) {

@@ -1,22 +1,22 @@
 describe('Browsers', () => {
-    it('works without Array.from', () => {
-        let oldFrom = Array.from
-        Array.from = undefined
-        
-        let store = new Store(false)
-        let cnt = 0
-        mount(document.body, () => {
-            cnt++
-            if (store.get()) node('a')
-        })
-        assertBody(``)
+	it('works without Array.from', () => {
+		let oldFrom = Array.from
+		Array.from = undefined
+		
+		let store = new Store(false)
+		let cnt = 0
+		mount(document.body, () => {
+			cnt++
+			if (store.get()) node('a')
+		})
+		assertBody(``)
 
 
-        store.set(true)
-        passTime()
-        assertBody(`a{}`)
-        assertEqual(cnt, 2)
+		store.set(true)
+		passTime()
+		assertBody(`a{}`)
+		assertEqual(cnt, 2)
 
-        Array.from = oldFrom
-    })
+		Array.from = oldFrom
+	})
 })
