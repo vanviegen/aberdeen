@@ -191,6 +191,7 @@ abstract class Scope implements QueueRunner, Observer {
 		for(let cleaner of this.cleaners) {
 			cleaner._clean(this)
 		}
+		this.cleaners.length = 0
 	}
 
 	onChange(index: any, newData: DatumType, oldData: DatumType) {
@@ -1116,7 +1117,7 @@ export class Store {
 
 /**
  * Create a new DOM element.
- * @param tagClass - The tag of the element to be created and optionally dot-seperated class names. For example: `h1` or `p.intro.has_avatar`.
+ * @param tagClass - The tag of the element to be created and optionally dot-separated class names. For example: `h1` or `p.intro.has_avatar`.
  * @param rest - The other arguments are flexible and interpreted based on their types:
  *   - `string`: Used as textContent for the element.
  *   - `object`: Used as attributes/properties for the element. See `applyProp` on how the distinction is made.
@@ -1138,7 +1139,7 @@ export function node(tagClass: string|Element, ...rest: any[]) {
 		if (tagClass.indexOf('.')>=0) {
 			let classes = tagClass.split('.')
 			let tag = <string>classes.shift()
-			el = document.createElement(tag)
+			el = document.createElement(tag || 'div')
 			el.className = classes.join(' ')
 		} else {
 			el = document.createElement(tagClass);
@@ -1180,7 +1181,9 @@ export function text(text: string) {
 /**
  * Set properties and attributes for the containing DOM element. Doing it this way
  * as opposed to setting them directly from node() allows changing them later on
- * without recreating the element itself. Also, code can be more readible this way.
+ * without recreating the element itself. Also, code can be more readable this way.
+ * Note that when a nested `scope()` is used, properties set this way do NOT
+ * automatically revert to their previous values.
  */
 export function prop(prop: string, value: any): void
 export function prop(props: object): void
@@ -1277,14 +1280,20 @@ export function peek(func: () => void) {
 	}
 }
 
-	
 
 /*
  * Helper functions
  */
 
 function applyProp(el: Element, prop: any, value: any) {
-	if (prop==='value' || prop==='className' || prop==='selectedIndex' || value===true || value===false) {
+	if ((prop==='class' || prop==='className') && typeof value === 'object') {
+		// Allow setting classes using an object where the keys are the names and
+		// the values are booleans stating whether to set or remove.
+		for(let name in value) {
+			if (value[name]) el.classList.add(name)
+			else el.classList.remove(name)
+		}
+	} else if (prop==='value' || prop==='className' || prop==='selectedIndex' || value===true || value===false) {
 		// All boolean values and a few specific keys should be set as a property
 		(el as any)[prop] = value
 	} else if (typeof value === 'function') {
@@ -1354,3 +1363,4 @@ function handleError(e: any) {
 	// Throw the error async, so the rest of the rendering can continue
 	setTimeout(() => {throw e}, 0)
 }
+

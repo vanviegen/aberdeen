@@ -1,4 +1,4 @@
-describe('Errors', () => {
+describe('Error handling', () => {
 	it('continues rendering after an error', () => {
         let error = new Store(false)
         mount(document.body, () => {

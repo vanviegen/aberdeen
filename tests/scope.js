@@ -1,3 +1,5 @@
+const { scope, clean, text } = require("./build/aberdeen")
+
 describe('Scope', () => {
 	it('rerenders only the inner scope', () => {
 		let store = new Store('before')
@@ -201,5 +203,64 @@ describe('Scope', () => {
 		values.set({1:'x', 3:'x'})
 		passTime()
 		assertBody(`p{} p{"x"} p{} p{"x"}`)
+	})
+
+	it('allows modifying stores from within scopes', () => {
+		let cnt0 = 0, cnt1 = 0, cnt2 = 0, cnt3 = 0;
+		let store = new Store({})
+		let inverse = new Store({})
+
+		let myMount = mount(document.body, () => {
+			cnt0++
+			store.onEach(item => {
+				let key = item.get()
+				let value = item.index()
+				inverse.set(key, value)
+				cnt1++
+				clean(() => {
+					inverse.delete(key)
+					cnt2++
+				})
+			})
+
+			inverse.onEach(item => {
+				text(item.index()+"="+item.get())
+				cnt3++
+			})
+		})
+
+		passTime()
+		assertBody(``)
+		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,0,0,0])
+		
+		store.set(1, 'b')
+		passTime()
+		assertBody(`"b=1"`)
+		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,1,0,1])
+
+		store.set(2, 'a')
+		passTime()
+		assertBody(`"a=2" "b=1"`)
+		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,2,0,2])
+
+		store.set(3, 'c')
+		passTime()
+		assertBody(`"a=2" "b=1" "c=3"`)
+		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,3,0,3])
+
+		store.set(3, 'd')
+		passTime()
+		assertBody(`"a=2" "b=1" "d=3"`)
+		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,1,4])
+
+		store.delete(1)
+		passTime()
+		assertBody(`"a=2" "d=3"`)
+		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,2,4])
+
+		myMount.unmount()
+		passTime()
+		assertBody(``)
+		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,4,4])
 	})
 })
