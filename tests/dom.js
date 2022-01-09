@@ -1,4 +1,4 @@
-const { mount, node, Store } = require("./build/aberdeen");
+const { mount, node, Store, scope } = require("./build/aberdeen");
 
 describe('DOM creator', function() {
 	it('adds nodes', () => {
@@ -122,5 +122,36 @@ describe('DOM creator', function() {
 			}
 			index.set(index.peek()+1)
 		}
+	})
+
+	it('adds preexisting elements to the DOM', () => {
+		mount(document.body, () => {
+			let el = document.createElement('video')
+			el.classList.add("test")
+			node(el)
+		})
+		assertBody(`video{@class="test"}`)
+	})
+
+	it('handles nontypical options well', () => {
+		let cases = [
+			[`div{}`, () => node("")],
+			[`div{}`, () => node(".")],
+			[`div{@class="a b c"}`, () => node(".a.b.c")],
+			[`div{"1234"}`, () => node(undefined, 1234)],
+			[`_!@#*{"replacement"}`, () => node("_!@#*", null, undefined, {}, "original", 1234, "replacement")],
+		]
+		for(let c of cases) {
+			let myMount = mount(document.body, () => {
+				c[1]()
+			})
+			assertBody(c[0])
+			myMount.unmount()
+		}
+		mount(document.body, () => {
+			assertThrow("Unexpected argument", () => node("span", []))
+			assertThrow("Unexpected argument", () => node("span", new Error()))
+			assertThrow("Unexpected argument", () => node("span", true))
+		})
 	})
 });

@@ -80,4 +80,26 @@ describe('Sort', () => {
 		assertEqual(p, 1)
 		assertEqual(c, 3)
 	})
+
+	it('stores all supported types', () => {
+		let types = {
+			function: function() {},
+			number: 123,
+			string: "hi",
+			object: {a: 1, b: 2},
+			array: [1,2,3],
+			map: objToMap({a:1, b:2}),
+			boolean: false,
+			null: null,
+			undefined: undefined
+		}
+		let store = new Store()
+		assertEqual(store.getType('a','b'), 'undefined')
+		for(let typeName in types) {
+			let typeValue = types[typeName]
+			store.set(typeValue)
+			assertEqual(store.getType(), typeName)
+			assertEqual(store.get(), typeValue)
+		}
+	})
 })

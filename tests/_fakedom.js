@@ -95,6 +95,27 @@ class Element extends Node {
 		delete this.attrs[k];
 		changeCount++;
 	}
+	get classList() {
+		return {
+			add: name => {
+				let set = this._getClassSet()
+				set.add(name)
+				this._setClassSet(set)
+			},
+			remove: name => {
+				let set = this._getClassSet()
+				set.delete(name)
+				this._setClassSet(set)
+			},
+		}
+	}
+	_getClassSet() {
+		return new Set(this.attrs.class ? this.attrs.class.split(' ') : [])
+	}
+	_setClassSet(map) {
+		this.attrs.class = Array.from(map).sort().join(' ')
+	}
+
 	get firstChild() {
 		return this.childNodes[0];
 	}
@@ -136,9 +157,16 @@ class Element extends Node {
 	}
 
 	addEventListener(name, func) {
-		this.events[name] = this.events[name] || [];
-		this.events[name].push(func);
+		this.events[name] = this.events[name] || new Set();
+		this.events[name].add(func);
 		changeCount++;
+	}
+	removeEventListener(name, func) {
+		if (this.events[name]) {
+			if (this.events[name].delete(func)) {
+				changeCount++
+			}
+		}
 	}
 	event(info) {
 		if (typeof info === 'string') info = {type: info};

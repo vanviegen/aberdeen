@@ -1,4 +1,4 @@
-const { Store } = require("./build/aberdeen")
+const { Store, scope } = require("./build/aberdeen")
 
 describe('Store', function() {
 	it('is empty by default', () => {
@@ -33,9 +33,9 @@ describe('Store', function() {
 
 	it('stores and modifies maps', () => {
 		let store = new Store()
-		store.set(new Map(Object.entries({a: 1, b: 2})))
+		store.set(objToMap({a: 1, b: 2}))
 		store.set('c', 3)
-		assertEqual(store.get(), new Map(Object.entries({a: 1, b: 2, c: 3})))
+		assertEqual(store.get(), objToMap({a: 1, b: 2, c: 3}))
 	})
 
 	it('stores and modifies arrays', () => {
@@ -78,7 +78,7 @@ describe('Store', function() {
 
 	it('stores and retrieves deep trees', () => {
 		let obj = {a: {b: {c: {d: {e: {f: {g: 5}}}}}}}
-		let map = new Map([['a', new Map([['b', new Map([['c', new Map([['d', new Map([['e', new Map([['f', new Map([['g', 5]])]])]])]])]])]])]])
+		let map = objToMap(obj)
 		let store = new Store(obj)
 		let data
 		let cnt = 0
@@ -146,7 +146,7 @@ describe('Store', function() {
 	it(`fails to read data of unexpected types`, () => {
 		let data = {
 			array: [1,2,3],
-			map: new Map([[0,'a'], [-2,'b']]),
+			map: new Map([[0,'a'], [-2,'b'], [{},'c']]),
 			object: {a:1, b:2},
 			number: 3,
 			boolean: true,
@@ -181,10 +181,10 @@ describe('Store', function() {
 	})
 
 	it(`checks getOr types`, () => {
-		let store = new Store({num: 3, obj: {a: 1}, map: new Map([[1,2]]), arr: [1,2]})
+		let store = new Store({num: 3, obj: {a: 1}, map: objToMap({x:1}), arr: [1,2]})
 		assertEqual(store.getOr(3, 'num'), 3)
 		assertEqual(store.getOr({}, 'obj'), {a: 1})
-		assertEqual(store.getOr(new Map(), 'map'), new Map([[1,2]]))
+		assertEqual(store.getOr(new Map(), 'map'), objToMap({x:1}))
 		assertEqual(store.getOr(5, 'no-such-num'), 5)
 		assertEqual(store.getOr([], 'arr'), [1,2])
 		assertThrow("Expecting string but got number", () => {
@@ -202,6 +202,38 @@ describe('Store', function() {
 		store.push(1)
 		store.push(2)
 		assertEqual(store.getArray(), [1,2])
+
+		store = new Store({})
+		assertThrow('push() is only allowed', () => {
+			store.push(1)
+		})
+		
+	})
+
+	it(`links stores to each other`, () => {
+		let store1 = new Store({a: 1, b: 2})
+		let store2 = new Store({x: store1, y: 3})
+		assertEqual(store2.get(), {x: {a: 1, b: 2}, y: 3})
+		store1.set('b', 200)
+		assertEqual(store2.get(), {x: {a: 1, b: 200}, y: 3})
+
+		store1.set('gone')
+		assertEqual(store2.get(), {x: {a: 1, b: 200}, y: 3})
+	})
+
+	it(`reactively links stores to each other`, () => {
+		let store1 = new Store({a: 1, b: 2})
+		let score2
+		scope(() => {
+			store2 = new Store({x: store1, y: 3})
+		})
+		assertEqual(store2.get(), {x: {a: 1, b: 2}, y: 3})
+		store1.set('b', 200)
+		assertEqual(store2.get(), {x: {a: 1, b: 200}, y: 3})
+
+		store1.set('gone')
+		passTime()
+		assertEqual(store2.get(), {x: 'gone', y: 3})
 	})
 
 })

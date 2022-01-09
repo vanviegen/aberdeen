@@ -1,5 +1,3 @@
-const { scope, clean, text } = require("./build/aberdeen")
-
 describe('Scope', () => {
 	it('rerenders only the inner scope', () => {
 		let store = new Store('before')

@@ -2,15 +2,23 @@ const fakedom = require('./_fakedom')
 const mocha = require('mocha')
 const equal = require('fast-deep-equal')
 
-mocha.beforeEach(() => { document.body = document.createElement('body') })
-
 Object.assign(global, require('./build/aberdeen'))
+
+mocha.beforeEach(() => {
+	document.body = document.createElement('body')
+})
+
+mocha.afterEach(() => {
+	passTime()
+	unmountAll()
+})
+
 
 global.AssertError = class extends Error {
 	constructor(text, actual, expected, expectLiteral) {
 		text += `
 		Actual:   ${JSON.stringify(actual)}
-		Expected: ${expectLiteral ? expectLiteral : JSON.stringify(expected)}`
+		Expected: ${expectLiteral ? expected : JSON.stringify(expected)}`
 		super(text)
 	}
 }
@@ -44,4 +52,15 @@ global.assertThrow = function(what, func) {
 		return
 	}
 	throw new AssertError(`exception expected`, undefined, `something containing "${what}"`, true)
+}
+
+global.objToMap = function(obj) {
+    if (typeof obj === 'object' && obj && obj.constructor===Object) {
+        let map = new Map()
+        for(let k in obj) {
+            map.set(k, objToMap(obj[k]))
+        }
+        return map
+    }
+    return obj
 }

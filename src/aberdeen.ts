@@ -24,13 +24,7 @@ function queue(runner: QueueRunner) {
 
 function runQueue(): void {
 	// Order queued observers by depth, lowest first
-	let ordered: QueueRunner[]
-	if (Array.from) {
-		ordered = Array.from(queued)
-	} else { // IE 11
-		ordered = []
-		queued.forEach(item => ordered.push(item))
-	}
+	let ordered: QueueRunner[] = arrayFromSet(queued)
 	ordered.sort((a,b) => a.queueOrder - b.queueOrder)
 
 	for(let runner of ordered) {
@@ -107,7 +101,7 @@ interface Observer {
  */
 
 abstract class Scope implements QueueRunner, Observer {
-	parentElement: Element
+	parentElement: Element | undefined
 
 	// How deep is this scope nested in other scopes; we use this to make sure events
 	// at lower depths are handled before events at higher depths.
@@ -126,7 +120,7 @@ abstract class Scope implements QueueRunner, Observer {
 	isDead: boolean = false
 
 	constructor(
-		parentElement: Element,
+		parentElement: Element | undefined,
 		precedingSibling: Node | Scope | undefined,
 		queueOrder: number,
 	) {
@@ -153,6 +147,7 @@ abstract class Scope implements QueueRunner, Observer {
 	}
 
 	addNode(node: Node) {
+		if (!this.parentElement) throw new ScopeError(true)
 		let prevNode = this.findLastNode() || this.findPrecedingNode()
 
 		this.parentElement.insertBefore(node, prevNode ? prevNode.nextSibling : this.parentElement.firstChild)
@@ -160,27 +155,29 @@ abstract class Scope implements QueueRunner, Observer {
 	}
 
 	remove() {
-		let lastNode: Node | undefined = this.findLastNode()
+		if (this.parentElement) {
+			let lastNode: Node | undefined = this.findLastNode()
 
-		if (lastNode) {
-			// at least one DOM node to be removed
+			if (lastNode) {
+				// at least one DOM node to be removed
 
-			let precedingNode = this.findPrecedingNode()
+				let precedingNode = this.findPrecedingNode()
 
-			// Keep removing DOM nodes starting at our last node, until we encounter the preceding node
-			// (which can be undefined)
-			while(lastNode !== precedingNode) {
-				/* istanbul ignore next */ 
-				if (!lastNode) {
-					return internalError(1)
+				// Keep removing DOM nodes starting at our last node, until we encounter the preceding node
+				// (which can be undefined)
+				while(lastNode !== precedingNode) {
+					/* istanbul ignore next */ 
+					if (!lastNode) {
+						return internalError(1)
+					}
+
+					let nextLastNode: Node | undefined = lastNode.previousSibling || undefined
+					this.parentElement.removeChild(lastNode)
+					lastNode = nextLastNode
 				}
-
-				let nextLastNode: Node | undefined = lastNode.previousSibling || undefined
-				this.parentElement.removeChild(lastNode)
-				lastNode = nextLastNode
 			}
+			this.lastChild = undefined
 		}
-		this.lastChild = undefined
 
 		// run cleaners
 		this._clean()
@@ -205,7 +202,7 @@ class SimpleScope extends Scope {
 	renderer: () => void
 
 	constructor(
-		parentElement: Element,
+		parentElement: Element | undefined,
 		precedingSibling: Node | Scope | undefined,
 		queueOrder: number,
 		renderer: () => void,
@@ -258,7 +255,7 @@ class IsEmptyObserver implements Observer {
 
 	onChange(index: any, newData: DatumType, oldData: DatumType) {
 		if (newData===undefined) {
-			if (oldData===undefined) return
+			// oldData is guaranteed not to be undefined
 			if (this.triggerCount || !--this.count) queue(this.scope)
 		} else if (oldData===undefined) {
 			if (this.triggerCount || !this.count++) queue(this.scope)
@@ -292,7 +289,7 @@ class OnEachScope extends Scope {
 	removedIndexes: Set<any> = new Set()
 
 	constructor(
-		parentElement: Element,
+		parentElement: Element | undefined,
 		precedingSibling: Node | Scope | undefined,
 		queueOrder: number,
 		collection: ObsCollection,
@@ -444,7 +441,7 @@ class OnEachItemScope extends Scope {
 	sortStr: string = ""
 
 	constructor(
-		parentElement: Element,
+		parentElement: Element | undefined,
 		precedingSibling: Node | Scope | undefined,
 		queueOrder: number,
 		parent: OnEachScope,
@@ -603,7 +600,7 @@ class ObsArray extends ObsCollection {
 	}
 
 	rawSet(index: any, newData: DatumType): void {
-		if (index !== (0|index) || index<0 || index>99999) {
+		if (index !== (0|index) || index<0 || index>999999) {
 			throw new Error(`Invalid array index ${JSON.stringify(index)}`)
 		}
 		this.data[index] = newData
@@ -638,7 +635,9 @@ class ObsArray extends ObsCollection {
 
 	iterateIndexes(scope: OnEachScope): void {
 		for(let i=0; i<this.data.length; i++) {
-			scope.addChild(i)
+			if (this.data[i]!==undefined) {
+				scope.addChild(i)
+			}	
 		}
 	}
 
@@ -650,7 +649,7 @@ class ObsArray extends ObsCollection {
 			// Check if the number is still the same after conversion
 			if (index.length && num==<unknown>index) return index
 		}
-		throw new Error(`Invalid index ${JSON.stringify(index)} for array`)
+		throw new Error(`Invalid array index ${JSON.stringify(index)}`)
 	}
 
 	getCount() {
@@ -765,7 +764,7 @@ class ObsMap extends ObsCollection {
 		let type = typeof index
 		if (type==='string') return index
 		if (type==='number') return ''+index
-		throw new Error(`Invalid index ${JSON.stringify(index)} for object`)
+		throw new Error(`Invalid object index ${JSON.stringify(index)}`)
 	}
 
 	getCount() {
@@ -816,11 +815,6 @@ export class Store {
 	index() {
 		return this.idx
 	}
-
-	_read() {
-		return this.collection.rawGet(this.idx)
-	}
-
 
 	_clean(scope: Scope) {
 		this.collection.removeObserver(this.idx, scope)
@@ -941,30 +935,6 @@ export class Store {
 		}
 	}
 
-	filterMap(...pathAndFunc: any): Store {
-		let func = pathAndFunc.pop()
-		
-		let store = new Store(new Map())
-		this.onEach(...pathAndFunc, (item: any) => {
-			let res = func(item)
-			if (res!==false && res!=null) {
-				let index = item.index()
-				let value = item
-				if (res instanceof Array) {
-					[index,value] = res
-				} else if (res!==true) {
-					value = res
-				}
-				store.set(index, value)
-				if (currentScope) {
-					currentScope.cleaners.push({_clean: function() { store.delete(index) }})
-				}
-			}
-		})
-
-		return store
-	}
-
 	/**
 	 * Returns "undefined", "null", "boolean", "number", "string", "function", "array", "map" or "object"
 	 */
@@ -972,7 +942,7 @@ export class Store {
 		let store = this.ref(...path)
 		if (!store) return "undefined"
 		let value = store._observe()
-		return (value instanceof ObsCollection) ? value.getType() : typeof value
+		return (value instanceof ObsCollection) ? value.getType() : (value===null ? "null" : typeof value)
 	}
 
 	/**
@@ -1093,7 +1063,7 @@ export class Store {
 		}
 		if (typeof renderer !== 'function') throw new Error(`onEach() expects a render function as its last argument but got ${JSON.stringify(renderer)}`)
 
-		if (!currentScope) throw new Error("onEach() is only allowed from a render scope")
+		if (!currentScope) throw new ScopeError(false)
 
 		let store = this.ref(...pathAndFuncs)
 		if (!store) return
@@ -1117,7 +1087,7 @@ export class Store {
 
 /**
  * Create a new DOM element.
- * @param tagClass - The tag of the element to be created and optionally dot-separated class names. For example: `h1` or `p.intro.has_avatar`.
+ * @param tag - The tag of the element to be created and optionally dot-separated class names. For example: `h1` or `p.intro.has_avatar`.
  * @param rest - The other arguments are flexible and interpreted based on their types:
  *   - `string`: Used as textContent for the element.
  *   - `object`: Used as attributes/properties for the element. See `applyProp` on how the distinction is made.
@@ -1129,20 +1099,23 @@ export class Store {
  *	 })
  * })
  */
-export function node(tagClass: string|Element, ...rest: any[]) {
-	if (!currentScope) throw new Error(`node() outside of a render scope`)
+export function node(tag: string|Element = "", ...rest: any[]) {
+	if (!currentScope) throw new ScopeError(true)
 
 	let el;
-	if (tagClass instanceof Element) {
-		el = tagClass
+	if (tag instanceof Element) {
+		el = tag
 	} else {
-		if (tagClass.indexOf('.')>=0) {
-			let classes = tagClass.split('.')
-			let tag = <string>classes.shift()
-			el = document.createElement(tag || 'div')
-			el.className = classes.join(' ')
-		} else {
-			el = document.createElement(tagClass);
+		let pos = tag.indexOf('.')
+		let classes
+		if (pos>=0) {
+			classes = tag.substr(pos+1)
+			tag = tag.substr(0, pos)
+		}
+		el = document.createElement(tag || 'div')
+		if (classes) {
+			// @ts-ignore (replaceAll is polyfilled)
+			el.className = classes.replaceAll('.', ' ')
 		}
 	}
 
@@ -1173,7 +1146,7 @@ export function node(tagClass: string|Element, ...rest: any[]) {
  * Add a text node at the current Scope position.
  */
 export function text(text: string) {
-	if (!currentScope) throw  new Error(`text() outside of a render scope`)
+	if (!currentScope) throw new ScopeError(true)
 	if (text==null) return
 	currentScope.addNode(document.createTextNode(text))
 }
@@ -1189,7 +1162,7 @@ export function prop(prop: string, value: any): void
 export function prop(props: object): void
 
 export function prop(prop: any, value: any = undefined) {
-	if (!currentScope) throw  new Error(`prop() outside of a render scope`)
+	if (!currentScope || !currentScope.parentElement) throw new ScopeError(true)
 	if (typeof prop === 'object') {
 		for(let k in prop) {
 			applyProp(currentScope.parentElement, k, prop[k])
@@ -1208,7 +1181,7 @@ export function prop(prop: any, value: any = undefined) {
  * terribly surprising. Be careful within the parent element of onEach() though.
  */
 export function getParentElement(): Element {
-	if (!currentScope) throw new Error(`getParentElement() outside of a render scope`)
+	if (!currentScope || !currentScope.parentElement) throw new ScopeError(true)
 	return currentScope.parentElement
 }
 
@@ -1218,7 +1191,7 @@ export function getParentElement(): Element {
  * Register a `clean` function that is executed when the current `Scope` disappears or redraws.
  */
 export function clean(clean: (scope: Scope) => void) {
-	if (!currentScope) throw new Error(`clean() outside of a render scope`)
+	if (!currentScope) throw new ScopeError(false)
 	currentScope.cleaners.push({_clean: clean})
 }
 
@@ -1228,7 +1201,11 @@ export function clean(clean: (scope: Scope) => void) {
  * need to be refreshed, leaving the parent Scope untouched.
  */
 export function scope(renderer: () => void) {
-	if (!currentScope) throw new Error(`scope() outside of a render scope`)
+	if (!currentScope) {
+		let scope = new SimpleScope(undefined, undefined, 0, renderer)
+		scope.update()
+		return new Mount(scope)
+	}
 	
 	let scope = new SimpleScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder+1, renderer)
 	currentScope.lastChild = scope
@@ -1251,23 +1228,32 @@ export function scope(renderer: () => void) {
  * })
  */
 
+let allMounts: Set<Mount> = new Set()
 class Mount {
 	scope: Scope
 
 	constructor(scope: Scope) {
 		this.scope = scope
+		allMounts.add(this)
 	}
 
 	unmount() {
 		this.scope.remove()
+		allMounts.delete(this)
 	}
 }
 
 export function mount(parentElement: Element, renderer: () => void) {
-	if (currentScope) throw new Error('mount() from within a render scope')
+	if (currentScope) throw new Error('mount() cannot be nested in another scope')
 	let scope = new SimpleScope(parentElement, undefined, 0, renderer)
 	scope.update()
 	return new Mount(scope)
+}
+
+export function unmountAll() {
+	for(let mnt of allMounts) {
+		mnt.unmount()
+	}
 }
 
 export function peek(func: () => void) {
@@ -1299,9 +1285,7 @@ function applyProp(el: Element, prop: any, value: any) {
 	} else if (typeof value === 'function') {
 		// Set an event listener; remove it again on clean.
 		el.addEventListener(prop, value)
-		if (currentScope) {
-			clean(() => el.removeEventListener(prop, value))
-		}
+		clean(() => el.removeEventListener(prop, value))
 	} else if (prop==='style' && typeof value === 'object') {
 		// `style` can receive an object
 		Object.assign((<HTMLElement>el).style, value)
@@ -1355,6 +1339,7 @@ function defaultMakeSortKey(store: Store) {
 	return store.index()
 }
 
+/* istanbul ignore next */
 function internalError(code: number) {
 	console.error(new Error("internal error "+code))
 }
@@ -1364,3 +1349,17 @@ function handleError(e: any) {
 	setTimeout(() => {throw e}, 0)
 }
 
+class ScopeError extends Error {
+	constructor(mount: boolean) {
+		super("Operation not permitted outside of a mount()"+(mount ? "" : " or scope()"))
+	}
+}
+let arrayFromSet = Array.from || /* istanbul ignore next */(<Type>(set: Set<Type>) => {
+	let array : Array<Type> = []
+	set.forEach(item => array.push(item))
+	return array
+})
+
+// @ts-ignore
+// istanbul ignore next
+if (!String.prototype.replaceAll) String.prototype.replaceAll = function(from, to) { return this.split(from).join(to) }

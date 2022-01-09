@@ -44,8 +44,8 @@ describe('Count', () => {
             {data: [1,2], count: 2},
             {data: {}, count: 0},
             {data: {a:1, b:2}, count: 2},
-            {data: new Map([]), count: 0},
-            {data: new Map([['a',1],['b',2]]), count: 2},
+            {data: objToMap({}), count: 0},
+            {data: objToMap({a:1, b:2}), count: 2},
         ]
         for(let c of cases) {
             let store = new Store(c.data)
