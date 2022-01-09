@@ -50,37 +50,36 @@ type SortKeyType = number | string | Array<number|string>
  * to compare items in a natural sorting order. So `[3, 'ab']` should be smaller than `[3, 'ac']`.
  * The resulting string is guaranteed to never be empty.
  */
-export function sortKeyToString(key: SortKeyType) {
+function sortKeyToString(key: SortKeyType) {
 	if (key instanceof Array) {
 		return key.map(partToStr).join('')
 	} else {
 		return partToStr(key)
 	}
-
-	function partToStr(part: number|string): string {
-		if (typeof part === 'string') {
-			return part + '\x01'
-		} else {
-			let result = numToString(Math.abs(Math.round(part)), part<0)
-			// Prefix the number of digits, counting down from 128 for negative and up for positive
-			return String.fromCharCode(128 + (part>0 ? result.length : -result.length)) + result
-		}
+}
+function partToStr(part: number|string): string {
+	if (typeof part === 'string') {
+		return part + '\x01'
+	} else {
+		let result = numToString(Math.abs(Math.round(part)), part<0)
+		// Prefix the number of digits, counting down from 128 for negative and up for positive
+		return String.fromCharCode(128 + (part>0 ? result.length : -result.length)) + result
 	}
+}
 
-	function numToString(num: number, neg: boolean): string {
-		let result = ''
-		while(num > 0) {
-			/*
-			* We're reserving a few character codes:
-			* 0 - for compatibility
-			* 1 - separator between array items
-			* 65535 - for compatibility
-			*/
-			result += String.fromCharCode(neg ? 65535 - (num % 65533) : 2 + (num % 65533))
-			num = Math.floor(num / 65533)
-		}
-		return result
+function numToString(num: number, neg: boolean): string {
+	let result = ''
+	while(num > 0) {
+		/*
+		* We're reserving a few character codes:
+		* 0 - for compatibility
+		* 1 - separator between array items
+		* 65535 - for compatibility
+		*/
+		result += String.fromCharCode(neg ? 65535 - (num % 65533) : 2 + (num % 65533))
+		num = Math.floor(num / 65533)
 	}
+	return result
 }
 
 
