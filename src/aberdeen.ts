@@ -793,6 +793,7 @@ export class Store {
 
 	constructor()
 	constructor(value: any)
+	/** @internal */
 	constructor(collection: ObsCollection, index: any)
 
 	constructor(value: any = undefined, index: any = undefined) {
@@ -811,42 +812,89 @@ export class Store {
 		}
 	}
 
+	/**
+	 * 
+	 * @returns The index for this Store within its parent collection. This will be a `number`
+	 * when the parent collection is an array, a `string` when it's an object, or any data type
+	 * when it's a `Map`.
+	 * 
+	 * @example
+	 * ```
+	 * let store = new Store({x: 123})
+	 * let subStore = store.ref('x')
+	 * assert(subStore.get() === 123)
+	 * assert(subStore.index() === 'x') // <----
+	 * ```
+	 */
 	index() {
 		return this.idx
 	}
 
+	/** @internal */
 	_clean(scope: Scope) {
 		this.collection.removeObserver(this.idx, scope)
 	}
 
 
 	/**
-	 * Resolves `path` using `ref` and then retrieves the value that is there, subscribing
-	 * to all read Store values. If `path` does not exist, `undefined` is returned.
+	 * @returns Resolves `path` and then retrieves the value that is there, subscribing
+	 * to all read `Store` values. If `path` does not exist, `undefined` is returned.
+	 * @param path - Any path terms to resolve before retrieving the value.
+	 * @example
+	 * ```
+	 * let store = new Store({a: {b: {c: {d: 42}}}})
+	 * assert(store.get('a', 'b') === {c: {d: 42}})
+	 * ```
 	 */
 	get(...path: any) : any {
 		return this.query({path})
 	}
 
 	/**
-	 * The same as get(), but doesn't subscribe to changes
+	 * @returns The same as [[`get`]], but doesn't subscribe to changes.
 	 */
 	peek(...path: any): any {
 		return this.query({path, peek: true})
 	}
 
-	/** Like `get()`, but throw an exception if the resulting value is not of the named type.
-	 * Using these instead of `query()` directly is especially useful when using TypeScript.
+	/**
+	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `number`.
+	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
 	 */
 	getNumber(...path: any): number { return <number>this.query({path, type: 'number'}) }
+	/**
+	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `string`.
+	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 */
 	getString(...path: any): string { return <string>this.query({path, type: 'string'}) }
+	/**
+	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `boolean`.
+	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 */
 	getBoolean(...path: any): boolean { return <boolean>this.query({path, type: 'boolean'}) }
+	/**
+	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `function`.
+	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 */
 	getFunction(...path: any): (Function) { return <Function>this.query({path, type: 'function'}) }
+	/**
+	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `array`.
+	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 */
 	getArray(...path: any): any[] { return <any[]>this.query({path, type: 'array'}) }
+	/**
+	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `object`.
+	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 */
 	getObject(...path: any): object { return <object>this.query({path, type: 'object'}) }
+	/**
+	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `map`.
+	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 */
 	getMap(...path: any): Map<any,any> { return <Map<any,any>>this.query({path, type: 'map'}) }
 
-	/** Like `get()`, but the first parameter is the default value (returned when the Store
+	/**
+	 * @returns Like [[`get`]], but the first parameter is the default value (returned when the Store
 	 * contains `undefined`). This default value is also used to determine the expected type,
 	 * and to throw otherwise.
 	 */
@@ -859,23 +907,34 @@ export class Store {
 		return this.query({type, defaultValue, path})
 	}
 
-	/** Retrieve a value. This is a more flexible form of the `get` and `peek` methods. It takes
-	 * an `options` object with the following optional keys:
-	 * - `path`: The value for this path should be retrieved. Defaults to `[]`, meaning the entire
-	 * 			 `Store`.
-	 * - `type`: A string specifying what type the query is expected to return. Options are:
-	 *           "undefined", "null", "boolean", "number", "string", "function", "array", "map"
-	 *           and "object". If the store holds a different type of value, a `TypeError`
-	 *           exception is thrown. By default (when `type` is `undefined`) no type checking 
-	 *           is done.
-	 * - `depth`: Limit the depth of the retrieved data structure to this positive integer.
-	 *           When `depth` is `1`, only a single level of the value at `path` is unpacked. This
-	 *           makes no difference for primitive values (like strings), but for objects, maps and
-	 *           arrays, it means that each *value* in the resulting data structure will be a
-	 *           reference to the `Store` for that value.
-	 * - `defaultValue`: Return this value when the `path` does not exist. Defaults to `undefined`.
+	/** Retrieve a value. This is a more flexible form of the [[`get`]] and [[`peek`]] methods.
+	 * @returns The resulting value, or `undefined` if the `path` does not exist.
 	 */
-	query(opts: {path?: any[], type?: string, depth?: number, defaultValue?: any, peek?: boolean}): any {
+	query(opts: {
+		/**  The value for this path should be retrieved. Defaults to `[]`, meaning the entire `Store`. */
+		path?: any[],
+		/** A string specifying what type the query is expected to return. Options are:
+		 *  "undefined", "null", "boolean", "number", "string", "function", "array", "map"
+		 *  and "object". If the store holds a different type of value, a `TypeError`
+		 *  exception is thrown. By default (when `type` is `undefined`) no type checking 
+		 *  is done.
+		 */
+		type?: string,
+		/* Limit the depth of the retrieved data structure to this positive integer.
+		*  When `depth` is `1`, only a single level of the value at `path` is unpacked. This
+		*  makes no difference for primitive values (like strings), but for objects, maps and
+		*  arrays, it means that each *value* in the resulting data structure will be a
+		*  reference to the `Store` for that value.
+		*/
+		depth?: number,
+		/** Return this value when the `path` does not exist. Defaults to `undefined`. */
+		defaultValue?: any,
+		/** When peek is `undefined` or `false`, the current scope will automatically be
+		 * subscribed to changes of any parts of the store being read. When `true`, no
+		 * subscribers will be performed.
+		 */
+		peek?: boolean
+	}): any {
 		if (opts.peek && currentScope) {
 			let savedScope = currentScope
 			currentScope = undefined
@@ -1044,6 +1103,7 @@ export class Store {
 		return store	  
 	}
 
+	/** @Internal */
 	_observe() {
 		if (currentScope) {
 			if (this.collection.addObserver(this.idx, currentScope)) {
@@ -1091,6 +1151,7 @@ export class Store {
  *   - `string`: Used as textContent for the element.
  *   - `object`: Used as attributes/properties for the element. See `applyProp` on how the distinction is made.
  *   - `function`: The render function used to draw the scope of the element. This function gets its own `Scope`, so that if any `Store` it reads changes, it will redraw by itself.
+ *   - `Store`: Presuming `tag` is `"input"`, `"textarea"` or `"select"`, create a two-way binding between this `Store` value and the input element. The initial value of the input will be set to the initial value of the `Store`. After that, the `Store` will be updated when the input changes.
  * @example
  * node('aside.editorial', 'Yada yada yada....', () => {
  *	 node('a', {href: '/bio'}, () => {
@@ -1135,10 +1196,34 @@ export function node(tag: string|Element = "", ...rest: any[]) {
 			for(let k in item) {
 				applyProp(el, k, item[k])
 			}
+		} else if (item instanceof Store) {
+			bindInput(<HTMLInputElement>el, item)
 		} else if (item != null) {
 			throw new Error(`Unexpected argument ${JSON.stringify(item)}`)
 		}
 	}
+}
+
+function bindInput(el: HTMLInputElement, store: Store) {
+	let updater: () => void
+	let type = el.getAttribute('type')
+	if (type === 'checkbox') {
+		el.checked = store.peek()
+		updater = () => store.set(el.checked)
+	} else if (type === 'radio') {
+		el.checked = store.peek() === el.value
+		updater = () => {
+			if (el.checked) store.set(el.value)
+		}
+	} else {
+		el.value = store.peek()
+		updater = () => store.set(el.value)
+	}
+	el.addEventListener('input', updater)
+	clean(() => {
+		el.removeEventListener('input', updater)
+	})
+
 }
 
 /**
@@ -1187,7 +1272,9 @@ export function getParentElement(): Element {
 
 
 /**
- * Register a `clean` function that is executed when the current `Scope` disappears or redraws.
+ * Register a function that is to be executed right before the current reactive scope
+ * disappears or redraws.
+ * @param clean - The function to be executed.
  */
 export function clean(clean: (scope: Scope) => void) {
 	if (!currentScope) throw new ScopeError(false)
@@ -1195,18 +1282,34 @@ export function clean(clean: (scope: Scope) => void) {
 }
 
 /**
- * Create a new Scope and execute the `renderer` within that Scope. When 
- * `Store`s that the `renderer` reads are updated, only this Scope will
- * need to be refreshed, leaving the parent Scope untouched.
+ * Create a new reactive scope and execute the `func` within that scope. When 
+ * `Store`s that the `func` reads are updated, only this scope will need to be refreshed,
+ * leaving the parent scope untouched.
+ * 
+ * In case this function is called outside of a an existing scope, it will create a new 
+ * top-level scope (a [[`Mount`]]) without a `parentElement`, meaning that aberdeen operations
+ * that create/modify DOM elements are not permitted.
+ * @param func - The function to be (repeatedly) executed within the newly created scope.
+ * @returns The newly created `Mount` object in case this is a top-level reactive scope.
+ * @example
+ * ```
+ * let store = new Store('John Doe')
+ * new Mount(document.body, () => {
+ *     node('div.card', () => {
+ * 	       node('input', {placeholder: 'Name'}, store)
+ *         scope(() => {
+ * 		       prop('class', {correct: store.get().length > 5})
+ * 		   })
+ * 	   })
+ * })
+ * ```
  */
-export function scope(renderer: () => void) {
+export function scope(func: () => void) {
 	if (!currentScope) {
-		let scope = new SimpleScope(undefined, undefined, 0, renderer)
-		scope.update()
-		return new Mount(scope)
+		return new Mount(undefined, func)
 	}
 	
-	let scope = new SimpleScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder+1, renderer)
+	let scope = new SimpleScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder+1, func)
 	currentScope.lastChild = scope
 	scope.update()
 
@@ -1228,25 +1331,44 @@ export function scope(renderer: () => void) {
  */
 
 let allMounts: Set<Mount> = new Set()
-class Mount {
-	scope: Scope
 
-	constructor(scope: Scope) {
-		this.scope = scope
+/**
+ * A `Mount` object represents a top-level reactive scope.
+ */
+export class Mount {
+	private scope: Scope
+
+	/**
+	 * Create a new top-level scope for reactive code.
+	 * @param parentElement The DOM element that any rendered children should be attached to.
+	 * If `undefined` is given, aberdeen operations that create DOM elements (such as [[`node`]])
+	 * will throw.
+	 * @param renderer The reactive function to run within the newly created scope context. Any
+	 * DOM elements created within this function will have `parentElement` as their parents.
+	 * @example
+	 * ```
+	 * let store = new Store(0)
+	 * setInterval(() => store.set(store.get()+1)), 1000)
+	 * new Mount(document.body, () => {
+	 * 	   node('h2', `${store.get()} seconds have passed`)
+	 * })
+	 * ```
+	 */
+	constructor(parentElement: Element | undefined, renderer: () => void) {
+		if (currentScope) throw new Error('mounts cannot be nested')
 		allMounts.add(this)
+		let scope = new SimpleScope(parentElement, undefined, 0, renderer)
+		scope.update()
+		this.scope = scope
 	}
-
+	
+	/** End the reactive scope, calling any handlers registered by [[`clean`]] and removing
+	 * any DOM elements created from within the scope.
+	 */
 	unmount() {
 		this.scope.remove()
 		allMounts.delete(this)
 	}
-}
-
-export function mount(parentElement: Element, renderer: () => void) {
-	if (currentScope) throw new Error('mount() cannot be nested in another scope')
-	let scope = new SimpleScope(parentElement, undefined, 0, renderer)
-	scope.update()
-	return new Mount(scope)
 }
 
 export function unmountAll() {
@@ -1255,7 +1377,30 @@ export function unmountAll() {
 	}
 }
 
-export function peek(func: () => void) {
+/** Runs the given function, while not subscribing the current scope when reading [[`Store`]] values.
+ * 
+ * @param func Function to be executed immediately.
+ * @returns Whatever `func()` returns.
+ * @example
+ * ```
+ * import {Store, peek, text} from aberdeen
+ * 
+ * let store = new Store(['a', 'b', 'c'])
+ * 
+ * mount(document.body, () => {
+ *     // Prevent rerender when store changes
+ *     peek(() => {
+ *         text(`Store has ${store.count()} elements, and the first is ${store.get(0)}`)
+ *     })
+ * })
+ * ```
+ * 
+ * In the above example `store.get(0)` could be replaced with `store.peek(0)` to achieve the
+ * same result without `peek()` wrapping everything. There is no non-subscribing equivalent
+ * for `count()` however. 
+ */
+
+export function peek<T>(func: () => T): T {
 	let savedScope = currentScope
 	currentScope = undefined
 	try {

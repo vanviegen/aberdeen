@@ -4,7 +4,7 @@ describe('Count', () => {
 	it('reactively counts object keys', () => {
         let store = new Store()
         let cnt = 0
-        mount(document.body, () => {
+        new Mount(document.body, () => {
             text(store.count())
             cnt++
         })
@@ -71,7 +71,7 @@ describe('Count', () => {
     it('reactively handles isEmpty', () => {
         let store = new Store()
         let cnt = 0
-        mount(document.body, () => {
+        new Mount(document.body, () => {
             text(store.isEmpty())
             cnt++
         })

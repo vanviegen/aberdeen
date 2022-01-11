@@ -2,7 +2,7 @@ describe('Scope', () => {
 	it('rerenders only the inner scope', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('a', () => {
 				cnt1++
 				node('span', () => {
@@ -25,7 +25,7 @@ describe('Scope', () => {
 		let store = new Store(false)
 		
 		let cnt1 = 0, cnt2 = 0
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			cnt1++
 			node('a', () => {
 				cnt2++
@@ -48,7 +48,7 @@ describe('Scope', () => {
 		let store = new Store(false)
 		
 		let cnt1 = 0, cnt2 = 0
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			cnt1++
 			node('a')
 			scope(() => {
@@ -73,7 +73,7 @@ describe('Scope', () => {
 		let store2 = new Store(false)
 		
 		let cnt0 = 0, cnt1 = 0, cnt2 = 0
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			cnt0++
 			node('i')
 			scope(() => {
@@ -101,7 +101,7 @@ describe('Scope', () => {
 	})
 
 	it('insert at right position with an empty parent scope', () => {
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('a')
 			scope(() => {
 				scope(() => {
@@ -115,7 +115,7 @@ describe('Scope', () => {
 	it('refrains from rerendering dead scopes', () => {
 		let cnts = [0,0,0,0]
 		let store = new Store('a')
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			cnts[0]++
 			scope(() => {
 				cnts[1]++
@@ -139,7 +139,7 @@ describe('Scope', () => {
 	it('inserts higher priority updates', () => {
 		let store = new Store({})
 		let pcnt = 0, ccnt = 0
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			pcnt++
 			if (store.get('parent')) return
 			
@@ -168,7 +168,7 @@ describe('Scope', () => {
 	it('does not rerender on peek', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('a', () => {
 				cnt1++
 				node('span', () => {
@@ -189,7 +189,7 @@ describe('Scope', () => {
 	it('emits for objects with numeric get() paths', () => {
 		let values = new Store({})
 
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			for(let i=0; i<4; i++) {
 				node('p', () => {
 					text(values.get(i))
@@ -208,7 +208,7 @@ describe('Scope', () => {
 		let store = new Store({})
 		let inverse = new Store({})
 
-		let myMount = mount(document.body, () => {
+		let myMount = new Mount(document.body, () => {
 			cnt0++
 			store.onEach(item => {
 				let key = item.get()

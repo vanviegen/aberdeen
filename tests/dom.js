@@ -1,8 +1,6 @@
-const { mount, node, Store, scope } = require("./build/aberdeen");
-
 describe('DOM creator', function() {
 	it('adds nodes', () => {
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('p')
 		})
 		passTime();
@@ -10,7 +8,7 @@ describe('DOM creator', function() {
 	});
 
 	it('adds classes', () => {
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('p.a.b')
 		})
 		passTime();
@@ -18,7 +16,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets attributes', () => {
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('div', {class: 'C', text: "T"}, {id: 'I', index: 1})
 		})
 		passTime();
@@ -26,7 +24,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets properties', () => {
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('p', {className: 'C', value: 3})
 		})
 		passTime();
@@ -34,7 +32,7 @@ describe('DOM creator', function() {
 	});
 
 	it('nests elements', () => {
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('p', () => {
 				node('a', () => {
 					node('i', () => {
@@ -48,7 +46,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets properties from the inner scope', () => {
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('a', () => {
 				prop('href', '/')
 				prop({
@@ -62,7 +60,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets style objects', () => {
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			node('a', {style: 'color: red;'})
 			node('b', {style: {color: 'green'}})
 			node('c', () => {
@@ -85,7 +83,7 @@ describe('DOM creator', function() {
 	it('unmounts', () => {
 		let store = new Store('Hej world')
 		let cnt = 0
-		let myMount = mount(document.body, () => {
+		let myMount = new Mount(document.body, () => {
 			cnt++
 			node('p', store.get())
 		})
@@ -110,7 +108,7 @@ describe('DOM creator', function() {
 			[undefined, ``],
 			[false, `"false"`],
 		]
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			text(cases[index.get()][0])
 		})
 
@@ -125,7 +123,7 @@ describe('DOM creator', function() {
 	})
 
 	it('adds preexisting elements to the DOM', () => {
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			let el = document.createElement('video')
 			el.classList.add("test")
 			node(el)
@@ -142,13 +140,13 @@ describe('DOM creator', function() {
 			[`_!@#*{"replacement"}`, () => node("_!@#*", null, undefined, {}, "original", 1234, "replacement")],
 		]
 		for(let c of cases) {
-			let myMount = mount(document.body, () => {
+			let myMount = new Mount(document.body, () => {
 				c[1]()
 			})
 			assertBody(c[0])
 			myMount.unmount()
 		}
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			assertThrow("Unexpected argument", () => node("span", []))
 			assertThrow("Unexpected argument", () => node("span", new Error()))
 			assertThrow("Unexpected argument", () => node("span", true))

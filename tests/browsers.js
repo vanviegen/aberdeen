@@ -5,7 +5,7 @@ describe('Browsers', () => {
 		
 		let store = new Store(false)
 		let cnt = 0
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			cnt++
 			if (store.get()) node('a')
 		})

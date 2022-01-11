@@ -91,6 +91,9 @@ class Element extends Node {
 		this.attrs[k] = ''+v;
 		changeCount++;
 	}
+	getAttribute(k) {
+		return this.attrs[k]
+	}
 	removeAttribute(k) {
 		delete this.attrs[k];
 		changeCount++;

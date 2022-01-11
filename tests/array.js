@@ -2,7 +2,7 @@ describe('Array', () => {
 	it('fires higher-scope isEmpty before getting to content', () => {
 		let store = new Store(['a'])
 		let cnt1 = 0, cnt2 = 0
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			cnt1++
 			if (!store.isEmpty()) {
 				node('div', () => {
@@ -28,7 +28,7 @@ describe('Array', () => {
 
 	it('reactively get() full array', () => {
 		let store = new Store([3, 4, new Store([5, 6])])
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			text(JSON.stringify(store.get()))
 			text(JSON.stringify(store.query({depth: 1})[2].get()))
 		})
@@ -58,7 +58,7 @@ describe('Array', () => {
 	it('merges', () => {
 		let cnt1 = 0, cnt2 = 0
 		let store = new Store([1,undefined,3])
-		mount(document.body, () => {
+		new Mount(document.body, () => {
 			cnt1++
 			store.onEach(item => {
 				cnt2++

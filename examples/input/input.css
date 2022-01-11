@@ -1,0 +1,56 @@
+* {
+	box-sizing: border-box;
+}
+
+body {
+	max-width: 400px;
+	margin: 0 auto;
+}
+
+pre {
+	overflow-x: scroll;
+}
+
+input, textarea, label, fieldset {
+	display: block;
+	margin: 1rem 0;
+	width: 100%;
+}
+
+input, textarea {
+	padding: 0.5rem;
+	border: 1px solid #ccc;
+	outline: none;
+}
+
+textarea {
+	min-height: 8rem;
+}
+
+fieldset {
+	padding: 0;
+	border: none;
+}
+
+fieldset > * {
+	margin: 0.25rem 0;
+}
+
+label > input {
+	display: inline-block;
+	margin: 0;
+}
+
+label > input:first-child {
+	margin-right: 0.5rem;
+	width: initial;
+}
+
+label > input[type=color]:first-child {
+	width: 50px;
+}
+
+
+input[type=checkbox], input[type=radio], input[type=color] {
+	padding: 0;
+}

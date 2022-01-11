@@ -3,7 +3,7 @@ const { scope, mount, Store } = require("./build/aberdeen")
 describe('Error handling', () => {
 	it('continues rendering after an error', () => {
         let error = new Store(false)
-        mount(document.body, () => {
+        new Mount(document.body, () => {
             node('a', () => {
                 node('b')
                 if (error.get()) {
@@ -42,14 +42,14 @@ describe('Error handling', () => {
 
     it('cannot nest mounts', () => {
         scope(() => {
-            assertThrow('cannot be nested', () => mount(document.body, ()=>{}))
+            assertThrow('cannot be nested', () => new Mount(document.body, ()=>{}))
         })
     })
 
 
     it('continue rendering after an error in onEach', () => {
         let store = new Store(['a','b','c'])
-        mount(document.body, () => {  
+        new Mount(document.body, () => {  
             store.onEach(item => {
                 if (item.index()%2) noSuchFunction()
                 text(item.get())
@@ -66,7 +66,7 @@ describe('Error handling', () => {
 
     it('continue rendering after an error in onEach sort', () => {
         let store = new Store(['a','b','c'])
-        mount(document.body, () => {  
+        new Mount(document.body, () => {  
             store.onEach(item => {
                 text(item.get())
             }, item => {

@@ -82,7 +82,7 @@ describe('Store', function() {
 		let store = new Store(obj)
 		let data
 		let cnt = 0
-		mount(undefined, () => {
+		new Mount(undefined, () => {
 			data = store.get()
 			cnt++
 		})
