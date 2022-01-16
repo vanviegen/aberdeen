@@ -1,4 +1,4 @@
-import {node, prop, Mount, Store, scope, text} from '../../dist/aberdeen.js';
+import {node, Store, mount, text} from '../../dist/aberdeen.js';
 
 const store = new Store({
 	name: 'John Doe',
@@ -10,7 +10,7 @@ const store = new Store({
 	color: '#00fa9a',
 })
 
-new Mount(document.body, () => {
+mount(document.body, () => {
 	node('input', {placeholder: 'Name'}, store.ref('name'))
 	node('input', {type: 'number', placeholder: 'Age'}, store.ref('age'))
 	node('label', () => {
@@ -22,7 +22,7 @@ new Mount(document.body, () => {
 		node('option', {value: "w"}, "Woman")
 		node('option', {value: "n"}, "Non-binary")
 	}, store.ref('gender'))
-
+	
 	node('fieldset', () => {
 		const vehicles = {plane: 'Plane', car: 'Car', bike: 'Bicycle', none: 'None'}
 		for(let id in vehicles) {
@@ -34,18 +34,20 @@ new Mount(document.body, () => {
 	})
 	
 	node('textarea', {placeholder: "Biography"}, store.ref('bio'))
-
+	
 	node('label', () => {
 		node('input', {type: 'color'}, store.ref('color'))
 		text('Favorite color')
 	})
-
+	
 	node('input', {type: 'range', min: 50, max: 230}, store.ref('height'))
-
+	
 	node('input', {type: 'date'}, store.ref('first_day'))
-
+	
 	node('pre', () => {
 		text(JSON.stringify(store.get(), undefined, 4))
 	})
 })
+
+
 

@@ -82,7 +82,7 @@ describe('Store', function() {
 		let store = new Store(obj)
 		let data
 		let cnt = 0
-		new Mount(undefined, () => {
+		mount(undefined, () => {
 			data = store.get()
 			cnt++
 		})
@@ -224,7 +224,7 @@ describe('Store', function() {
 	it(`reactively links stores to each other`, () => {
 		let store1 = new Store({a: 1, b: 2})
 		let score2
-		scope(() => {
+		observe(() => {
 			store2 = new Store({x: store1, y: 3})
 		})
 		assertEqual(store2.get(), {x: {a: 1, b: 2}, y: 3})

@@ -2,7 +2,7 @@ describe('Scope', () => {
 	it('rerenders only the inner scope', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('a', () => {
 				cnt1++
 				node('span', () => {
@@ -25,7 +25,7 @@ describe('Scope', () => {
 		let store = new Store(false)
 		
 		let cnt1 = 0, cnt2 = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			cnt1++
 			node('a', () => {
 				cnt2++
@@ -44,14 +44,14 @@ describe('Scope', () => {
 		assertEqual(cnt2,5)
 	})
 
-	it('refreshes standalone scope()s', () => {
+	it('refreshes standalone observe()s', () => {
 		let store = new Store(false)
 		
 		let cnt1 = 0, cnt2 = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			cnt1++
 			node('a')
-			scope(() => {
+			observe(() => {
 				cnt2++
 				if (store.get()) node('i')
 			})
@@ -68,19 +68,19 @@ describe('Scope', () => {
 		assertEqual(cnt2,5)
 	})
 
-	it('uses scope()s as reference for DOM insertion', () => {
+	it('uses observe()s as reference for DOM insertion', () => {
 		let store1 = new Store(false)
 		let store2 = new Store(false)
 		
 		let cnt0 = 0, cnt1 = 0, cnt2 = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			cnt0++
 			node('i')
-			scope(() => {
+			observe(() => {
 				cnt1++
 				store1.get() && node('a')
 			})
-			scope(() => {
+			observe(() => {
 				cnt2++
 				store2.get() && node('b')
 			})
@@ -101,10 +101,10 @@ describe('Scope', () => {
 	})
 
 	it('insert at right position with an empty parent scope', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('a')
-			scope(() => {
-				scope(() => {
+			observe(() => {
+				observe(() => {
 					node('b')
 				})
 			})
@@ -115,14 +115,14 @@ describe('Scope', () => {
 	it('refrains from rerendering dead scopes', () => {
 		let cnts = [0,0,0,0]
 		let store = new Store('a')
-		new Mount(document.body, () => {
+		testMount(() => {
 			cnts[0]++
-			scope(() => {
+			observe(() => {
 				cnts[1]++
-				scope(() => {
+				observe(() => {
 					cnts[2]++
 					if (store.get()==='b') return
-					scope(() => {
+					observe(() => {
 						cnts[3]++
 						store.get()
 					})
@@ -139,7 +139,7 @@ describe('Scope', () => {
 	it('inserts higher priority updates', () => {
 		let store = new Store({})
 		let pcnt = 0, ccnt = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			pcnt++
 			if (store.get('parent')) return
 			
@@ -168,7 +168,7 @@ describe('Scope', () => {
 	it('does not rerender on peek', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('a', () => {
 				cnt1++
 				node('span', () => {
@@ -189,7 +189,7 @@ describe('Scope', () => {
 	it('emits for objects with numeric get() paths', () => {
 		let values = new Store({})
 
-		new Mount(document.body, () => {
+		testMount(() => {
 			for(let i=0; i<4; i++) {
 				node('p', () => {
 					text(values.get(i))
@@ -208,7 +208,7 @@ describe('Scope', () => {
 		let store = new Store({})
 		let inverse = new Store({})
 
-		let myMount = new Mount(document.body, () => {
+		myMount = testMount(() => {
 			cnt0++
 			store.onEach(item => {
 				let key = item.get()
@@ -256,8 +256,7 @@ describe('Scope', () => {
 		assertBody(`"a=2" "d=3"`)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,2,4])
 
-		myMount.unmount()
-		passTime()
+		testUnmount()
 		assertBody(``)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,4,4])
 	})

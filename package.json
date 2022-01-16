@@ -4,12 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc && terser --module --compress --mangle -- dist/aberdeen.js > dist/aberdeen.min.js && typedoc src/aberdeen.ts",
-    "coverage": "([ src/aberdeen.ts -nt tests/build/aberdeen.js ] && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts) ; nyc mocha --file tests/_init.js tests/[^_]*.js",
-    "test": "([ src/aberdeen.ts -nt tests/build/aberdeen.js ] && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts) ; mocha --file tests/_init.js tests/[^_]*.js",
-    "prepack": "npm run build"
+    "build": "$npm_execpath run build-dist && $npm_execpath run build-docs",
+    "build-dist": "tsc && terser --module --compress --mangle -- dist/aberdeen.js > dist/aberdeen.min.js",
+    "build-docs": "typedoc --excludePrivate --excludeInternal src/aberdeen.ts",
+    "build-test": "[ tests/build/aberdeen.js -nt src/aberdeen.ts ] || tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts",
+    "coverage": "$npm_execpath run build-test && nyc mocha --file tests/_init.js tests/[^_]*.js",
+    "test": "$npm_execpath run build-test && mocha --file tests/_init.js tests/[^_]*.js",
+    "prepack": "$npm_execpath run test && $npm_execpath run build"
   },
-  "author": "",
+  "author": "Frank van Viegen",
   "license": "ISC",
   "devDependencies": {
     "fast-deep-equal": "^3.1.1",

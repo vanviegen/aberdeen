@@ -1,6 +1,6 @@
 describe('DOM creator', function() {
 	it('adds nodes', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('p')
 		})
 		passTime();
@@ -8,7 +8,7 @@ describe('DOM creator', function() {
 	});
 
 	it('adds classes', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('p.a.b')
 		})
 		passTime();
@@ -16,7 +16,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets attributes', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('div', {class: 'C', text: "T"}, {id: 'I', index: 1})
 		})
 		passTime();
@@ -24,7 +24,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets properties', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('p', {className: 'C', value: 3})
 		})
 		passTime();
@@ -32,7 +32,7 @@ describe('DOM creator', function() {
 	});
 
 	it('nests elements', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('p', () => {
 				node('a', () => {
 					node('i', () => {
@@ -46,7 +46,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets properties from the inner scope', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('a', () => {
 				prop('href', '/')
 				prop({
@@ -60,7 +60,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets style objects', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('a', {style: 'color: red;'})
 			node('b', {style: {color: 'green'}})
 			node('c', () => {
@@ -83,16 +83,15 @@ describe('DOM creator', function() {
 	it('unmounts', () => {
 		let store = new Store('Hej world')
 		let cnt = 0
-		let myMount = new Mount(document.body, () => {
+		testMount(() => {
 			cnt++
 			node('p', store.get())
 		})
 		assertBody(`p{"Hej world"}`)
 
-		myMount.unmount()
-		passTime()
-
+		testUnmount()
 		assertBody(``)
+
 		store.set('Updated')
 		passTime()
 		assertEqual(cnt, 1)
@@ -108,7 +107,7 @@ describe('DOM creator', function() {
 			[undefined, ``],
 			[false, `"false"`],
 		]
-		new Mount(document.body, () => {
+		testMount(() => {
 			text(cases[index.get()][0])
 		})
 
@@ -123,7 +122,7 @@ describe('DOM creator', function() {
 	})
 
 	it('adds preexisting elements to the DOM', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			let el = document.createElement('video')
 			el.classList.add("test")
 			node(el)
@@ -140,13 +139,13 @@ describe('DOM creator', function() {
 			[`_!@#*{"replacement"}`, () => node("_!@#*", null, undefined, {}, "original", 1234, "replacement")],
 		]
 		for(let c of cases) {
-			let myMount = new Mount(document.body, () => {
+			testMount(() => {
 				c[1]()
 			})
 			assertBody(c[0])
-			myMount.unmount()
+			testUnmount()
 		}
-		new Mount(document.body, () => {
+		testMount(() => {
 			assertThrow("Unexpected argument", () => node("span", []))
 			assertThrow("Unexpected argument", () => node("span", new Error()))
 			assertThrow("Unexpected argument", () => node("span", true))

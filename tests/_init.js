@@ -4,14 +4,32 @@ const equal = require('fast-deep-equal')
 
 Object.assign(global, require('./build/aberdeen'))
 
+let currentMountSeq = new Store(0)
 mocha.beforeEach(() => {
 	document.body = document.createElement('body')
 })
 
 mocha.afterEach(() => {
-	passTime()
-	unmountAll()
+	testUnmount()
+	assertBody(``)
 })
+
+global.testMount = function(func) {
+	let myMountSeq = currentMountSeq.peek()
+	mount(document.body, () => {
+		// The peek should make sure that all passed mounts can be fully garbage collected, as
+		// they won't need to keep observing currentMountSeq (in case it would go backwards,
+		// which it won't).
+		if (myMountSeq === currentMountSeq.peek() && myMountSeq === currentMountSeq.get()) {
+			func()
+		}
+	})
+}
+
+global.testUnmount = function() {
+	currentMountSeq.modify(n => n+1)
+	passTime()
+}
 
 
 global.AssertError = class extends Error {

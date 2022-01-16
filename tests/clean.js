@@ -5,7 +5,7 @@ describe('Clean', function() {
 
         let cnt1 = 0, cnt2 = 0
         let store = new Store(1)
-        let myMount = new Mount(document.body, () => {
+        testMount(() => {
             cnt1++
             text(store.get())
             clean(() => {
@@ -22,7 +22,7 @@ describe('Clean', function() {
         assertBody(`"2"`)
         assertEqual([cnt1, cnt2], [2, 1])
 
-        myMount.unmount()
+        testUnmount()
         assertEqual([cnt1, cnt2], [2, 2])
     })
 })

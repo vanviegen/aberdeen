@@ -1,5 +1,3 @@
-const { Store, mount, text, unmountAll } = require("./build/aberdeen")
-
 describe('Objects and maps', () => {
     it('map fetches with a limited depth', () => {
         let store = new Store(objToMap({a: {b: {c: {d: 42}}}}))
@@ -13,7 +11,7 @@ describe('Objects and maps', () => {
             let store = new Store(converter({a: 1, b: 2, c: 3, d: undefined}))
             assertEqual(store.count(), 3)
             let cnt = 0
-            new Mount(document.body, () => {
+            testMount(() => {
                 cnt++
                 text(store.get('a')+store.get('a')+store.get('b'))
                 store.get()
@@ -31,7 +29,7 @@ describe('Objects and maps', () => {
             assertBody(`"10"`)
             assertEqual(cnt, 3)
 
-            unmountAll()
+            testUnmount()
         }
     })
 

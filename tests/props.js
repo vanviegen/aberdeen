@@ -4,11 +4,11 @@ describe('Props', function() {
     it('Sets and unsets classes', () => {
         let cnt1 = 0, cnt2 = 0, cnt3 = 0
         classObj = new Store({a: false, b: true, c: undefined})
-        new Mount(document.body, () => {
+        testMount(() => {
             cnt1++
             node('div', () => {
                 cnt2++
-                scope(() => {
+                observe(() => {
                     cnt3++
                     prop({class: classObj.get()})
                 })
@@ -34,7 +34,7 @@ describe('Props', function() {
         let store = new Store(true)
         let el;
         let myFunc = ()=>{}
-        new Mount(document.body, () => {
+        testMount(() => {
             node('div', () => {
                 el = getParentElement()
                 if (store.get()) prop({click: myFunc})

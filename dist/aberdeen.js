@@ -849,6 +849,10 @@ export class Store {
         obsArray.emitChange(pos, newData, undefined);
         return pos;
     }
+    modify(...pathAndFunc) {
+        let func = pathAndFunc.pop();
+        this.set(func(this.peek()));
+    }
     /**
      * Return a `Store` deeper within the tree by resolving the given `path`,
      * subscribing to every level.
@@ -996,18 +1000,21 @@ function bindInput(el, store) {
     let updater;
     let type = el.getAttribute('type');
     if (type === 'checkbox') {
-        el.checked = store.peek();
+        if (store.peek() !== undefined)
+            el.checked = store.peek();
         updater = () => store.set(el.checked);
     }
     else if (type === 'radio') {
-        el.checked = store.peek() === el.value;
+        if (store.peek() !== undefined)
+            el.checked = store.peek() === el.value;
         updater = () => {
             if (el.checked)
                 store.set(el.value);
         };
     }
     else {
-        el.value = store.peek();
+        if (store.peek() !== undefined)
+            el.value = store.peek();
         updater = () => store.set(el.value);
     }
     el.addEventListener('input', updater);
@@ -1072,78 +1079,95 @@ export function clean(clean) {
  * @example
  * ```
  * let store = new Store('John Doe')
- * new Mount(document.body, () => {
+ * mount(document.body, () => {
  *     node('div.card', () => {
  * 	       node('input', {placeholder: 'Name'}, store)
- *         scope(() => {
+ *         observe(() => {
  * 		       prop('class', {correct: store.get().length > 5})
  * 		   })
  * 	   })
  * })
  * ```
  */
-export function scope(func) {
-    if (!currentScope) {
-        return new Mount(undefined, func);
+/**
+ * Reactively run a function, meaning the function will rerun when any `Store` that was read
+ * during its execution is updated.
+ * Calls to `observe` can be nested, such that changes to `Store`s read by the inner function do
+ * no cause the outer function to rerun.
+ *
+ * @param func - The function to be (repeatedly) executed.
+ * @example
+ * ```
+ * let number = new Store(0)
+ * let doubled = new Store()
+ * setInterval(() => number.set(0|Math.random()*100)), 1000)
+ *
+ * observe(() => {
+ *   doubled.set(number.get() * 2)
+ * })
+ *
+ * observe(() => {
+ *   console.log(doubled.get())
+ * })
+ */
+export function observe(func) {
+    mount(undefined, func);
+}
+/**
+ * Like [[`observe`]], but allow the function to create DOM elements using [[`node`]].
+
+ * @param func - The function to be (repeatedly) executed, possibly adding DOM elements to `parentElement`.
+ * @param parentElement - A DOM element that will be used as the parent element for calls to `node`.
+ *
+ * @example
+ * ```
+ * let store = new Store(0)
+ * setInterval(() => store.modify(v => v+1), 1000)
+ *
+ * mount(document.body, () => {
+ * 	   node('h2', `${store.get()} seconds have passed`)
+ * })
+ * ```
+ *
+ * An example nesting [[`observe`]] within `mount`:
+ * ```
+ * let selected = new Store(0)
+ * let colors = new Store(new Map())
+ *
+ * mount(document.body, () => {
+ * 	// This function will never rerun (as it does not read any `Store`s)
+ * 	node('button', '<<', {click: () => selected.modify(n => n-1)})
+ * 	node('button', '>>', {click: () => selected.modify(n => n+1)})
+ *
+ * 	observe(() => {
+ * 		// This will rerun whenever `selected` changes, recreating the <h2> and <input>.
+ * 		node('h2', '#'+selected.get())
+ * 		node('input', {type: 'color', value: '#ffffff'}, colors.ref(selected.get()))
+ * 	})
+ *
+ * 	observe(() => {
+ * 		// This function will rerun when `selected` or the selected color changes.
+ * 		// It will change the <body> background-color.
+ * 		prop({style: {backgroundColor: colors.get(selected.get()) || 'white'}})
+ * 	})
+ * })
+ * ```
+*/
+export function mount(parentElement, func) {
+    let scope;
+    if (parentElement || !currentScope) {
+        scope = new SimpleScope(parentElement, undefined, 0, func);
     }
-    let scope = new SimpleScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder + 1, func);
-    currentScope.lastChild = scope;
+    else {
+        scope = new SimpleScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder + 1, func);
+        currentScope.lastChild = scope;
+    }
+    // Do the initial run
     scope.update();
     // Add it to our list of cleaners. Even if `scope` currently has
     // no cleaners, it may get them in a future refresh.
-    currentScope.cleaners.push(scope);
-}
-/**
- * Main entry point for using aberdeen. The elements created by the given `render` function are appended to `parentElement` (and updated when read `Store`s change).
- * @param parentElement - The DOM element to append to.
- * @param renderer - The function that does the rendering.
- * @example
- * mount(document.body, () => {
- *	 node('h1', 'Hello world!', () => {
- *		 node('img.logo', {src: '/logo.png'})
- *	 })
- * })
- */
-let allMounts = new Set();
-/**
- * A `Mount` object represents a top-level reactive scope.
- */
-export class Mount {
-    /**
-     * Create a new top-level scope for reactive code.
-     * @param parentElement The DOM element that any rendered children should be attached to.
-     * If `undefined` is given, aberdeen operations that create DOM elements (such as [[`node`]])
-     * will throw.
-     * @param renderer The reactive function to run within the newly created scope context. Any
-     * DOM elements created within this function will have `parentElement` as their parents.
-     * @example
-     * ```
-     * let store = new Store(0)
-     * setInterval(() => store.set(store.get()+1)), 1000)
-     * new Mount(document.body, () => {
-     * 	   node('h2', `${store.get()} seconds have passed`)
-     * })
-     * ```
-     */
-    constructor(parentElement, renderer) {
-        if (currentScope)
-            throw new Error('mounts cannot be nested');
-        allMounts.add(this);
-        let scope = new SimpleScope(parentElement, undefined, 0, renderer);
-        scope.update();
-        this.scope = scope;
-    }
-    /** End the reactive scope, calling any handlers registered by [[`clean`]] and removing
-     * any DOM elements created from within the scope.
-     */
-    unmount() {
-        this.scope.remove();
-        allMounts.delete(this);
-    }
-}
-export function unmountAll() {
-    for (let mnt of allMounts) {
-        mnt.unmount();
+    if (currentScope) {
+        currentScope.cleaners.push(scope);
     }
 }
 /** Runs the given function, while not subscribing the current scope when reading [[`Store`]] values.
@@ -1270,7 +1294,7 @@ function handleError(e) {
 }
 class ScopeError extends Error {
     constructor(mount) {
-        super("Operation not permitted outside of a mount()" + (mount ? "" : " or scope()"));
+        super(`Operation not permitted outside of ${mount ? "a mount" : "an observe"}() scope`);
     }
 }
 let arrayFromSet = Array.from || /* istanbul ignore next */ ((set) => {

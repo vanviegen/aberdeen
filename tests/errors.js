@@ -3,7 +3,7 @@ const { scope, mount, Store } = require("./build/aberdeen")
 describe('Error handling', () => {
 	it('continues rendering after an error', () => {
         let error = new Store(false)
-        new Mount(document.body, () => {
+        testMount(() => {
             node('a', () => {
                 node('b')
                 if (error.get()) {
@@ -33,23 +33,17 @@ describe('Error handling', () => {
 		}
         assertThrow(() => clean(()=>"test"))
 
-		scope(() => {
+		observe(() => {
 			for(let op of ops) {
 				assertThrow('outside of a mount', op)
 			}	
 		})
 	})
 
-    it('cannot nest mounts', () => {
-        scope(() => {
-            assertThrow('cannot be nested', () => new Mount(document.body, ()=>{}))
-        })
-    })
-
 
     it('continue rendering after an error in onEach', () => {
         let store = new Store(['a','b','c'])
-        new Mount(document.body, () => {  
+        testMount(() => {  
             store.onEach(item => {
                 if (item.index()%2) noSuchFunction()
                 text(item.get())
@@ -66,7 +60,7 @@ describe('Error handling', () => {
 
     it('continue rendering after an error in onEach sort', () => {
         let store = new Store(['a','b','c'])
-        new Mount(document.body, () => {  
+        testMount(() => {  
             store.onEach(item => {
                 text(item.get())
             }, item => {
@@ -94,7 +88,7 @@ describe('Error handling', () => {
         let store2 = new Store()
         assertThrow('Operation not permitted outside', () => store1.onEach(item=>{}))
         store1.set(5)
-        scope(() => {
+        observe(() => {
             assertThrow('neither a collection nor undefined', () => store1.onEach(item=>{}))
             assertThrow('function as its last argument', () => store1.onEach())
 

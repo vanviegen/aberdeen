@@ -1,10 +1,8 @@
-const { prop, unmountAll } = require("./build/aberdeen");
-
 describe('Value binding', function() {
 	it('binds input values', () => {
 		let store = new Store('test')
 		let inputElement;
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('input', store, () => {
 				inputElement = getParentElement()
 				prop('class', {correct: store.get().length >= 5})
@@ -22,7 +20,7 @@ describe('Value binding', function() {
 	it('binds checkboxes', () => {
 		let store = new Store(true)
 		let inputElement;
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('input', {type: 'checkbox'}, store, () => {
 				inputElement = getParentElement()
 			})
@@ -39,7 +37,7 @@ describe('Value binding', function() {
 	it('binds radio buttons', () => {
 		let store = new Store('woman')
 		let inputElement1, inputElement2;
-		new Mount(document.body, () => {
+		testMount(() => {
 			node('input', {type: 'radio', name: 'gender', value: 'man'}, store, () => {
 				inputElement1 = getParentElement()
 			})
@@ -56,6 +54,18 @@ describe('Value binding', function() {
 		passTime()
 
 		assertEqual(store.get(), 'man')
+	})
+
+	it('reads initial value when Store is undefined', () => {
+		let store = new Store({})
+		testMount(() => {
+			node('input', {value: 'a'}, store.ref('input'))
+			node('input', {type: 'checkbox', checked: true}, store.ref('checkbox'))
+			node('input', {type: 'radio', name: 'abc', value: 'x', checked: false}, store.ref('radio'))
+			node('input', {type: 'radio', name: 'abc', value: 'y', checked: true}, store.ref('radio'))
+			node('input', {type: 'radio', name: 'abc', value: 'z', checked: false}, store.ref('radio'))
+		})
+		assertEqual(store.get(), {input: 'a', checkbox: true, radio: 'y'})
 	})
 
 })

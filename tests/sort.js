@@ -10,7 +10,7 @@ describe('Sort', () => {
 
 		let sort = new Store()
 
-		new Mount(document.body, () => {
+		testMount(() => {
 			store.onEach(item => {
 				node(item.index())
 			}, sort.get())
@@ -36,7 +36,7 @@ describe('Sort', () => {
 			e: -3
 		})
 		let p = 0, c = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			p++
 			store.onEach(item => {
 				c++
@@ -63,7 +63,7 @@ describe('Sort', () => {
 	it('have items disappear when the sort key is null', () => {
 		let store = new Store({a: true, b: false, c: true, d: false})
 		let p = 0, c = 0;
-		new Mount(document.body, () => {
+		testMount(() => {
 			p++
 			store.onEach(item => {
 				c++

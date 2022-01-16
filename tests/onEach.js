@@ -2,7 +2,7 @@ describe('onEach', function() {
 
 	it('ignores undefined values', () => {
 		let cnt = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			let store = new Store()
 			store.onEach(() => cnt++)
 		})
@@ -12,7 +12,7 @@ describe('onEach', function() {
 	it('handles unsuitable store values', () => {
 		for(let value of [3, "", false]) {
 			let cnt = 0
-			new Mount(document.body, () => {
+			testMount(() => {
 				let store = new Store(value)
 				assertThrow(`onEach() attempted`, () => {
 					store.onEach(() => cnt++)
@@ -25,7 +25,7 @@ describe('onEach', function() {
 
 	it('does nothing for an empty map', () => {
 		let cnt = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			let store = new Store({})
 			store.onEach(function() {
 				cnt++
@@ -37,7 +37,7 @@ describe('onEach', function() {
 
 	it('emits a single entry', () => {
 		let result = []
-		new Mount(document.body, () => {
+		testMount(() => {
 			let store = new Store({x: 3})
 			store.onEach(function(store) {
 				result.push([store.index(),store.get()])
@@ -48,7 +48,7 @@ describe('onEach', function() {
 
 	it('emits multiple entries', () => {
 		let result = []
-		new Mount(document.body, () => {
+		testMount(() => {
 			let store = new Store({x: 3, y: 4, z: 5})
 			store.onEach(function(store) {
 				result.push([store.index(),store.get()])
@@ -60,7 +60,7 @@ describe('onEach', function() {
 	})
 
 	it('adds a single item to the DOM', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			let store = new Store({x: 3})
 			store.onEach(function(store) {
 				node('p', {className: store.index()}, store.getNumber())
@@ -70,7 +70,7 @@ describe('onEach', function() {
 	})
 
 	it('adds multiple items to the DOM in default order', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			let store = new Store({c: 3, a: 1, b: 2})
 			store.onEach(function(store) {
 				node('p', store.index())
@@ -80,7 +80,7 @@ describe('onEach', function() {
 	})
 
 	it('maintains the last-element marker', () => {
-		new Mount(document.body, () => {
+		testMount(() => {
 			let store = new Store({c: 3, a: 1, b: 2})
 			store.onEach(function(store) {
 				node('p', store.index())
@@ -93,7 +93,7 @@ describe('onEach', function() {
 	it('maintains position for items', () => {
 		let store = new Store({0: false, 1: false, 2: false, 3: false})
 		let cnts = [0,0,0,0];
-		new Mount(document.body, () => {
+		testMount(() => {
 			store.onEach(item => {
 				cnts[item.index()]++;
 				if (item.getBoolean()) node('p', {id: item.index()})
@@ -117,7 +117,7 @@ describe('onEach', function() {
 	it('adds items in the right position', () => {
 		let store = new Store({});
 
-		new Mount(document.body, () => {
+		testMount(() => {
 			store.onEach(item => {
 				node(item.index())
 			})
@@ -144,7 +144,7 @@ describe('onEach', function() {
 		}
 		let cleaned = [];
 
-		new Mount(document.body, () => {
+		testMount(() => {
 			store.onEach(item => {
 				node(item.index())
 				clean(() => {
@@ -172,7 +172,7 @@ describe('onEach', function() {
 		let cleaned = {};
 		let store = new Store({b:2,c:3,a:1})
 		let cnt = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			if (store.getType()==="object") {
 				store.onEach(item => {
 					cnt++
@@ -197,7 +197,7 @@ describe('onEach', function() {
 	it('should ignore on delete followed by set', () => {
 		let store = new Store({a:1, b:2})
 		let cnt = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			store.onEach(item => {
 				node(item.index())
 				cnt++
@@ -217,7 +217,7 @@ describe('onEach', function() {
 	it('should do nothing on set followed by delete', () => {
 		let store = new Store({a:1})
 		let cnt = 0
-		new Mount(document.body, () => {
+		testMount(() => {
 			store.onEach(item => {
 				node(item.index())
 				cnt++
@@ -236,7 +236,7 @@ describe('onEach', function() {
 
 	it(`should handle items with identical sort keys`, () => {
 		let store = new Store({a: 1, b: 1, c: 1, d: 1})
-		new Mount(document.body, () => {
+		testMount(() => {
 			store.onEach(item => {
 				node(item.index())
 			}, item => item.getNumber())
@@ -259,7 +259,7 @@ describe('onEach', function() {
 
 	it(`iterates arrays`, () => {
 		let store = new Store(['e', 'b', 'a', 'd'])
-		new Mount(document.body, () => {
+		testMount(() => {
 			store.onEach(item => {
 				node('h'+item.index())
 			})
@@ -278,7 +278,7 @@ describe('onEach', function() {
 
 	it(`iterates arrays that are pushed into`, () => {
 		let store = new Store(['e', 'b', 'a', 'd'])
-		new Mount(document.body, () => {
+		testMount(() => {
 			store.onEach(item => {
 				node('h'+item.index())
 			})
@@ -296,7 +296,7 @@ describe('onEach', function() {
 	it(`removes all children before redrawing`, () => {
 		let store = new Store({a:1, b:2})
 		let select = new Store(1)
-		new Mount(document.body, () => {
+		testMount(() => {
 			select.get();
 			store.onEach(item => {
 				node(item.index())
