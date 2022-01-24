@@ -739,7 +739,7 @@ export class Store {
             return result;
         }
         let store = opts.path && opts.path.length ? this.ref(...opts.path) : this;
-        let value = store ? store._observe() : undefined;
+        let value = store._observe();
         if (opts.type && (value !== undefined || opts.defaultValue === undefined)) {
             let type = (value instanceof ObsCollection) ? value.getType() : (value === null ? "null" : typeof value);
             if (type !== opts.type)
@@ -752,8 +752,6 @@ export class Store {
     }
     isEmpty(...path) {
         let store = this.ref(...path);
-        if (!store)
-            return true;
         let value = store._observe();
         if (value instanceof ObsCollection) {
             if (currentScope) {
@@ -773,8 +771,6 @@ export class Store {
     }
     count(...path) {
         let store = this.ref(...path);
-        if (!store)
-            return 0;
         let value = store._observe();
         if (value instanceof ObsCollection) {
             if (currentScope) {
@@ -797,13 +793,11 @@ export class Store {
      */
     getType(...path) {
         let store = this.ref(...path);
-        if (!store)
-            return "undefined";
         let value = store._observe();
         return (value instanceof ObsCollection) ? value.getType() : (value === null ? "null" : typeof value);
     }
     /**
-     * Sets the Store value to the last given argument. And earlier argument are a Store-path that is first
+     * Sets the Store value to the last given argument. Any earlier argument are a Store-path that is first
      * resolved/created using `makeRef`.
      */
     set(...pathAndValue) {
@@ -812,13 +806,12 @@ export class Store {
         store.collection.setIndex(store.idx, newValue, true);
     }
     /**
-     * Does the same as set, but in case of a top-level collection, it doesn't
-     * delete keys that don't exist in `value`.
+     * Sets the `Store` to the given `mergeValue`, but without deleting any pre-existing
+     * items when a collection overwrites a similarly typed collection. This results in
+     * a deep merge.
      */
-    merge(...pathAndValue) {
-        let newValue = pathAndValue.pop();
-        let store = this.makeRef(...pathAndValue);
-        store.collection.setIndex(store.idx, newValue, false);
+    merge(mergeValue) {
+        this.collection.setIndex(this.idx, mergeValue, false);
     }
     /**
      * Sets the value for the store to `undefined`, which causes it to be omitted from the map (or array, if it's at the end)
@@ -832,13 +825,11 @@ export class Store {
      * If that Store path is `undefined`, and Array is created first.
      * The last argument is the value to be added, any earlier arguments indicate the path.
      */
-    push(...pathAndValue) {
-        let newValue = pathAndValue.pop();
-        let store = this.makeRef(...pathAndValue);
-        let obsArray = store.collection.rawGet(store.idx);
+    push(newValue) {
+        let obsArray = this.collection.rawGet(this.idx);
         if (obsArray === undefined) {
             obsArray = new ObsArray();
-            store.collection.setIndex(store.idx, obsArray, true);
+            this.collection.setIndex(this.idx, obsArray, true);
         }
         else if (!(obsArray instanceof ObsArray)) {
             throw new Error(`push() is only allowed for an array or undefined (which would become an array)`);
@@ -849,15 +840,20 @@ export class Store {
         obsArray.emitChange(pos, newData, undefined);
         return pos;
     }
-    modify(...pathAndFunc) {
-        let func = pathAndFunc.pop();
-        this.set(func(this.peek()));
+    /**
+     * [[`peek`]] the current value, pass it through `func`, and [[`set`]] the resulting
+     * value.
+     * @param func The function transforming the value.
+     */
+    modify(func) {
+        this.set(func(this.query({ peek: true })));
     }
     /**
      * Return a `Store` deeper within the tree by resolving the given `path`,
      * subscribing to every level.
-     * In case `undefined` is encountered while resolving the path, `undefined`
-     * is returned instead.
+     * In case `undefined` is encountered while resolving the path, a newly
+     * created `Store` containing `undefined` is returned. In that case, the
+     * `Store`'s [[`isDetached`]] method will return `true`.
      * In case something other than a collection is encountered, an error is thrown.
      */
     ref(...path) {
@@ -870,13 +866,13 @@ export class Store {
             else {
                 if (value !== undefined)
                     throw new Error(`Value ${JSON.stringify(value)} is not a collection (nor undefined) in step ${i} of $(${JSON.stringify(path)})`);
-                return;
+                return new DetachedStore();
             }
         }
         return store;
     }
     /**
-     * Similar to `ref()`, but in stead of returning `undefined`, new objects are created when
+     * Similar to `ref()`, but instead of returning `undefined`, new objects are created when
      * a path does not exist yet. An error is still thrown when the path tries to index an invalid
      * type.
      * Unlike `ref`, `makeRef` does *not* subscribe to the path levels, as it is intended to be
@@ -919,8 +915,6 @@ export class Store {
         if (!currentScope)
             throw new ScopeError(false);
         let store = this.ref(...pathAndFuncs);
-        if (!store)
-            return;
         let val = store._observe();
         if (val instanceof ObsCollection) {
             // Subscribe to changes using the specialized OnEachScope
@@ -934,6 +928,62 @@ export class Store {
             throw new Error(`onEach() attempted on a value that is neither a collection nor undefined`);
         }
     }
+    /**
+     * Applies a filter/map function on each item within the `Store`'s collection,
+     * and reactively manages the returned `Map` `Store` to hold any results.
+     *
+     * @param func - Function that transform the given store into output values
+     * that can take one of the following forms:
+     * - `undefined`: No items will be added to the output `Store`.
+     * - an `Object` or a `Map`: Each key/value pair will be added to the output `Store`.
+     * - anything else: Will be added to the output `Store` as a key, with `true` as its value.
+     *
+     * When items disappear from the `Store` or are changed in a way that `func` depends
+     * upon, the resulting items are removed from the output `Store` as well. When multiple
+     * input items produce the same output keys, this may lead to unexpected results.
+     */
+    map(func) {
+        let out = new Store(new Map());
+        this.onEach((item) => {
+            let result = func(item);
+            let keys;
+            if (result === undefined) {
+                return;
+            }
+            else if (result !== null && result.constructor === Object) {
+                for (let key in result) {
+                    out.set(key, result[key]);
+                }
+                keys = Object.keys(result);
+            }
+            else if (result instanceof Map) {
+                result.forEach((value, key) => {
+                    out.set(key, value);
+                });
+                keys = Array.from(result.keys());
+            }
+            else {
+                out.set(item.index(), result);
+                keys = [item.index()];
+            }
+            if (keys.length) {
+                clean(() => {
+                    for (let key of keys) {
+                        out.delete(key);
+                    }
+                });
+            }
+        });
+        return out;
+    }
+    /**
+     * @returns Returns `true` when the `Store` was created by [[`ref`]]ing a path that
+     * does not exist.
+     */
+    isDetached() { return false; }
+}
+class DetachedStore extends Store {
+    isDetached() { return true; }
 }
 /**
  * Create a new DOM element.
@@ -999,22 +1049,31 @@ export function node(tag = "", ...rest) {
 function bindInput(el, store) {
     let updater;
     let type = el.getAttribute('type');
+    let value = store.query({ peek: true });
     if (type === 'checkbox') {
-        if (store.peek() !== undefined)
-            el.checked = store.peek();
+        if (value === undefined)
+            store.set(el.checked);
+        else
+            el.checked = value;
         updater = () => store.set(el.checked);
     }
     else if (type === 'radio') {
-        if (store.peek() !== undefined)
-            el.checked = store.peek() === el.value;
+        if (value === undefined) {
+            if (el.checked)
+                store.set(el.value);
+        }
+        else
+            el.checked = value === el.value;
         updater = () => {
             if (el.checked)
                 store.set(el.value);
         };
     }
     else {
-        if (store.peek() !== undefined)
-            el.value = store.peek();
+        if (value === undefined)
+            store.set(el.value);
+        else
+            el.value = value;
         updater = () => store.set(el.value);
     }
     el.addEventListener('input', updater);

@@ -206,8 +206,7 @@ describe('Store', function() {
 		store = new Store({})
 		assertThrow('push() is only allowed', () => {
 			store.push(1)
-		})
-		
+		})	
 	})
 
 	it(`links stores to each other`, () => {
@@ -234,6 +233,12 @@ describe('Store', function() {
 		store1.set('gone')
 		passTime()
 		assertEqual(store2.get(), {x: 'gone', y: 3})
+	})
+
+	it(`refs()`, () => {
+		let store1 = new Store({a: {b: {}}})
+		assertEqual(store1.ref('a', 'b', 'c').isDetached(), false)
+		assertEqual(store1.ref('a', 'b', 'c', 'd').isDetached(), true)
 	})
 
 })

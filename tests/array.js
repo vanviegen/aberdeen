@@ -36,7 +36,7 @@ describe('Array', () => {
 		assertBody(`"[3,4,[5,6]]" "[5,6]"`)
 
 		store.push(7)
-		store.push(2, 8)
+		store.ref(2).push(8)
 		passTime()
 		assertBody(`"[3,4,[5,6,8],7]" "[5,6,8]"`)
 

@@ -1,6 +1,6 @@
 const fakedom = require('./_fakedom')
 const mocha = require('mocha')
-const equal = require('fast-deep-equal')
+const {deepEqual: equal} = require('fast-equals')
 
 Object.assign(global, require('./build/aberdeen'))
 
@@ -31,12 +31,21 @@ global.testUnmount = function() {
 	passTime()
 }
 
+function toDisplay(value) {
+	if (value instanceof Map) {
+		let results = []
+		value.forEach((value,key) => results.push(JSON.stringify(key)+": "+JSON.stringify(value)))
+		return "map{" + results.join(", ") + "}"
+	} else {
+		return JSON.stringify(value)
+	}
+}
 
 global.AssertError = class extends Error {
 	constructor(text, actual, expected, expectLiteral) {
 		text += `
-		Actual:   ${JSON.stringify(actual)}
-		Expected: ${expectLiteral ? expected : JSON.stringify(expected)}`
+		Actual:   ${toDisplay(actual)}
+		Expected: ${expectLiteral ? expected : toDisplay(expected)}`
 		super(text)
 	}
 }
