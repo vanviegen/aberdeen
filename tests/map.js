@@ -1,4 +1,4 @@
-describe('The map() method', () => {
+describe('The map() and multiMap() methods', () => {
     it('transforms Maps to Maps', () => {
         let store = new Store(objToMap({a: 0, b: 2, c: 3}))
         let cnt1 = 0, cnt2 = 0
@@ -29,7 +29,7 @@ describe('The map() method', () => {
         let out
 
         testMount(() => {
-            out = store.map(s => {
+            out = store.multiMap(s => {
                 cnt1++
                 return {[s.get()]: s.index()}
             })
@@ -53,24 +53,24 @@ describe('The map() method', () => {
         assertEqual([cnt1, cnt2], [4, 4])
     })
     it('transforms Objects to Maps', () => {
-        let store = new Store({a: [], b: new Map([[1,2], [3,4]]), c: 5, d: {}})
+        let store = new Store({a: {a:[]}, b: new Map([[1,2], [3,4]]), c: {c:5}, d: {}, e: 123})
         let cnt1 = 0
         let out
 
         observe(() => {
-            out = store.map(s => {
+            out = store.multiMap(s => {
                 cnt1++
                 return s.get()
             })
         })
 
         assertEqual(out.peek(), new Map([['a',[]], [1,2], [3,4], ['c',5]]))
-        assertEqual(cnt1, 4)
+        assertEqual(cnt1, 5)
 
         store.delete('b')
         store.set('a', {})
         passTime()
         assertEqual(out.peek(), new Map([['c',5]]))
-        assertEqual(cnt1, 5)
+        assertEqual(cnt1, 6)
     })
 })

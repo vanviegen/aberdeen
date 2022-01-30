@@ -932,11 +932,11 @@ export class Store {
      * Applies a filter/map function on each item within the `Store`'s collection,
      * and reactively manages the returned `Map` `Store` to hold any results.
      *
-     * @param func - Function that transform the given store into output values
-     * that can take one of the following forms:
-     * - `undefined`: No items will be added to the output `Store`.
-     * - an `Object` or a `Map`: Each key/value pair will be added to the output `Store`.
-     * - anything else: Will be added to the output `Store` as a key, with `true` as its value.
+     * @param func - Function that transform the given store into an output value or
+     * `undefined` in case this value should be skipped:
+     *
+     * @returns - A map `Store` with the values returned by `func` and the corresponding
+     * keys from the original map, array or object `Store`.
      *
      * When items disappear from the `Store` or are changed in a way that `func` depends
      * upon, the resulting items are removed from the output `Store` as well. When multiple
@@ -945,12 +945,39 @@ export class Store {
     map(func) {
         let out = new Store(new Map());
         this.onEach((item) => {
+            let value = func(item);
+            if (value !== undefined) {
+                let key = item.index();
+                out.set(key, value);
+                clean(() => {
+                    out.delete(key);
+                });
+            }
+        });
+        return out;
+    }
+    /*
+    * Applies a filter/map function on each item within the `Store`'s collection,
+    * each of which can deliver any number of key/value pairs, and reactively manages the
+    * returned map `Store` to hold any results.
+    *
+    * @param func - Function that transform the given store into output values
+    * that can take one of the following forms:
+    * - an `Object` or a `Map`: Each key/value pair will be added to the output `Store`.
+    * - anything else: No key/value pairs are added to the output `Store`.
+    *
+    * @returns - A map `Store` with the key/value pairs returned by all `func` invocations.
+    *
+    * When items disappear from the `Store` or are changed in a way that `func` depends
+    * upon, the resulting items are removed from the output `Store` as well. When multiple
+    * input items produce the same output keys, this may lead to unexpected results.
+    */
+    multiMap(func) {
+        let out = new Store(new Map());
+        this.onEach((item) => {
             let result = func(item);
             let keys;
-            if (result === undefined) {
-                return;
-            }
-            else if (result !== null && result.constructor === Object) {
+            if (result.constructor === Object) {
                 for (let key in result) {
                     out.set(key, result[key]);
                 }
@@ -963,8 +990,7 @@ export class Store {
                 keys = Array.from(result.keys());
             }
             else {
-                out.set(item.index(), result);
-                keys = [item.index()];
+                return;
             }
             if (keys.length) {
                 clean(() => {
