@@ -273,6 +273,7 @@ class OnEachScope extends Scope {
         scope.remove();
     }
     findPosition(sortStr) {
+        // In case of duplicate `sortStr`s, this will return the first match.
         let items = this.byPosition;
         let min = 0, max = items.length;
         // Fast-path for elements that are already ordered (as is the case when working with arrays ordered by index)
@@ -304,6 +305,8 @@ class OnEachScope extends Scope {
         }
     }
     removeFromPosition(child) {
+        if (child.sortStr === '')
+            return;
         let pos = this.findPosition(child.sortStr);
         while (true) {
             if (this.byPosition[pos] === child) {
@@ -1371,7 +1374,8 @@ function defaultMakeSortKey(store) {
 }
 /* istanbul ignore next */
 function internalError(code) {
-    console.error(new Error("internal error " + code));
+    let error = new Error("internal error " + code);
+    setTimeout(() => { throw error; }, 0);
 }
 function handleError(e) {
     // Throw the error async, so the rest of the rendering can continue

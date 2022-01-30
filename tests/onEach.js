@@ -312,4 +312,43 @@ describe('onEach', function() {
 		passTime()
 		assertBody(`b{}`) 
 	})
+
+	it('should handle items that don\'t create DOM elements', () => {
+		let store = new Store("b0 b1 c1 b2 c0 a1 a0 a2".split(" "))
+		testMount(() => {
+			store.onEach(item => {
+				let letter = item.get()[0]
+				let count = 0 | item.get()[1]
+				for(let i=0; i<count; i++) {
+					text(item.index()+letter)
+				}
+			}, item => item.get()[0])
+		})
+		assertBody(`"7a" "7a" "5a" "3b" "3b" "1b" "2c"`) // The order within the same letter is unspecified
+
+		store.set(5, undefined)
+		store.set(3, undefined)
+		passTime()
+		assertBody(`"7a" "7a" "1b" "2c"`) // The order within the same letter is unspecified
+
+		store.set(0, undefined)
+		store.set(4, undefined)
+		store.set(6, undefined)
+		passTime()
+		assertBody(`"7a" "7a" "1b" "2c"`) // The order within the same letter is unspecified
+	})
+
+	it('filters when there is no sort key', () => {
+		let store = new Store(['a','b','c'])
+		testMount(() => {
+			store.onEach(item => {
+				node(item.get())
+			}, item => item.get()=='b' ? undefined : item.get())
+		})
+		assertBody(`a{} c{}`)
+		
+		store.set([])
+		passTime()
+		assertBody(``)
+	})
 })

@@ -377,6 +377,7 @@ class OnEachScope extends Scope {
 	}
 
 	findPosition(sortStr: string) {
+		// In case of duplicate `sortStr`s, this will return the first match.
 		let items = this.byPosition
 		let min = 0, max = items.length
 		
@@ -411,6 +412,7 @@ class OnEachScope extends Scope {
 	}
 
 	removeFromPosition(child: OnEachItemScope) {
+		if (child.sortStr==='') return
 		let pos = this.findPosition(child.sortStr)
 		while(true) {
 			if (this.byPosition[pos] === child) {
@@ -1587,7 +1589,8 @@ function defaultMakeSortKey(store: Store) {
 
 /* istanbul ignore next */
 function internalError(code: number) {
-	console.error(new Error("internal error "+code))
+	let error = new Error("internal error "+code)
+	setTimeout(() => { throw error }, 0)
 }
 
 function handleError(e: any) {
