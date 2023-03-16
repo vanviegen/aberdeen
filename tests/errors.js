@@ -1,4 +1,4 @@
-const { scope, mount, Store } = require("./build/aberdeen")
+const { scope, mount, Store, observe } = require("./build/aberdeen")
 
 describe('Error handling', () => {
 	it('continues rendering after an error', () => {
@@ -101,5 +101,16 @@ describe('Error handling', () => {
 
     it('throws when passing invalid Store arguments', () => {
         assertThrow('1st parameter should be an ObsCollection', () => new Store(3, true))
+    })
+
+    it('breaks up long update->observe recursions', () => {
+        let store = new Store({a: 0, b: 0})
+        observe(() => {
+            store.set('a', store.get('b')+1)
+        })
+        observe(() => {
+            store.set('b', store.get('a')+1)
+        })
+        assertThrow('recursive', passTime)
     })
 })

@@ -16,14 +16,12 @@ describe('Array', () => {
 		store.set(0, 'b')
 		passTime();
 		assertBody(`div{"b"}`)
-		assertEqual(cnt1, 1)
-		assertEqual(cnt2, 2)
+		assertEqual([cnt1,cnt2], [1,2])
 
 		store.delete(0);
 		passTime()
 		assertBody(``)
-		assertEqual(cnt1, 2)
-		assertEqual(cnt2, 2)
+		assertEqual([cnt1,cnt2], [2,2])
 	})
 
 	it('reactively get() full array', () => {

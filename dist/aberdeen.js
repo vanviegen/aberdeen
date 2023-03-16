@@ -1,23 +1,41 @@
-let queued = new Set();
+let queueArray = [];
+let queueSet = new Set();
+let queueOrdered = true;
+let runQueueDepth = 0;
 function queue(runner) {
-    if (!queued.size) {
+    if (queueSet.has(runner))
+        return;
+    if (runQueueDepth > 42) {
+        throw new Error("Too many recursive updates from observes");
+    }
+    if (!queueArray.length) {
         setTimeout(runQueue, 0);
     }
-    queued.add(runner);
+    else if (runner.queueOrder < queueArray[queueArray.length - 1].queueOrder) {
+        queueOrdered = false;
+    }
+    queueArray.push(runner);
+    queueSet.add(runner);
 }
 function runQueue() {
-    // Order queued observers by depth, lowest first
-    let ordered = arrayFromSet(queued);
-    ordered.sort((a, b) => a.queueOrder - b.queueOrder);
-    for (let runner of ordered) {
-        queued.delete(runner);
-        let size = queued.size;
-        runner.queueRun();
-        if (queued.size !== size) {
-            // The queue was modified. We'll need to sort it again.
-            return runQueue();
+    for (let index = 0; index < queueArray.length;) {
+        if (!queueOrdered) {
+            queueArray.splice(0, index);
+            index = 0;
+            // Order queued observers by depth, lowest first
+            queueArray.sort((a, b) => a.queueOrder - b.queueOrder);
+            queueOrdered = true;
         }
+        let batchEndIndex = queueArray.length;
+        for (; index < batchEndIndex && queueOrdered; index++) {
+            let runner = queueArray[index];
+            queueSet.delete(runner);
+            runner.queueRun();
+        }
+        runQueueDepth++;
     }
+    queueArray.length = 0;
+    runQueueDepth = 0;
 }
 /**
  * Given an integer number, a string or an array of these, this function returns a string that can be used
