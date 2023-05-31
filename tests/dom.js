@@ -151,4 +151,24 @@ describe('DOM creator', function() {
 			assertThrow("Unexpected argument", () => node("span", true))
 		})
 	})
+
+	it('dumps all basic values', () => {
+		let store = new Store([true,false,null,undefined,-12,3.14,"test",'"quote"'])
+		testMount(() => store.dump())
+		assertBody(`"<array>" ul{li{"0: " "true"} li{"1: " "false"} li{"2: " "null"} li{"4: " "-12"} li{"5: " "3.14"} li{"6: " "\\"test\\""} li{"7: " "\\"\\\\\\"quote\\\\\\"\\""}}`)
+	})
+
+	it('dumps maps, objects and arrays', () => {
+		let store = new Store(new Map([[3,4],['a','b']]))
+		testMount(() => store.dump())
+		assertBody(`"<map>" ul{li{"\\"a\\": " "\\"b\\""} li{"3: " "4"}}`)
+		
+		store.set({3: 4, a: 'b'})
+		passTime()
+		assertBody(`"<object>" ul{li{"\\"3\\": " "4"} li{"\\"a\\": " "\\"b\\""}}`)
+		
+		store.set([4, undefined, 'b'])
+		passTime()
+		assertBody(`"<array>" ul{li{"0: " "4"} li{"2: " "\\"b\\""}}`)
+	})
 });

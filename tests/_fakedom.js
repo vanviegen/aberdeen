@@ -203,8 +203,8 @@ class TextNode extends Node {
 		this.textContent = '' + textContent;
 		newCount++;
 	}
-	toString(indent) {
-		return (indent||"") + JSON.stringify(this.textContent);
+	toString() {
+		return JSON.stringify(this.textContent);
 	}
 }
 

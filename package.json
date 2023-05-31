@@ -1,8 +1,9 @@
 {
   "name": "aberdeen",
-  "version": "0.0.10",
-  "description": "",
-  "main": "index.js",
+  "version": "0.0.12",
+  "description": "A TypeScript/JavaScript library for quickly building performant declarative user interfaces without the use of a virtual DOM.",
+  "main": "dist/aberdeen.js",
+  "types": "dist/aberdeen.d.js",
   "scripts": {
     "build": "$npm_execpath run build-dist && $npm_execpath run build-docs",
     "build-dist": "tsc && terser --module --compress --mangle -- dist/aberdeen.js > dist/aberdeen.min.js",

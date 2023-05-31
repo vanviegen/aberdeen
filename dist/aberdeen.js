@@ -1028,6 +1028,27 @@ export class Store {
      * does not exist.
      */
     isDetached() { return false; }
+    /*
+    * Dump a live view of the `Store` tree as HTML text, `ul` and `li` nodes at
+    * the current mount position. Meant for debugging purposes.
+    */
+    dump() {
+        let type = this.getType();
+        if (type === 'array' || type === 'object' || type === 'map') {
+            text('<' + type + '>');
+            node('ul', () => {
+                this.onEach((sub) => {
+                    node('li', () => {
+                        text(JSON.stringify(sub.index()) + ': ');
+                        sub.dump();
+                    });
+                });
+            });
+        }
+        else {
+            text(JSON.stringify(this.get()));
+        }
+    }
 }
 class DetachedStore extends Store {
     isDetached() { return true; }
