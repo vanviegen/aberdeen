@@ -291,6 +291,11 @@ export declare class Store {
  */
 export declare function node(tag?: string | Element, ...rest: any[]): void;
 /**
+ * Convert an HTML string to one or more DOM elements, and add them to the current DOM scope.
+ * @param html - The HTML string. For example `"<section><h2>Test</h2><p>Info..</p></section>"`.
+ */
+export declare function html(html: string): void;
+/**
  * Add a text node at the current Scope position.
  */
 export declare function text(text: string): void;

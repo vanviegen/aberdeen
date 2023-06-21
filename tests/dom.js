@@ -171,4 +171,31 @@ describe('DOM creator', function() {
 		passTime()
 		assertBody(`"<array>" ul{li{"0: " "4"} li{"2: " "\\"b\\""}}`)
 	})
+
+	it('adds html', () => {
+		let store = new Store('test')
+		testMount(() => {
+			node('main', () => {
+				node('hr')
+				observe(() => {
+					html(store.get())
+				})
+				node('img')
+			})
+		})
+		assertBody(`main{hr{} fake-emulated-html{"test"} img{}}`)
+
+		store.set("")
+		passTime()
+		assertBody(`main{hr{} img{}}`)
+
+		store.set(123)
+		passTime()
+		assertBody(`main{hr{} fake-emulated-html{"123"} img{}}`)
+
+		assertThrow("Operation not permitted outside of a mount() scope", () => html("test"))
+		observe(() => {
+			assertThrow("Operation not permitted outside of a mount() scope", () => html("test"))
+		})
+	})
 });

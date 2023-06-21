@@ -1329,6 +1329,19 @@ export function node(tag: string|Element = "", ...rest: any[]) {
 	}
 }
 
+/**
+ * Convert an HTML string to one or more DOM elements, and add them to the current DOM scope.
+ * @param html - The HTML string. For example `"<section><h2>Test</h2><p>Info..</p></section>"`.
+ */
+export function html(html: string) {
+	if (!currentScope || !currentScope.parentElement) throw new ScopeError(true)
+	let tmpParent = document.createElement(currentScope.parentElement.tagName)
+	tmpParent.innerHTML = ''+html
+	while(tmpParent.firstChild) {
+		currentScope.addNode(tmpParent.firstChild)
+	}
+}
+
 function bindInput(el: HTMLInputElement, store: Store) {
 	let updater: () => void
 	let type = el.getAttribute('type')

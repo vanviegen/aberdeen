@@ -46,7 +46,7 @@ class Node {
 		if (!this.parentNode) return;
 		let siblings = this.parentNode.childNodes;
 		let idx = siblings.indexOf(this);
-		if (idx < 0) throw new Error("not part of sibling!?");
+		if (idx < 0) throw new Error("not part of siblings!?");
 		return siblings[idx+delta];
 	}
 }
@@ -131,7 +131,15 @@ class Element extends Node {
 		changeCount++;
 	}
 	set textContent(text) {
-		this.childNodes = [new TextNode(text)]
+		this.childNodes = [new TextNode(text)];
+	}
+	set innerHTML(html) {
+		this.childNodes = [];
+		if (html) {
+			let n = new Element('fake-emulated-html');
+			n.textContent = html;
+			this.appendChild(n);
+		}
 	}
 	get style() {
 		return this._style;
