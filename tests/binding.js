@@ -68,4 +68,18 @@ describe('Value binding', function() {
 		assertEqual(store.get(), {input: 'a', checkbox: true, radio: 'y'})
 	})
 
+	it('changes DOM when Store value is updated', () => {
+		let store = new Store("test")
+		let toggle = new Store(true)
+		testMount(() => {
+			node('input', store)
+			node('input', {type: 'checkbox'}, toggle)
+		})
+		assertBody(`input{value="test"} input{@type="checkbox" checked=true}`)
+
+		store.set("changed")
+		toggle.set(false)
+		passTime()
+		assertBody(`input{value="changed"} input{@type="checkbox" checked=false}`)
+	})
 })

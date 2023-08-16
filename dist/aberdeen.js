@@ -89,6 +89,8 @@ class Scope {
         // The list of clean functions to be called when this scope is cleaned. These can
         // be for child scopes, subscriptions as well as `clean(..)` hooks.
         this.cleaners = [];
+        // Set to true after the scope has been cleaned, causing any spurious reruns to
+        // be ignored.
         this.isDead = false;
         this.parentElement = parentElement;
         this.precedingSibling = precedingSibling;
@@ -631,16 +633,14 @@ class ObsObject extends ObsMap {
         return cnt;
     }
 }
-/*
-* Store
-*
-* A data store that automatically subscribes the current Scope to updates
-* whenever data is read from it.
-*
-* Supported data types are: `string`, `number`, `boolean`, `undefined`, `null`,
-* `Array` and `Map` (all objects including `Array` are converted to `Map`s).
-* Map values become separate `Store`s themselves.
-*/
+/**
+ * A data store that automatically subscribes the current scope to updates
+ * whenever data is read from it.
+ *
+ * Supported data types are: `string`, `number`, `boolean`, `undefined`, `null`,
+ * `Array`, `object` and `Map`. The latter three will always have `Store` objects as
+ * values, creating a tree of `Store`s.
+ */
 export class Store {
     constructor(value = undefined, index = undefined) {
         if (index === undefined) {
@@ -686,6 +686,7 @@ export class Store {
      * @example
      * ```
      * let store = new Store({a: {b: {c: {d: 42}}}})
+     * assert('a' in store.get())
      * assert(store.get('a', 'b') === {c: {d: 42}})
      * ```
      */
@@ -693,7 +694,7 @@ export class Store {
         return this.query({ path });
     }
     /**
-     * @returns The same as [[`get`]], but doesn't subscribe to changes.
+     * Like [[`get`]], but doesn't subscribe to changes.
      */
     peek(...path) {
         return this.query({ path, peek: true });
@@ -734,9 +735,17 @@ export class Store {
      */
     getMap(...path) { return this.query({ path, type: 'map' }); }
     /**
-     * @returns Like [[`get`]], but the first parameter is the default value (returned when the Store
+     * Like [[`get`]], but the first parameter is the default value (returned when the Store
      * contains `undefined`). This default value is also used to determine the expected type,
      * and to throw otherwise.
+     *
+     * @example
+     * ```
+     * let store = {x: 42}
+     * assert(getOr(99, 'x') == 42)
+     * assert(getOr(99, 'y') == 99)
+     * getOr('hello', x') # throws TypeError (because 42 is not a string)
+     * ```
      */
     getOr(defaultValue, ...path) {
         let type = typeof defaultValue;
@@ -748,7 +757,9 @@ export class Store {
         }
         return this.query({ type, defaultValue, path });
     }
-    /** Retrieve a value. This is a more flexible form of the [[`get`]] and [[`peek`]] methods.
+    /** Retrieve a value, subscribing to all read `Store` values. This is a more flexible
+     * form of the [[`get`]] and [[`peek`]] methods.
+     *
      * @returns The resulting value, or `undefined` if the `path` does not exist.
      */
     query(opts) {
@@ -771,6 +782,13 @@ export class Store {
         }
         return value === undefined ? opts.defaultValue : value;
     }
+    /**
+     * Checks if the specified collection is empty, and subscribes the current scope to changes of the emptiness of this collection.
+     *
+     * @param path Any path terms to resolve before retrieving the value.
+     * @returns When the specified collection is not empty `true` is returned. If it is empty or if the value is undefined, `false` is returned.
+     * @throws When the value is not a collection and not undefined, an Error will be thrown.
+     */
     isEmpty(...path) {
         let store = this.ref(...path);
         let value = store._observe();
@@ -790,6 +808,13 @@ export class Store {
             throw new Error(`isEmpty() expects a collection or undefined, but got ${JSON.stringify(value)}`);
         }
     }
+    /**
+     * Returns the number of items in the specified collection, and subscribes the current scope to changes in this count.
+     *
+     * @param path Any path terms to resolve before retrieving the value.
+     * @returns The number of items contained in the collection, or 0 if the value is undefined.
+     * @throws When the value is not a collection and not undefined, an Error will be thrown.
+     */
     count(...path) {
         let store = this.ref(...path);
         let value = store._observe();
@@ -810,7 +835,13 @@ export class Store {
         }
     }
     /**
-     * Returns "undefined", "null", "boolean", "number", "string", "function", "array", "map" or "object"
+     * Returns a strings describing the type of the store value, subscribing to changes of this type.
+     * Note: this currently also subscribes to changes of primitive values, so changing a value from 3 to 4
+     * would cause the scope to be rerun. This is not great, and may change in the future. This caveat does
+     * not apply to changes made *inside* an object, `Array` or `Map`.
+     *
+     * @param path Any path terms to resolve before retrieving the value.
+     * @returns Possible options: "undefined", "null", "boolean", "number", "string", "function", "array", "map" or "object".
      */
     getType(...path) {
         let store = this.ref(...path);
@@ -818,8 +849,33 @@ export class Store {
         return (value instanceof ObsCollection) ? value.getType() : (value === null ? "null" : typeof value);
     }
     /**
-     * Sets the Store value to the last given argument. Any earlier argument are a Store-path that is first
-     * resolved/created using `makeRef`.
+     * Sets the value to the last given argument. Any earlier argument are a Store-path that is first
+     * resolved/created using [[`makeRef`]].
+     *
+     * When a `Store` is passed in as the value, its value will be copied (subscribing to changes). In
+     * case the value is an object, an `Array` or a `Map`, a *reference* to that data structure will
+     * be created, so that changes made through one `Store` will be reflected through the other. Be
+     * carefull not to create loops in your `Store` tree that way, as that would cause any future
+     * call to [[`get`]] to throw a `RangeError` (Maximum call stack size exceeded.)
+     *
+     * If you intent to make a copy instead of a reference, call [[`get`]] on the origin `Store`.
+     *
+     *
+     * @example
+     * ```
+     * let store = new Store() // Value is `undefined`
+     *
+     * store.set('x', 6) // Causes the store to become an object
+     * assert(store.get() == {x: 6})
+     *
+     * store.set('a', 'b', 'c', 'd') // Create parent path as objects
+     * assert(store.get() == {x: 6, a: {b: {c: 'd'}}})
+     *
+     * store.set(42) // Overwrites all of the above
+     * assert(store.get() == 42)
+     *
+     * store.set('x', 6) // Throw Error (42 is not a collection)
+     * ```
      */
     set(...pathAndValue) {
         let newValue = pathAndValue.pop();
@@ -830,12 +886,34 @@ export class Store {
      * Sets the `Store` to the given `mergeValue`, but without deleting any pre-existing
      * items when a collection overwrites a similarly typed collection. This results in
      * a deep merge.
+     *
+     * @example
+     * ```
+     * let store = new Store({a: {x: 1}})
+     * store.merge({a: {y: 2}, b: 3})
+     * assert(store.get() == {a: {x: 1, y: 2}, b: 3})
+     * ```
      */
-    merge(mergeValue) {
-        this.collection.setIndex(this.idx, mergeValue, false);
+    merge(...pathAndValue) {
+        let mergeValue = pathAndValue.pop();
+        let store = this.makeRef(...pathAndValue);
+        store.collection.setIndex(store.idx, mergeValue, false);
     }
     /**
      * Sets the value for the store to `undefined`, which causes it to be omitted from the map (or array, if it's at the end)
+     *
+     * @example
+     * ```
+     * let store = new Store({a: 1, b: 2})
+     * store.delete('a')
+     * assert(store.get() == {b: 2})
+     *
+     * store = new Store(['a','b','c'])
+     * store.delete(1)
+     * assert(store.get() == ['a', undefined, 'c'])
+     * store.delete(2)
+     * assert(store.get() == ['a'])
+     * ```
      */
     delete(...path) {
         let store = this.makeRef(...path);
@@ -843,14 +921,28 @@ export class Store {
     }
     /**
      * Pushes a value to the end of the Array that is at the specified path in the store.
-     * If that Store path is `undefined`, and Array is created first.
+     * If that store path is `undefined`, an Array is created first.
      * The last argument is the value to be added, any earlier arguments indicate the path.
+     *
+     * @example
+     * ```
+     * let store = new Store()
+     * store.push(3) // Creates the array
+     * store.push(6)
+     * assert(store.get() == [3,6])
+     *
+     * store = new Store({myArray: [1,2]})
+     * store.push('myArray', 3)
+     * assert(store.get() == {myArray: [1,2,3]})
+     * ```
      */
-    push(newValue) {
-        let obsArray = this.collection.rawGet(this.idx);
+    push(...pathAndValue) {
+        let newValue = pathAndValue.pop();
+        let store = this.makeRef(...pathAndValue);
+        let obsArray = store.collection.rawGet(store.idx);
         if (obsArray === undefined) {
             obsArray = new ObsArray();
-            this.collection.setIndex(this.idx, obsArray, true);
+            store.collection.setIndex(store.idx, obsArray, true);
         }
         else if (!(obsArray instanceof ObsArray)) {
             throw new Error(`push() is only allowed for an array or undefined (which would become an array)`);
@@ -898,6 +990,19 @@ export class Store {
      * type.
      * Unlike `ref`, `makeRef` does *not* subscribe to the path levels, as it is intended to be
      * a write-only operation.
+     *
+     * @example
+     * ```
+     * let store = new Store() // Value is `undefined`
+     *
+     * let ref = store.makeRef('a', 'b', 'c')
+     * assert(store.get() == {a: {b: {}}}
+     *
+     * ref.set(42)
+     * assert(store.get() == {a: {b: {c: 42}}}
+     *
+     * ref.makeRef('d') // Throw Error (42 is not a collection)
+     * ```
      */
     makeRef(...path) {
         let store = this;
@@ -923,6 +1028,15 @@ export class Store {
         }
         return this.collection.rawGet(this.idx);
     }
+    /**
+     * Iterate the specified collection (Array, Map or object), running the given code block for each item.
+     * When items are added to the collection at some later point, the code block will be ran for them as well.
+     * When an item is removed, the [[`clean`]] handlers left by its code block are executed.
+     *
+     *
+     *
+     * @param pathAndFuncs
+     */
     onEach(...pathAndFuncs) {
         let makeSortKey = defaultMakeSortKey;
         let renderer = pathAndFuncs.pop();
@@ -977,22 +1091,22 @@ export class Store {
         });
         return out;
     }
-    /*
-    * Applies a filter/map function on each item within the `Store`'s collection,
-    * each of which can deliver any number of key/value pairs, and reactively manages the
-    * returned map `Store` to hold any results.
-    *
-    * @param func - Function that transform the given store into output values
-    * that can take one of the following forms:
-    * - an `Object` or a `Map`: Each key/value pair will be added to the output `Store`.
-    * - anything else: No key/value pairs are added to the output `Store`.
-    *
-    * @returns - A map `Store` with the key/value pairs returned by all `func` invocations.
-    *
-    * When items disappear from the `Store` or are changed in a way that `func` depends
-    * upon, the resulting items are removed from the output `Store` as well. When multiple
-    * input items produce the same output keys, this may lead to unexpected results.
-    */
+    /**
+     * Applies a filter/map function on each item within the `Store`'s collection,
+     * each of which can deliver any number of key/value pairs, and reactively manages the
+     * returned map `Store` to hold any results.
+     *
+     * @param func - Function that transform the given store into output values
+     * that can take one of the following forms:
+     * - an `Object` or a `Map`: Each key/value pair will be added to the output `Store`.
+     * - anything else: No key/value pairs are added to the output `Store`.
+     *
+     * @returns - A map `Store` with the key/value pairs returned by all `func` invocations.
+     *
+     * When items disappear from the `Store` or are changed in a way that `func` depends
+     * upon, the resulting items are removed from the output `Store` as well. When multiple
+     * input items produce the same output keys, this may lead to unexpected results.
+     */
     multiMap(func) {
         let out = new Store(new Map());
         this.onEach((item) => {
@@ -1054,13 +1168,13 @@ class DetachedStore extends Store {
     isDetached() { return true; }
 }
 /**
- * Create a new DOM element.
+ * Create a new DOM element, and insert it into the DOM at the position held by the current scope.
  * @param tag - The tag of the element to be created and optionally dot-separated class names. For example: `h1` or `p.intro.has_avatar`.
  * @param rest - The other arguments are flexible and interpreted based on their types:
  *   - `string`: Used as textContent for the element.
- *   - `object`: Used as attributes/properties for the element. See `applyProp` on how the distinction is made.
+ *   - `object`: Used as attributes, properties or event listeners for the element. See [[`prop`]] on how the distinction is made.
  *   - `function`: The render function used to draw the scope of the element. This function gets its own `Scope`, so that if any `Store` it reads changes, it will redraw by itself.
- *   - `Store`: Presuming `tag` is `"input"`, `"textarea"` or `"select"`, create a two-way binding between this `Store` value and the input element. The initial value of the input will be set to the initial value of the `Store`. After that, the `Store` will be updated when the input changes.
+ *   - `Store`: Presuming `tag` is `"input"`, `"textarea"` or `"select"`, create a two-way binding between this `Store` value and the input element. The initial value of the input will be set to the initial value of the `Store`, or the other way around if the `Store` holds `undefined`. After that, the `Store` will be updated when the input changes and vice versa.
  * @example
  * node('aside.editorial', 'Yada yada yada....', () => {
  *	 node('a', {href: '/bio'}, () => {
@@ -1128,24 +1242,21 @@ export function html(html) {
     }
 }
 function bindInput(el, store) {
-    let updater;
+    let onStoreChange;
+    let onInputChange;
     let type = el.getAttribute('type');
     let value = store.query({ peek: true });
     if (type === 'checkbox') {
         if (value === undefined)
             store.set(el.checked);
-        else
-            el.checked = value;
-        updater = () => store.set(el.checked);
+        onStoreChange = value => el.checked = value;
+        onInputChange = () => store.set(el.checked);
     }
     else if (type === 'radio') {
-        if (value === undefined) {
-            if (el.checked)
-                store.set(el.value);
-        }
-        else
-            el.checked = value === el.value;
-        updater = () => {
+        if (value === undefined && el.checked)
+            store.set(el.value);
+        onStoreChange = value => el.checked = (value === el.value);
+        onInputChange = () => {
             if (el.checked)
                 store.set(el.value);
         };
@@ -1153,13 +1264,18 @@ function bindInput(el, store) {
     else {
         if (value === undefined)
             store.set(el.value);
-        else
-            el.value = value;
-        updater = () => store.set(el.value);
+        onStoreChange = value => {
+            if (el.value !== value)
+                el.value = value;
+        };
+        onInputChange = () => store.set(el.value);
     }
-    el.addEventListener('input', updater);
+    observe(() => {
+        onStoreChange(store.get());
+    });
+    el.addEventListener('input', onInputChange);
     clean(() => {
-        el.removeEventListener('input', updater);
+        el.removeEventListener('input', onInputChange);
     });
 }
 /**
@@ -1206,29 +1322,6 @@ export function clean(clean) {
         throw new ScopeError(false);
     currentScope.cleaners.push({ _clean: clean });
 }
-/**
- * Create a new reactive scope and execute the `func` within that scope. When
- * `Store`s that the `func` reads are updated, only this scope will need to be refreshed,
- * leaving the parent scope untouched.
- *
- * In case this function is called outside of a an existing scope, it will create a new
- * top-level scope (a [[`Mount`]]) without a `parentElement`, meaning that aberdeen operations
- * that create/modify DOM elements are not permitted.
- * @param func - The function to be (repeatedly) executed within the newly created scope.
- * @returns The newly created `Mount` object in case this is a top-level reactive scope.
- * @example
- * ```
- * let store = new Store('John Doe')
- * mount(document.body, () => {
- *     node('div.card', () => {
- * 	       node('input', {placeholder: 'Name'}, store)
- *         observe(() => {
- * 		       prop('class', {correct: store.get().length > 5})
- * 		   })
- * 	   })
- * })
- * ```
- */
 /**
  * Reactively run a function, meaning the function will rerun when any `Store` that was read
  * during its execution is updated.
@@ -1322,9 +1415,8 @@ export function mount(parentElement, func) {
  *
  * mount(document.body, () => {
  *     // Prevent rerender when store changes
- *     peek(() => {
- *         text(`Store has ${store.count()} elements, and the first is ${store.get(0)}`)
- *     })
+ *     let msg = peek(() => `Store has ${store.count()} elements, and the first is ${store.get(0)}`))
+ *     text(msg)
  * })
  * ```
  *
@@ -1426,7 +1518,7 @@ function defaultMakeSortKey(store) {
 }
 /* istanbul ignore next */
 function internalError(code) {
-    let error = new Error("internal error " + code);
+    let error = new Error("Aberdeen internal error " + code);
     setTimeout(() => { throw error; }, 0);
 }
 function handleError(e) {
@@ -1438,11 +1530,6 @@ class ScopeError extends Error {
         super(`Operation not permitted outside of ${mount ? "a mount" : "an observe"}() scope`);
     }
 }
-let arrayFromSet = Array.from || /* istanbul ignore next */ ((set) => {
-    let array = [];
-    set.forEach(item => array.push(item));
-    return array;
-});
 // @ts-ignore
 // istanbul ignore next
 if (!String.prototype.replaceAll)
