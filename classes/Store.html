@@ -1,0 +1,748 @@
+<!DOCTYPE html><html class="default" lang="en"><head><meta charSet="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>Store | aberdeen</title><meta name="description" content="Documentation for aberdeen"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script async src="../assets/search.js" id="search-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os"</script><header class="tsd-page-toolbar">
+<div class="tsd-toolbar-contents container">
+<div class="table-cell" id="tsd-search" data-base="..">
+<div class="field"><label for="tsd-search-field" class="tsd-widget tsd-toolbar-icon search no-caption"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M15.7824 13.833L12.6666 10.7177C12.5259 10.5771 12.3353 10.499 12.1353 10.499H11.6259C12.4884 9.39596 13.001 8.00859 13.001 6.49937C13.001 2.90909 10.0914 0 6.50048 0C2.90959 0 0 2.90909 0 6.49937C0 10.0896 2.90959 12.9987 6.50048 12.9987C8.00996 12.9987 9.39756 12.4863 10.5008 11.6239V12.1332C10.5008 12.3332 10.5789 12.5238 10.7195 12.6644L13.8354 15.7797C14.1292 16.0734 14.6042 16.0734 14.8948 15.7797L15.7793 14.8954C16.0731 14.6017 16.0731 14.1267 15.7824 13.833ZM6.50048 10.499C4.29094 10.499 2.50018 8.71165 2.50018 6.49937C2.50018 4.29021 4.28781 2.49976 6.50048 2.49976C8.71001 2.49976 10.5008 4.28708 10.5008 6.49937C10.5008 8.70852 8.71314 10.499 6.50048 10.499Z" fill="var(--color-text)"></path></svg></label><input type="text" id="tsd-search-field" aria-label="Search"/></div>
+<div class="field">
+<div id="tsd-toolbar-links"></div></div>
+<ul class="results">
+<li class="state loading">Preparing search index...</li>
+<li class="state failure">The search index is not available</li></ul><a href="../index.html" class="title">aberdeen</a></div>
+<div class="table-cell" id="tsd-widgets"><a href="#" class="tsd-widget tsd-toolbar-icon menu no-caption" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="2" fill="var(--color-text)"></rect><rect x="1" y="7" width="14" height="2" fill="var(--color-text)"></rect><rect x="1" y="11" width="14" height="2" fill="var(--color-text)"></rect></svg></a></div></div></header>
+<div class="container container-main">
+<div class="col-8 col-content">
+<div class="tsd-page-title">
+<ul class="tsd-breadcrumb">
+<li><a href="../modules.html">aberdeen</a></li>
+<li><a href="Store.html">Store</a></li></ul>
+<h1>Class Store</h1></div>
+<section class="tsd-panel tsd-comment">
+<div class="tsd-comment tsd-typography"><p>A data store that automatically subscribes the current scope to updates
+whenever data is read from it.</p>
+<p>Supported data types are: <code>string</code>, <code>number</code>, <code>boolean</code>, <code>undefined</code>, <code>null</code>,
+<code>Array</code>, <code>object</code> and <code>Map</code>. The latter three will always have <code>Store</code> objects as
+values, creating a tree of <code>Store</code>s.</p>
+</div></section>
+<section class="tsd-panel tsd-hierarchy">
+<h4>Hierarchy</h4>
+<ul class="tsd-hierarchy">
+<li><span class="target">Store</span></li></ul></section><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L804">aberdeen.ts:804</a></li></ul></aside>
+<section class="tsd-panel-group tsd-index-group">
+<section class="tsd-panel tsd-index-panel">
+<details class="tsd-index-content tsd-index-accordion" open><summary class="tsd-accordion-summary tsd-index-summary">
+<h5 class="tsd-index-heading uppercase" role="button" aria-expanded="false" tabIndex=0><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1.5 5.50969L8 11.6609L14.5 5.50969L12.5466 3.66086L8 7.96494L3.45341 3.66086L1.5 5.50969Z" fill="var(--color-text)"></path></svg> Index</h5></summary>
+<div class="tsd-accordion-details">
+<section class="tsd-index-section">
+<h3 class="tsd-index-heading">Constructors</h3>
+<div class="tsd-index-list"><a href="Store.html#constructor" class="tsd-index-link tsd-kind-constructor tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><rect fill="var(--color-icon-background)" stroke="#4D7FFF" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="12" id="icon-512-path"></rect><path d="M11.898 16.1201C11.098 16.1201 10.466 15.8961 10.002 15.4481C9.53803 15.0001 9.30603 14.3841 9.30603 13.6001V9.64012C9.30603 8.85612 9.53803 8.24012 10.002 7.79212C10.466 7.34412 11.098 7.12012 11.898 7.12012C12.682 7.12012 13.306 7.34812 13.77 7.80412C14.234 8.25212 14.466 8.86412 14.466 9.64012H13.386C13.386 9.14412 13.254 8.76412 12.99 8.50012C12.734 8.22812 12.37 8.09212 11.898 8.09212C11.426 8.09212 11.054 8.22412 10.782 8.48812C10.518 8.75212 10.386 9.13212 10.386 9.62812V13.6001C10.386 14.0961 10.518 14.4801 10.782 14.7521C11.054 15.0161 11.426 15.1481 11.898 15.1481C12.37 15.1481 12.734 15.0161 12.99 14.7521C13.254 14.4801 13.386 14.0961 13.386 13.6001H14.466C14.466 14.3761 14.234 14.9921 13.77 15.4481C13.306 15.8961 12.682 16.1201 11.898 16.1201Z" fill="var(--color-text)" id="icon-512-text"></path></svg><span>constructor</span></a>
+</div></section>
+<section class="tsd-index-section">
+<h3 class="tsd-index-heading">Methods</h3>
+<div class="tsd-index-list"><a href="Store.html#_observe" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><rect fill="var(--color-icon-background)" stroke="#FF4DB8" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="12" id="icon-2048-path"></rect><path d="M9.162 16V7.24H10.578L11.514 10.072C11.602 10.328 11.674 10.584 11.73 10.84C11.794 11.088 11.842 11.28 11.874 11.416C11.906 11.28 11.954 11.088 12.018 10.84C12.082 10.584 12.154 10.324 12.234 10.06L13.122 7.24H14.538V16H13.482V12.82C13.482 12.468 13.49 12.068 13.506 11.62C13.53 11.172 13.558 10.716 13.59 10.252C13.622 9.78 13.654 9.332 13.686 8.908C13.726 8.476 13.762 8.1 13.794 7.78L12.366 12.16H11.334L9.894 7.78C9.934 8.092 9.97 8.456 10.002 8.872C10.042 9.28 10.078 9.716 10.11 10.18C10.142 10.636 10.166 11.092 10.182 11.548C10.206 12.004 10.218 12.428 10.218 12.82V16H9.162Z" fill="var(--color-text)" id="icon-2048-text"></path></svg><span>_observe</span></a>
+<a href="Store.html#count" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>count</span></a>
+<a href="Store.html#delete" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>delete</span></a>
+<a href="Store.html#dump" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>dump</span></a>
+<a href="Store.html#get" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get</span></a>
+<a href="Store.html#getArray" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get<wbr/>Array</span></a>
+<a href="Store.html#getBoolean" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get<wbr/>Boolean</span></a>
+<a href="Store.html#getFunction" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get<wbr/>Function</span></a>
+<a href="Store.html#getMap" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get<wbr/>Map</span></a>
+<a href="Store.html#getNumber" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get<wbr/>Number</span></a>
+<a href="Store.html#getObject" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get<wbr/>Object</span></a>
+<a href="Store.html#getOr" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get<wbr/>Or</span></a>
+<a href="Store.html#getString" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get<wbr/>String</span></a>
+<a href="Store.html#getType" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>get<wbr/>Type</span></a>
+<a href="Store.html#index" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>index</span></a>
+<a href="Store.html#isDetached" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>is<wbr/>Detached</span></a>
+<a href="Store.html#isEmpty" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>is<wbr/>Empty</span></a>
+<a href="Store.html#makeRef" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>make<wbr/>Ref</span></a>
+<a href="Store.html#map" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>map</span></a>
+<a href="Store.html#merge" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>merge</span></a>
+<a href="Store.html#modify" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>modify</span></a>
+<a href="Store.html#multiMap" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>multi<wbr/>Map</span></a>
+<a href="Store.html#onEach" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>on<wbr/>Each</span></a>
+<a href="Store.html#peek" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>peek</span></a>
+<a href="Store.html#push" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>push</span></a>
+<a href="Store.html#query" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>query</span></a>
+<a href="Store.html#ref" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>ref</span></a>
+<a href="Store.html#set" class="tsd-index-link tsd-kind-method tsd-parent-kind-class"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg><span>set</span></a>
+</div></section></div></details></section></section>
+<section class="tsd-panel-group tsd-member-group">
+<h2>Constructors</h2>
+<section class="tsd-panel tsd-member tsd-kind-constructor tsd-parent-kind-class"><a id="constructor" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>constructor</span><a href="#constructor" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" id="icon-anchor-a"></path><path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" id="icon-anchor-b"></path><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" id="icon-anchor-c"></path></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="constructor.new_Store">new <wbr/>Store<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><a href="#constructor.new_Store" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Create a new store with the given <code>value</code> as its value. Defaults to <code>undefined</code> if no value is given. 
+When the value is a plain JavaScript object, an <code>Array</code> or a <code>Map</code>, it will be stored as a tree of
+<code>Store</code>s. (Calling [[<code>get</code>]] on the store will recreate the original data strucure, though.)</p>
+
+<h3>Example</h3><pre><code><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">emptyStore</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">()</span><br/><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">numStore</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">(</span><span class="hl-4">42</span><span class="hl-1">)</span><br/><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">objStore</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">({</span><span class="hl-2">x:</span><span class="hl-1"> {</span><span class="hl-2">alice:</span><span class="hl-1"> </span><span class="hl-4">1</span><span class="hl-1">, </span><span class="hl-2">bob:</span><span class="hl-1"> </span><span class="hl-4">2</span><span class="hl-1">}, </span><span class="hl-2">y:</span><span class="hl-1"> [</span><span class="hl-4">9</span><span class="hl-1">,</span><span class="hl-4">7</span><span class="hl-1">,</span><span class="hl-4">5</span><span class="hl-1">,</span><span class="hl-4">3</span><span class="hl-1">,</span><span class="hl-4">1</span><span class="hl-1">]})</span>
+</code></pre>
+</div>
+<h4 class="tsd-returns-title">Returns <a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L821">aberdeen.ts:821</a></li></ul></aside></li>
+<li class="tsd-signature tsd-anchor-link" id="constructor.new_Store-1">new <wbr/>Store<span class="tsd-signature-symbol">(</span>value<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><a href="#constructor.new_Store-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5>value: <span class="tsd-signature-type">any</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L822">aberdeen.ts:822</a></li></ul></aside></li></ul></section></section>
+<section class="tsd-panel-group tsd-member-group">
+<h2>Methods</h2>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="_observe" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>_observe</span><a href="#_observe" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="_observe._observe-1">_observe<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">DatumType</span><a href="#_observe._observe-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Internal</h3></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">DatumType</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1242">aberdeen.ts:1242</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="count" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>count</span><a href="#count" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="count.count-1">count<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><a href="#count.count-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Returns the number of items in the specified collection, and subscribes the current scope to changes in this count.</p>
+
+<h3>Returns</h3><p>The number of items contained in the collection, or 0 if the value is undefined.</p>
+
+<h3>Throws</h3><p>When the value is not a collection and not undefined, an Error will be thrown.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5>
+<div class="tsd-comment tsd-typography"><p>Any path terms to resolve before retrieving the value.</p>
+</div></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">number</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1028">aberdeen.ts:1028</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="delete" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>delete</span><a href="#delete" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="delete.delete-1">delete<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span><a href="#delete.delete-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Sets the value for the store to <code>undefined</code>, which causes it to be omitted from the map (or array, if it&#39;s at the end)</p>
+
+<h3>Example</h3><pre><code><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">store</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">({</span><span class="hl-2">a:</span><span class="hl-1"> </span><span class="hl-4">1</span><span class="hl-1">, </span><span class="hl-2">b:</span><span class="hl-1"> </span><span class="hl-4">2</span><span class="hl-1">})</span><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">delete</span><span class="hl-1">(</span><span class="hl-5">&#39;a&#39;</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == {</span><span class="hl-2">b:</span><span class="hl-1"> </span><span class="hl-4">2</span><span class="hl-1">})</span><br/><br/><span class="hl-2">store</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">([</span><span class="hl-5">&#39;a&#39;</span><span class="hl-1">,</span><span class="hl-5">&#39;b&#39;</span><span class="hl-1">,</span><span class="hl-5">&#39;c&#39;</span><span class="hl-1">])</span><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">delete</span><span class="hl-1">(</span><span class="hl-4">1</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == [</span><span class="hl-5">&#39;a&#39;</span><span class="hl-1">, </span><span class="hl-0">undefined</span><span class="hl-1">, </span><span class="hl-5">&#39;c&#39;</span><span class="hl-1">])</span><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">delete</span><span class="hl-1">(</span><span class="hl-4">2</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == [</span><span class="hl-5">&#39;a&#39;</span><span class="hl-1">])</span>
+</code></pre>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1130">aberdeen.ts:1130</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="dump" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>dump</span><a href="#dump" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="dump.dump-1">dump<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span><a href="#dump.dump-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1372">aberdeen.ts:1372</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="get" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get</span><a href="#get" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="get.get-1">get<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><a href="#get.get-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>Resolves <code>path</code> and then retrieves the value that is there, subscribing
+to all read <code>Store</code> values. If <code>path</code> does not exist, <code>undefined</code> is returned.</p>
+
+<h3>Example</h3><pre><code><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">store</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">({</span><span class="hl-2">a:</span><span class="hl-1"> {</span><span class="hl-2">b:</span><span class="hl-1"> {</span><span class="hl-2">c:</span><span class="hl-1"> {</span><span class="hl-2">d:</span><span class="hl-1"> </span><span class="hl-4">42</span><span class="hl-1">}}}})</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-5">&#39;a&#39;</span><span class="hl-1"> </span><span class="hl-0">in</span><span class="hl-1"> </span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">())</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">(</span><span class="hl-5">&#39;a&#39;</span><span class="hl-1">, </span><span class="hl-5">&#39;b&#39;</span><span class="hl-1">) === {</span><span class="hl-2">c:</span><span class="hl-1"> {</span><span class="hl-2">d:</span><span class="hl-1"> </span><span class="hl-4">42</span><span class="hl-1">}})</span>
+</code></pre>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5>
+<div class="tsd-comment tsd-typography"><p>Any path terms to resolve before retrieving the value.</p>
+</div></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">any</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L877">aberdeen.ts:877</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="getArray" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>Array</span><a href="#getArray" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="getArray.getArray-1">get<wbr/>Array<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><a href="#getArray.getArray-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>Like [[<code>get</code>]], but throws a <code>TypeError</code> if the resulting value is not of type <code>array</code>.
+Using this instead of just [[<code>get</code>]] is especially useful from within TypeScript.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L912">aberdeen.ts:912</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="getBoolean" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>Boolean</span><a href="#getBoolean" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="getBoolean.getBoolean-1">get<wbr/>Boolean<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">boolean</span><a href="#getBoolean.getBoolean-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>Like [[<code>get</code>]], but throws a <code>TypeError</code> if the resulting value is not of type <code>boolean</code>.
+Using this instead of just [[<code>get</code>]] is especially useful from within TypeScript.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">boolean</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L902">aberdeen.ts:902</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="getFunction" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>Function</span><a href="#getFunction" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="getFunction.getFunction-1">get<wbr/>Function<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Function</span><a href="#getFunction.getFunction-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>Like [[<code>get</code>]], but throws a <code>TypeError</code> if the resulting value is not of type <code>function</code>.
+Using this instead of just [[<code>get</code>]] is especially useful from within TypeScript.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Function</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L907">aberdeen.ts:907</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="getMap" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>Map</span><a href="#getMap" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="getMap.getMap-1">get<wbr/>Map<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Map</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><a href="#getMap.getMap-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>Like [[<code>get</code>]], but throws a <code>TypeError</code> if the resulting value is not of type <code>map</code>.
+Using this instead of just [[<code>get</code>]] is especially useful from within TypeScript.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Map</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L922">aberdeen.ts:922</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="getNumber" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>Number</span><a href="#getNumber" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="getNumber.getNumber-1">get<wbr/>Number<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><a href="#getNumber.getNumber-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>Like [[<code>get</code>]], but throws a <code>TypeError</code> if the resulting value is not of type <code>number</code>.
+Using this instead of just [[<code>get</code>]] is especially useful from within TypeScript.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">number</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L892">aberdeen.ts:892</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="getObject" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>Object</span><a href="#getObject" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="getObject.getObject-1">get<wbr/>Object<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">object</span><a href="#getObject.getObject-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>Like [[<code>get</code>]], but throws a <code>TypeError</code> if the resulting value is not of type <code>object</code>.
+Using this instead of just [[<code>get</code>]] is especially useful from within TypeScript.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">object</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L917">aberdeen.ts:917</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="getOr" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>Or</span><a href="#getOr" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="getOr.getOr-1">get<wbr/>Or<span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type" data-tsd-kind="Type parameter">T</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">(</span>defaultValue<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type" data-tsd-kind="Type parameter">T</span>, <span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type" data-tsd-kind="Type parameter">T</span><a href="#getOr.getOr-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Like [[<code>get</code>]], but the first parameter is the default value (returned when the Store
+contains <code>undefined</code>). This default value is also used to determine the expected type,
+and to throw otherwise.</p>
+
+<h3>Example</h3><pre><code><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">store</span><span class="hl-1"> = {</span><span class="hl-2">x:</span><span class="hl-1"> </span><span class="hl-4">42</span><span class="hl-1">}</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-3">getOr</span><span class="hl-1">(</span><span class="hl-4">99</span><span class="hl-1">, </span><span class="hl-5">&#39;x&#39;</span><span class="hl-1">) == </span><span class="hl-4">42</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-3">getOr</span><span class="hl-1">(</span><span class="hl-4">99</span><span class="hl-1">, </span><span class="hl-5">&#39;y&#39;</span><span class="hl-1">) == </span><span class="hl-4">99</span><span class="hl-1">)</span><br/><span class="hl-3">getOr</span><span class="hl-1">(</span><span class="hl-5">&#39;hello&#39;</span><span class="hl-1">, </span><span class="hl-2">x</span><span class="hl-5">&#39;) # throws TypeError (because 42 is not a string</span><span class="hl-6">)</span>
+</code></pre>
+</div>
+<section class="tsd-panel tsd-type-parameters">
+<h4>Type Parameters</h4>
+<ul class="tsd-type-parameters">
+<li>
+<h4>T</h4></li></ul></section>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5>defaultValue: <span class="tsd-signature-type" data-tsd-kind="Type parameter">T</span></h5></li>
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type" data-tsd-kind="Type parameter">T</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L937">aberdeen.ts:937</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="getString" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>String</span><a href="#getString" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="getString.getString-1">get<wbr/>String<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><a href="#getString.getString-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>Like [[<code>get</code>]], but throws a <code>TypeError</code> if the resulting value is not of type <code>string</code>.
+Using this instead of just [[<code>get</code>]] is especially useful from within TypeScript.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">string</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L897">aberdeen.ts:897</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="getType" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>Type</span><a href="#getType" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="getType.getType-1">get<wbr/>Type<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><a href="#getType.getType-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Returns a strings describing the type of the store value, subscribing to changes of this type.
+Note: this currently also subscribes to changes of primitive values, so changing a value from 3 to 4 
+would cause the scope to be rerun. This is not great, and may change in the future. This caveat does
+not apply to changes made <em>inside</em> an object, <code>Array</code> or <code>Map</code>.</p>
+
+<h3>Returns</h3><p>Possible options: &quot;undefined&quot;, &quot;null&quot;, &quot;boolean&quot;, &quot;number&quot;, &quot;string&quot;, &quot;function&quot;, &quot;array&quot;, &quot;map&quot; or &quot;object&quot;.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5>
+<div class="tsd-comment tsd-typography"><p>Any path terms to resolve before retrieving the value.</p>
+</div></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">string</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1055">aberdeen.ts:1055</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="index" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>index</span><a href="#index" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="index.index-1">index<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><a href="#index.index-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>The index for this Store within its parent collection. This will be a <code>number</code>
+when the parent collection is an array, a <code>string</code> when it&#39;s an object, or any data type
+when it&#39;s a <code>Map</code>.</p>
+
+<h3>Example</h3><pre><code><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">store</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">({</span><span class="hl-2">x:</span><span class="hl-1"> </span><span class="hl-4">123</span><span class="hl-1">})</span><br/><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">subStore</span><span class="hl-1"> = </span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">ref</span><span class="hl-1">(</span><span class="hl-5">&#39;x&#39;</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">subStore</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() === </span><span class="hl-4">123</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">subStore</span><span class="hl-1">.</span><span class="hl-3">index</span><span class="hl-1">() === </span><span class="hl-5">&#39;x&#39;</span><span class="hl-1">) </span><span class="hl-7">// &lt;----</span>
+</code></pre>
+</div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">any</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L856">aberdeen.ts:856</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="isDetached" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>is<wbr/>Detached</span><a href="#isDetached" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="isDetached.isDetached-1">is<wbr/>Detached<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">boolean</span><a href="#isDetached.isDetached-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography">
+<h3>Returns</h3><p>Returns <code>true</code> when the <code>Store</code> was created by [[<code>ref</code>]]ing a path that
+does not exist.</p>
+</div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">boolean</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1366">aberdeen.ts:1366</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="isEmpty" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>is<wbr/>Empty</span><a href="#isEmpty" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="isEmpty.isEmpty-1">is<wbr/>Empty<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">boolean</span><a href="#isEmpty.isEmpty-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Checks if the specified collection is empty, and subscribes the current scope to changes of the emptiness of this collection.</p>
+
+<h3>Returns</h3><p>When the specified collection is not empty <code>true</code> is returned. If it is empty or if the value is undefined, <code>false</code> is returned.</p>
+
+<h3>Throws</h3><p>When the value is not a collection and not undefined, an Error will be thrown.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5>
+<div class="tsd-comment tsd-typography"><p>Any path terms to resolve before retrieving the value.</p>
+</div></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">boolean</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1003">aberdeen.ts:1003</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="makeRef" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>make<wbr/>Ref</span><a href="#makeRef" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="makeRef.makeRef-1">make<wbr/>Ref<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><a href="#makeRef.makeRef-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Similar to <code>ref()</code>, but instead of returning <code>undefined</code>, new objects are created when
+a path does not exist yet. An error is still thrown when the path tries to index an invalid
+type.
+Unlike <code>ref</code>, <code>makeRef</code> does <em>not</em> subscribe to the path levels, as it is intended to be
+a write-only operation.</p>
+
+<h3>Example</h3><pre><code><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">store</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">() </span><span class="hl-7">// Value is `undefined`</span><br/><br/><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">ref</span><span class="hl-1"> = </span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">makeRef</span><span class="hl-1">(</span><span class="hl-5">&#39;a&#39;</span><span class="hl-1">, </span><span class="hl-5">&#39;b&#39;</span><span class="hl-1">, </span><span class="hl-5">&#39;c&#39;</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == {</span><span class="hl-2">a:</span><span class="hl-1"> {</span><span class="hl-2">b:</span><span class="hl-1"> {}}}</span><br/><br/><span class="hl-2">ref</span><span class="hl-1">.</span><span class="hl-3">set</span><span class="hl-1">(</span><span class="hl-4">42</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == {</span><span class="hl-2">a:</span><span class="hl-1"> {</span><span class="hl-2">b:</span><span class="hl-1"> {</span><span class="hl-2">c:</span><span class="hl-1"> </span><span class="hl-4">42</span><span class="hl-1">}}}</span><br/><br/><span class="hl-2">ref</span><span class="hl-1">.</span><span class="hl-3">makeRef</span><span class="hl-1">(</span><span class="hl-5">&#39;d&#39;</span><span class="hl-1">) </span><span class="hl-7">// Throw Error (42 is not a collection)</span>
+</code></pre>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1224">aberdeen.ts:1224</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="map" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>map</span><a href="#map" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="map.map-1">map<span class="tsd-signature-symbol">(</span>func<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>store<span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><a href="#map.map-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Applies a filter/map function on each item within the <code>Store</code>&#39;s collection,
+and reactively manages the returned <code>Map</code> <code>Store</code> to hold any results.</p>
+
+<h3>Returns</h3><ul>
+<li>A map <code>Store</code> with the values returned by <code>func</code> and the corresponding
+keys from the original map, array or object <code>Store</code>.</li>
+</ul>
+<p>When items disappear from the <code>Store</code> or are changed in a way that <code>func</code> depends
+upon, the resulting items are removed from the output <code>Store</code> as well. When multiple
+input items produce the same output keys, this may lead to unexpected results.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5>func: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>store<span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span></h5>
+<div class="tsd-comment tsd-typography"><p>Function that transform the given store into an output value or
+<code>undefined</code> in case this value should be skipped:</p>
+</div>
+<ul class="tsd-parameters">
+<li class="tsd-parameter-signature">
+<ul class="tsd-signatures tsd-kind-type-literal">
+<li class="tsd-signature"><span class="tsd-signature-symbol">(</span>store<span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span></li>
+<li class="tsd-description">
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5>store: <a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">any</span></h4></li></ul></li></ul></li></ul></div>
+<h4 class="tsd-returns-title">Returns <a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1302">aberdeen.ts:1302</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="merge" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>merge</span><a href="#merge" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="merge.merge-1">merge<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>pathAndValue<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span><a href="#merge.merge-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Sets the <code>Store</code> to the given <code>mergeValue</code>, but without deleting any pre-existing
+items when a collection overwrites a similarly typed collection. This results in
+a deep merge.</p>
+
+<h3>Example</h3><pre><code><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">store</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">({</span><span class="hl-2">a:</span><span class="hl-1"> {</span><span class="hl-2">x:</span><span class="hl-1"> </span><span class="hl-4">1</span><span class="hl-1">}})</span><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">merge</span><span class="hl-1">({</span><span class="hl-2">a:</span><span class="hl-1"> {</span><span class="hl-2">y:</span><span class="hl-1"> </span><span class="hl-4">2</span><span class="hl-1">}, </span><span class="hl-2">b:</span><span class="hl-1"> </span><span class="hl-4">3</span><span class="hl-1">})</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == {</span><span class="hl-2">a:</span><span class="hl-1"> {</span><span class="hl-2">x:</span><span class="hl-1"> </span><span class="hl-4">1</span><span class="hl-1">, </span><span class="hl-2">y:</span><span class="hl-1"> </span><span class="hl-4">2</span><span class="hl-1">}, </span><span class="hl-2">b:</span><span class="hl-1"> </span><span class="hl-4">3</span><span class="hl-1">})</span>
+</code></pre>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>pathAndValue: <span class="tsd-signature-type">any</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1108">aberdeen.ts:1108</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="modify" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>modify</span><a href="#modify" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="modify.modify-1">modify<span class="tsd-signature-symbol">(</span>func<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>value<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span><a href="#modify.modify-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>[[<code>peek</code>]] the current value, pass it through <code>func</code>, and [[<code>set</code>]] the resulting
+value.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5>func: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>value<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span></h5>
+<div class="tsd-comment tsd-typography"><p>The function transforming the value.</p>
+</div>
+<ul class="tsd-parameters">
+<li class="tsd-parameter-signature">
+<ul class="tsd-signatures tsd-kind-type-literal">
+<li class="tsd-signature"><span class="tsd-signature-symbol">(</span>value<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span></li>
+<li class="tsd-description">
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5>value: <span class="tsd-signature-type">any</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">any</span></h4></li></ul></li></ul></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1176">aberdeen.ts:1176</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="multiMap" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>multi<wbr/>Map</span><a href="#multiMap" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="multiMap.multiMap-1">multi<wbr/>Map<span class="tsd-signature-symbol">(</span>func<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>store<span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><a href="#multiMap.multiMap-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Applies a filter/map function on each item within the <code>Store</code>&#39;s collection,
+each of which can deliver any number of key/value pairs, and reactively manages the
+returned map <code>Store</code> to hold any results.</p>
+
+<h3>Returns</h3><ul>
+<li>A map <code>Store</code> with the key/value pairs returned by all <code>func</code> invocations.</li>
+</ul>
+<p>When items disappear from the <code>Store</code> or are changed in a way that <code>func</code> depends
+upon, the resulting items are removed from the output <code>Store</code> as well. When multiple
+input items produce the same output keys, this may lead to unexpected results.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5>func: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>store<span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span></h5>
+<div class="tsd-comment tsd-typography"><p>Function that transform the given store into output values
+that can take one of the following forms:</p>
+<ul>
+<li>an <code>Object</code> or a <code>Map</code>: Each key/value pair will be added to the output <code>Store</code>.</li>
+<li>anything else: No key/value pairs are added to the output <code>Store</code>.</li>
+</ul>
+</div>
+<ul class="tsd-parameters">
+<li class="tsd-parameter-signature">
+<ul class="tsd-signatures tsd-kind-type-literal">
+<li class="tsd-signature"><span class="tsd-signature-symbol">(</span>store<span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span></li>
+<li class="tsd-description">
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5>store: <a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">any</span></h4></li></ul></li></ul></li></ul></div>
+<h4 class="tsd-returns-title">Returns <a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1333">aberdeen.ts:1333</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="onEach" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>on<wbr/>Each</span><a href="#onEach" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="onEach.onEach-1">on<wbr/>Each<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>pathAndFuncs<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span><a href="#onEach.onEach-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Iterate the specified collection (Array, Map or object), running the given code block for each item.
+When items are added to the collection at some later point, the code block will be ran for them as well.
+When an item is removed, the [[<code>clean</code>]] handlers left by its code block are executed.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>pathAndFuncs: <span class="tsd-signature-type">any</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1260">aberdeen.ts:1260</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="peek" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>peek</span><a href="#peek" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="peek.peek-1">peek<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><a href="#peek.peek-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Like [[<code>get</code>]], but doesn&#39;t subscribe to changes.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">any</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L884">aberdeen.ts:884</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="push" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>push</span><a href="#push" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="push.push-1">push<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>pathAndValue<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><a href="#push.push-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Pushes a value to the end of the Array that is at the specified path in the store. 
+If that store path is <code>undefined</code>, an Array is created first.
+The last argument is the value to be added, any earlier arguments indicate the path.</p>
+
+<h3>Example</h3><pre><code><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">store</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">()</span><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">push</span><span class="hl-1">(</span><span class="hl-4">3</span><span class="hl-1">) </span><span class="hl-7">// Creates the array</span><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">push</span><span class="hl-1">(</span><span class="hl-4">6</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == [</span><span class="hl-4">3</span><span class="hl-1">,</span><span class="hl-4">6</span><span class="hl-1">])</span><br/><br/><span class="hl-2">store</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">({</span><span class="hl-2">myArray:</span><span class="hl-1"> [</span><span class="hl-4">1</span><span class="hl-1">,</span><span class="hl-4">2</span><span class="hl-1">]})</span><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">push</span><span class="hl-1">(</span><span class="hl-5">&#39;myArray&#39;</span><span class="hl-1">, </span><span class="hl-4">3</span><span class="hl-1">)</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == {</span><span class="hl-2">myArray:</span><span class="hl-1"> [</span><span class="hl-4">1</span><span class="hl-1">,</span><span class="hl-4">2</span><span class="hl-1">,</span><span class="hl-4">3</span><span class="hl-1">]})</span>
+</code></pre>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>pathAndValue: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">number</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1152">aberdeen.ts:1152</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="query" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>query</span><a href="#query" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="query.query-1">query<span class="tsd-signature-symbol">(</span>opts<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">{ </span><br/><span>    </span>defaultValue<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">; </span><br/><span>    </span>depth<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">; </span><br/><span>    </span>path<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">; </span><br/><span>    </span>peek<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">; </span><br/><span>    </span>type<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><a href="#query.query-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Retrieve a value, subscribing to all read <code>Store</code> values. This is a more flexible
+form of the [[<code>get</code>]] and [[<code>peek</code>]] methods.</p>
+
+<h3>Returns</h3><p>The resulting value, or <code>undefined</code> if the <code>path</code> does not exist.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5>opts: <span class="tsd-signature-symbol">{ </span><br/><span>    </span>defaultValue<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">; </span><br/><span>    </span>depth<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">; </span><br/><span>    </span>path<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">; </span><br/><span>    </span>peek<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">; </span><br/><span>    </span>type<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span></h5>
+<ul class="tsd-parameters">
+<li class="tsd-parameter">
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> default<wbr/>Value<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">any</span></h5>
+<div class="tsd-comment tsd-typography"><p>Return this value when the <code>path</code> does not exist. Defaults to <code>undefined</code>.</p>
+</div></li>
+<li class="tsd-parameter">
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> depth<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">number</span></h5>
+<div class="tsd-comment tsd-typography"><p>Limit the depth of the retrieved data structure to this positive integer.
+ When <code>depth</code> is <code>1</code>, only a single level of the value at <code>path</code> is unpacked. This
+ makes no difference for primitive values (like strings), but for objects, maps and
+ arrays, it means that each <em>value</em> in the resulting data structure will be a
+ reference to the <code>Store</code> for that value.</p>
+</div></li>
+<li class="tsd-parameter">
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> path<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5>
+<div class="tsd-comment tsd-typography"><p>The value for this path should be retrieved. Defaults to <code>[]</code>, meaning the entire <code>Store</code>.</p>
+</div></li>
+<li class="tsd-parameter">
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> peek<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span></h5>
+<div class="tsd-comment tsd-typography"><p>When peek is <code>undefined</code> or <code>false</code>, the current scope will automatically be
+subscribed to changes of any parts of the store being read. When <code>true</code>, no
+subscribers will be performed.</p>
+</div></li>
+<li class="tsd-parameter">
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> type<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span></h5>
+<div class="tsd-comment tsd-typography"><p>A string specifying what type the query is expected to return. Options are:
+ &quot;undefined&quot;, &quot;null&quot;, &quot;boolean&quot;, &quot;number&quot;, &quot;string&quot;, &quot;function&quot;, &quot;array&quot;, &quot;map&quot;
+ and &quot;object&quot;. If the store holds a different type of value, a <code>TypeError</code>
+ exception is thrown. By default (when <code>type</code> is <code>undefined</code>) no type checking 
+ is done.</p>
+</div></li></ul></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">any</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L951">aberdeen.ts:951</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="ref" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>ref</span><a href="#ref" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="ref.ref-1">ref<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>path<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a><a href="#ref.ref-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Return a <code>Store</code> deeper within the tree by resolving the given <code>path</code>,
+subscribing to every level.
+In case <code>undefined</code> is encountered while resolving the path, a newly
+created <code>Store</code> containing <code>undefined</code> is returned. In that case, the
+<code>Store</code>&#39;s [[<code>isDetached</code>]] method will return <code>true</code>.
+In case something other than a collection is encountered, an error is thrown.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>path: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <a href="Store.html" class="tsd-signature-type" data-tsd-kind="Class">Store</a></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1188">aberdeen.ts:1188</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class"><a id="set" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>set</span><a href="#set" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></h3>
+<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
+<li class="tsd-signature tsd-anchor-link" id="set.set-1">set<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span>pathAndValue<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span><a href="#set.set-1" aria-label="Permalink" class="tsd-anchor-icon"><svg class="icon icon-tabler icon-tabler-link" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-anchor-a"></use><use href="#icon-anchor-b"></use><use href="#icon-anchor-c"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Sets the value to the last given argument. Any earlier argument are a Store-path that is first
+resolved/created using [[<code>makeRef</code>]].</p>
+<p>When a <code>Store</code> is passed in as the value, its value will be copied (subscribing to changes). In
+case the value is an object, an <code>Array</code> or a <code>Map</code>, a <em>reference</em> to that data structure will
+be created, so that changes made through one <code>Store</code> will be reflected through the other. Be
+carefull not to create loops in your <code>Store</code> tree that way, as that would cause any future
+call to [[<code>get</code>]] to throw a <code>RangeError</code> (Maximum call stack size exceeded.)</p>
+<p>If you intent to make a copy instead of a reference, call [[<code>get</code>]] on the origin <code>Store</code>.</p>
+
+<h3>Example</h3><pre><code><span class="hl-0">let</span><span class="hl-1"> </span><span class="hl-2">store</span><span class="hl-1"> = </span><span class="hl-0">new</span><span class="hl-1"> </span><span class="hl-3">Store</span><span class="hl-1">() </span><span class="hl-7">// Value is `undefined`</span><br/><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">set</span><span class="hl-1">(</span><span class="hl-5">&#39;x&#39;</span><span class="hl-1">, </span><span class="hl-4">6</span><span class="hl-1">) </span><span class="hl-7">// Causes the store to become an object</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == {</span><span class="hl-2">x:</span><span class="hl-1"> </span><span class="hl-4">6</span><span class="hl-1">})</span><br/><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">set</span><span class="hl-1">(</span><span class="hl-5">&#39;a&#39;</span><span class="hl-1">, </span><span class="hl-5">&#39;b&#39;</span><span class="hl-1">, </span><span class="hl-5">&#39;c&#39;</span><span class="hl-1">, </span><span class="hl-5">&#39;d&#39;</span><span class="hl-1">) </span><span class="hl-7">// Create parent path as objects</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == {</span><span class="hl-2">x:</span><span class="hl-1"> </span><span class="hl-4">6</span><span class="hl-1">, </span><span class="hl-2">a:</span><span class="hl-1"> {</span><span class="hl-2">b:</span><span class="hl-1"> {</span><span class="hl-2">c:</span><span class="hl-1"> </span><span class="hl-5">&#39;d&#39;</span><span class="hl-1">}}})</span><br/><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">set</span><span class="hl-1">(</span><span class="hl-4">42</span><span class="hl-1">) </span><span class="hl-7">// Overwrites all of the above</span><br/><span class="hl-3">assert</span><span class="hl-1">(</span><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">get</span><span class="hl-1">() == </span><span class="hl-4">42</span><span class="hl-1">)</span><br/><br/><span class="hl-2">store</span><span class="hl-1">.</span><span class="hl-3">set</span><span class="hl-1">(</span><span class="hl-5">&#39;x&#39;</span><span class="hl-1">, </span><span class="hl-4">6</span><span class="hl-1">) </span><span class="hl-7">// Throw Error (42 is not a collection)</span>
+</code></pre>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span>pathAndValue: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/vanviegen/aberdeen/blob/690990f/src/aberdeen.ts#L1090">aberdeen.ts:1090</a></li></ul></aside></li></ul></section></section></div>
+<div class="col-4 col-menu menu-sticky-wrap menu-highlight">
+<div class="tsd-navigation settings">
+<details class="tsd-index-accordion"><summary class="tsd-accordion-summary">
+<h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4.93896 8.531L12 15.591L19.061 8.531L16.939 6.409L12 11.349L7.06098 6.409L4.93896 8.531Z" fill="var(--color-text)"></path></svg> Settings</h3></summary>
+<div class="tsd-accordion-details">
+<div class="tsd-filter-visibility">
+<h4 class="uppercase">Member Visibility</h4><form>
+<ul id="tsd-filter-options">
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li>
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li>
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></form></div>
+<div class="tsd-theme-toggle">
+<h4 class="uppercase">Theme</h4><select id="theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div>
+<nav class="tsd-navigation primary">
+<details class="tsd-index-accordion" open><summary class="tsd-accordion-summary">
+<h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4.93896 8.531L12 15.591L19.061 8.531L16.939 6.409L12 11.349L7.06098 6.409L4.93896 8.531Z" fill="var(--color-text)"></path></svg> Modules</h3></summary>
+<div class="tsd-accordion-details">
+<ul>
+<li><a href="../modules.html">aberdeen</a>
+<ul></ul></li></ul></div></details></nav>
+<nav class="tsd-navigation secondary menu-sticky">
+<ul>
+<li class="current tsd-kind-class"><a href="Store.html" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-class)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6" id="icon-128-path"></rect><path d="M11.898 16.1201C11.098 16.1201 10.466 15.8961 10.002 15.4481C9.53803 15.0001 9.30603 14.3841 9.30603 13.6001V9.64012C9.30603 8.85612 9.53803 8.24012 10.002 7.79212C10.466 7.34412 11.098 7.12012 11.898 7.12012C12.682 7.12012 13.306 7.34812 13.77 7.80412C14.234 8.25212 14.466 8.86412 14.466 9.64012H13.386C13.386 9.14412 13.254 8.76412 12.99 8.50012C12.734 8.22812 12.37 8.09212 11.898 8.09212C11.426 8.09212 11.054 8.22412 10.782 8.48812C10.518 8.75212 10.386 9.13212 10.386 9.62812V13.6001C10.386 14.0961 10.518 14.4801 10.782 14.7521C11.054 15.0161 11.426 15.1481 11.898 15.1481C12.37 15.1481 12.734 15.0161 12.99 14.7521C13.254 14.4801 13.386 14.0961 13.386 13.6001H14.466C14.466 14.3761 14.234 14.9921 13.77 15.4481C13.306 15.8961 12.682 16.1201 11.898 16.1201Z" fill="var(--color-text)" id="icon-128-text"></path></svg><span>Store</span></a>
+<ul>
+<li class="tsd-kind-constructor tsd-parent-kind-class"><a href="Store.html#constructor" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-512-path"></use><use href="#icon-512-text"></use></svg>constructor</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#_observe" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>_observe</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#count" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>count</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#delete" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>delete</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#dump" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>dump</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#get" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#getArray" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get<wbr/>Array</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#getBoolean" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get<wbr/>Boolean</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#getFunction" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get<wbr/>Function</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#getMap" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get<wbr/>Map</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#getNumber" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get<wbr/>Number</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#getObject" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get<wbr/>Object</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#getOr" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get<wbr/>Or</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#getString" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get<wbr/>String</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#getType" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>get<wbr/>Type</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#index" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>index</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#isDetached" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>is<wbr/>Detached</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#isEmpty" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>is<wbr/>Empty</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#makeRef" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>make<wbr/>Ref</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#map" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>map</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#merge" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>merge</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#modify" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>modify</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#multiMap" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>multi<wbr/>Map</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#onEach" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>on<wbr/>Each</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#peek" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>peek</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#push" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>push</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#query" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>query</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#ref" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>ref</a></li>
+<li class="tsd-kind-method tsd-parent-kind-class"><a href="Store.html#set" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-2048-path"></use><use href="#icon-2048-text"></use></svg>set</a></li></ul></li></ul></nav></div></div>
+<div class="container tsd-generator">
+<p>Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></div>
+<div class="overlay"></div><script src="../assets/main.js"></script></body></html>
