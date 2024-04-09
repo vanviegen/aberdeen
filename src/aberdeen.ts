@@ -809,7 +809,7 @@ export class Store {
 	/**
 	 * Create a new store with the given `value` as its value. Defaults to `undefined` if no value is given. 
 	 * When the value is a plain JavaScript object, an `Array` or a `Map`, it will be stored as a tree of
-	 * `Store`s. (Calling [[`get`]] on the store will recreate the original data strucure, though.)
+	 * `Store`s. (Calling {@link Store.get} on the store will recreate the original data strucure, though.)
 	 * 
 	 * @example
 	 * ```
@@ -879,50 +879,50 @@ export class Store {
 	}
 
 	/**
-	 * Like [[`get`]], but doesn't subscribe to changes.
+	 * Like {@link Store.get}, but doesn't subscribe to changes.
 	 */
 	peek(...path: any[]): any {
 		return this.query({path, peek: true})
 	}
 
 	/**
-	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `number`.
-	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `number`.
+	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
 	getNumber(...path: any[]): number { return <number>this.query({path, type: 'number'}) }
 	/**
-	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `string`.
-	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `string`.
+	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
 	getString(...path: any[]): string { return <string>this.query({path, type: 'string'}) }
 	/**
-	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `boolean`.
-	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `boolean`.
+	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
 	getBoolean(...path: any[]): boolean { return <boolean>this.query({path, type: 'boolean'}) }
 	/**
-	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `function`.
-	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `function`.
+	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
 	getFunction(...path: any[]): (Function) { return <Function>this.query({path, type: 'function'}) }
 	/**
-	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `array`.
-	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `array`.
+	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
 	getArray(...path: any[]): any[] { return <any[]>this.query({path, type: 'array'}) }
 	/**
-	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `object`.
-	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `object`.
+	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
 	getObject(...path: any[]): object { return <object>this.query({path, type: 'object'}) }
 	/**
-	 * @returns Like [[`get`]], but throws a `TypeError` if the resulting value is not of type `map`.
-	 * Using this instead of just [[`get`]] is especially useful from within TypeScript.
+	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `map`.
+	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
 	getMap(...path: any[]): Map<any,any> { return <Map<any,any>>this.query({path, type: 'map'}) }
 
 	/**
-	 * Like [[`get`]], but the first parameter is the default value (returned when the Store
+	 * Like {@link Store.get}, but the first parameter is the default value (returned when the Store
 	 * contains `undefined`). This default value is also used to determine the expected type,
 	 * and to throw otherwise.
 	 * 
@@ -944,7 +944,7 @@ export class Store {
 	}
 
 	/** Retrieve a value, subscribing to all read `Store` values. This is a more flexible
-	 * form of the [[`get`]] and [[`peek`]] methods.
+	 * form of the {@link Store.get} and {@link Store.peek} methods.
 	 * 
 	 * @returns The resulting value, or `undefined` if the `path` does not exist.
 	 */
@@ -1060,15 +1060,15 @@ export class Store {
 
 	/**
 	 * Sets the value to the last given argument. Any earlier argument are a Store-path that is first
-	 * resolved/created using [[`makeRef`]].
+	 * resolved/created using {@link Store.makeRef}.
 	 * 
 	 * When a `Store` is passed in as the value, its value will be copied (subscribing to changes). In
 	 * case the value is an object, an `Array` or a `Map`, a *reference* to that data structure will
 	 * be created, so that changes made through one `Store` will be reflected through the other. Be
 	 * carefull not to create loops in your `Store` tree that way, as that would cause any future
-	 * call to [[`get`]] to throw a `RangeError` (Maximum call stack size exceeded.)
+	 * call to {@link Store.get} to throw a `RangeError` (Maximum call stack size exceeded.)
 	 * 
-	 * If you intent to make a copy instead of a reference, call [[`get`]] on the origin `Store`.
+	 * If you intent to make a copy instead of a reference, call {@link Store.get} on the origin `Store`.
 	 * 
 	 * 
 	 * @example
@@ -1169,7 +1169,7 @@ export class Store {
 	}
 
 	/**
-	 * [[`peek`]] the current value, pass it through `func`, and [[`set`]] the resulting
+	 * {@link Store.peek} the current value, pass it through `func`, and {@link Store.set} the resulting
 	 * value.
 	 * @param func The function transforming the value.
 	 */
@@ -1182,7 +1182,7 @@ export class Store {
 	 * subscribing to every level.
 	 * In case `undefined` is encountered while resolving the path, a newly
 	 * created `Store` containing `undefined` is returned. In that case, the
-	 * `Store`'s [[`isDetached`]] method will return `true`.
+	 * `Store`'s {@link Store.isDetached} method will return `true`.
 	 * In case something other than a collection is encountered, an error is thrown.
 	 */
 	ref(...path: any[]): Store {
@@ -1251,7 +1251,7 @@ export class Store {
 	/**
 	 * Iterate the specified collection (Array, Map or object), running the given code block for each item.
 	 * When items are added to the collection at some later point, the code block will be ran for them as well.
-	 * When an item is removed, the [[`clean`]] handlers left by its code block are executed.
+	 * When an item is removed, the {@link Store.clean} handlers left by its code block are executed.
 	 * 
 	 * 
 	 * 
@@ -1360,7 +1360,7 @@ export class Store {
 	}
 
 	/**
-	 * @returns Returns `true` when the `Store` was created by [[`ref`]]ing a path that
+	 * @returns Returns `true` when the `Store` was created by {@link Store.ref}ing a path that
 	 * does not exist. 
 	 */
 	isDetached() { return false }
@@ -1399,7 +1399,7 @@ class DetachedStore extends Store {
  * @param tag - The tag of the element to be created and optionally dot-separated class names. For example: `h1` or `p.intro.has_avatar`.
  * @param rest - The other arguments are flexible and interpreted based on their types:
  *   - `string`: Used as textContent for the element.
- *   - `object`: Used as attributes, properties or event listeners for the element. See [[`prop`]] on how the distinction is made.
+ *   - `object`: Used as attributes, properties or event listeners for the element. See {@link Store.prop} on how the distinction is made.
  *   - `function`: The render function used to draw the scope of the element. This function gets its own `Scope`, so that if any `Store` it reads changes, it will redraw by itself.
  *   - `Store`: Presuming `tag` is `"input"`, `"textarea"` or `"select"`, create a two-way binding between this `Store` value and the input element. The initial value of the input will be set to the initial value of the `Store`, or the other way around if the `Store` holds `undefined`. After that, the `Store` will be updated when the input changes and vice versa.
  * @example
@@ -1582,7 +1582,7 @@ export function observe(func: () => void) {
 
 
 /**
- * Like [[`observe`]], but allow the function to create DOM elements using [[`node`]].
+ * Like {@link Store.observe}, but allow the function to create DOM elements using {@link Store.node}.
 
  * @param func - The function to be (repeatedly) executed, possibly adding DOM elements to `parentElement`.
  * @param parentElement - A DOM element that will be used as the parent element for calls to `node`.
@@ -1597,7 +1597,7 @@ export function observe(func: () => void) {
  * })
  * ```
  * 
- * An example nesting [[`observe`]] within `mount`:
+ * An example nesting {@link Store.observe} within `mount`:
  * ```
  * let selected = new Store(0)
  * let colors = new Store(new Map())
@@ -1641,7 +1641,7 @@ export function mount(parentElement: Element | undefined, func: () => void) {
 }
 
 
-/** Runs the given function, while not subscribing the current scope when reading [[`Store`]] values.
+/** Runs the given function, while not subscribing the current scope when reading {@link Store.Store} values.
  * 
  * @param func Function to be executed immediately.
  * @returns Whatever `func()` returns.
