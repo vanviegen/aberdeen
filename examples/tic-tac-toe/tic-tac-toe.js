@@ -1,4 +1,4 @@
-import {node, prop, mount, Store, text} from 'https://unpkg.com/aberdeen@0.0.10/dist/aberdeen.js';
+import {node, prop, mount, Store, text} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm';
 
 const store = new Store({
 	squares: [],
@@ -69,25 +69,17 @@ const fillSquare = (position) => {
 	store.push('history', store.get('squares'))
 }
 
-// Literal copy from the React example:
-function calculateWinner(squares) {
+const calculateWinner = (squares) => {
 	const lines = [
-		[0, 1, 2],
-		[3, 4, 5],
-		[6, 7, 8],
-		[0, 3, 6],
-		[1, 4, 7],
-		[2, 5, 8],
-		[0, 4, 8],
-		[2, 4, 6]
+		[0, 1, 2], [3, 4, 5], [6, 7, 8], // horizontal
+		[0, 3, 6], [1, 4, 7], [2, 5, 8], // vertical
+		[0, 4, 8], [2, 4, 6] // diagonal
 	];
-	for (let i = 0; i < lines.length; i++) {
-		const [a, b, c] = lines[i];
+	for (const [a, b, c] of lines) {
 		if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
 			return squares[a];
 		}
 	}
-	return null;
 }
  
 mount(document.body, () => {
@@ -96,4 +88,3 @@ mount(document.body, () => {
 		node('div.game-info', drawInfo)
 	})
 })
-

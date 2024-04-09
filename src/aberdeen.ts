@@ -798,7 +798,7 @@ class ObsMap extends ObsCollection {
  * 
  * Supported data types are: `string`, `number`, `boolean`, `undefined`, `null`,
  * `Array`, `object` and `Map`. The latter three will always have `Store` objects as
- * values, creating a tree of `Store`s.
+ * values, creating a tree of `Store`-objects.
  */
 
 export class Store {
@@ -1238,7 +1238,7 @@ export class Store {
 		return store	  
 	}
 
-	/** @Internal */
+	/** @internal */
 	_observe() {
 		if (currentScope) {
 			if (this.collection.addObserver(this.idx, currentScope)) {

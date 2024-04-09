@@ -1,4 +1,4 @@
-import {node, Store, mount, text} from '../../dist/aberdeen.js';
+import {node, Store, mount, text} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm'
 
 const store = new Store({
 	name: 'John Doe',
