@@ -8,7 +8,7 @@ describe('Value binding', function() {
 				prop('class', {correct: store.get().length >= 5})
 			})
 		})
-		assertBody(`input{@class="" value="test"}`)
+		assertBody(`input{value="test"}`)
 
 		inputElement.value = "testx"
 		inputElement.event("input")
@@ -81,5 +81,26 @@ describe('Value binding', function() {
 		toggle.set(false)
 		passTime()
 		assertBody(`input{value="changed"} input{@type="checkbox" checked=false}`)
+	})
+
+	it('returns numbers for number/range typed inputs', () => {
+		let store = new Store("")
+		let inputElement;
+		testMount(() => {
+			node('input', {type: 'number'}, store, () => {
+				inputElement = getParentElement()
+			})
+		})
+		assertBody(`input{@type="number" value=""}`)
+
+		inputElement.value = "123"
+		inputElement.event("input")
+		passTime()
+		assertEqual(store.get(), 123)
+
+		inputElement.value = ""
+		inputElement.event("input")
+		passTime()
+		assertEqual(store.get(), null)
 	})
 })

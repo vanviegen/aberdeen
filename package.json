@@ -1,14 +1,14 @@
 {
   "name": "aberdeen",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "A TypeScript/JavaScript library for quickly building performant declarative user interfaces without the use of a virtual DOM.",
   "main": "dist/aberdeen.js",
   "types": "dist/aberdeen.d.js",
   "scripts": {
     "build": "$npm_execpath run build-dist && $npm_execpath run build-docs",
-    "build-dist": "tsc && terser --module --compress --mangle -- dist/aberdeen.js > dist/aberdeen.min.js",
+    "build-dist": "rm -f dist/aberdeen.js && tsc && chmod a-w dist/aberdeen.js && terser --module --compress --mangle -- dist/aberdeen.js > dist/aberdeen.min.js",
     "build-docs": "typedoc --excludePrivate --excludeInternal src/aberdeen.ts",
-    "build-test": "[ tests/build/aberdeen.js -nt src/aberdeen.ts ] || tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts",
+    "build-test": "[ tests/build/aberdeen.js -nt src/aberdeen.ts ] || ( rm -f tests/build/aberdeen.js && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts && chmod a-w tests/build/aberdeen.js )",
     "coverage": "$npm_execpath run build-test && nyc mocha --file tests/_init.js tests/[^_]*.js",
     "test": "$npm_execpath run build-test && mocha --file tests/_init.js tests/[^_]*.js",
     "prepack": "$npm_execpath run test && $npm_execpath run build"

@@ -198,4 +198,22 @@ describe('DOM creator', function() {
 			assertThrow("Operation not permitted outside of a mount() scope", () => html("test"))
 		})
 	})
+
+	it('only unlinks the top parent of the tree being removed', () => {
+		let store = new Store(true)
+		testMount(() => {
+			if (store.get()) node('main', () => {
+				node('a')
+				node('b')
+				node('c')
+			})
+		})
+		assertBody(`main{a{} b{} c{}}`)
+		assertEqual(getCounts(), {new: 4, change: 4})
+
+		store.set(false)
+		passTime()
+		assertBody(``)
+		assertEqual(getCounts(), {new: 4, change: 5})
+	})
 });

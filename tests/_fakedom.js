@@ -16,22 +16,33 @@ global.window = {};
 
 
 let newCount = 0, changeCount = 0;
+global.resetCounts = function() { newCount = changeCount = 0; };
+global.getCounts = function() { return {new: newCount, change: changeCount}; };
 
 let timeouts = [];
-let timeBase = 0;
+let currentTime = 0;
 
 global.setTimeout = function(func,time) {
-	timeouts.push({func, time: time+timeBase});
+	timeouts.push({func, time: time+currentTime});
 };
 
-global.passTime = function(ms=1) {
-	timeBase += ms;
-	while(true) {
-		if (!timeouts.length) return;
-		timeouts.sort( (a,b) => a.time-b.time );
-		if (timeouts[0] > timeBase) return;
-		timeouts.shift().func();
+global.passTime = function(ms) {
+	let targetTime = ms==null ? undefined : currentTime + ms;
+	while(timeouts.length) {
+		// Find the timeout that should occur first
+		let smallestIdx = 0;
+		for(let idx=1; idx<timeouts.length; idx++) {
+			if (timeouts[idx].time < timeouts[smallestIdx].time) smallestIdx = idx;
+		}
+		let timeout = timeouts[smallestIdx];
+		// If this timeout is not due yet, we're done
+		if (targetTime!=null && timeout.time > targetTime) break;
+		// Timeout is due! Remove it from the list, update the currentTime, and fire the callback!
+		timeouts.splice(smallestIdx, 1);
+		currentTime = timeout.time;
+		timeout.func();
 	}
+	currentTime = targetTime==null ? 0 : targetTime
 }
 
 
@@ -83,6 +94,9 @@ class Element extends Node {
 		node.parentNode = null;
 		changeCount++;
 	}
+	remove() {
+		this.parentNode.removeChild(this);
+	}
 	replaceChild(newNode, oldNode) {
 		this.insertBefore(newNode, oldNode);
 		this.removeChild(oldNode);
@@ -101,24 +115,29 @@ class Element extends Node {
 	get classList() {
 		return {
 			add: name => {
-				let set = this._getClassSet()
-				set.add(name)
-				this._setClassSet(set)
+				let set = this._getClassSet();
+				set.add(name);
+				this._setClassSet(set);
+				changeCount++;
 			},
 			remove: name => {
-				let set = this._getClassSet()
-				set.delete(name)
-				this._setClassSet(set)
+				let set = this._getClassSet();
+				set.delete(name);
+				this._setClassSet(set);
+				changeCount++;
 			},
 		}
 	}
+	get parentElement() {
+		if (this.parentNode instanceof Element) return this.parentNode;
+	}
 	_getClassSet() {
-		return new Set(this.attrs.class ? this.attrs.class.split(' ') : [])
+		return new Set(this.attrs.class ? this.attrs.class.split(' ') : []);
 	}
 	_setClassSet(map) {
-		this.attrs.class = Array.from(map).sort().join(' ')
+		this.attrs.class = Array.from(map).sort().join(' ');
+		if (!this.attrs.class) delete this.attrs.class;
 	}
-
 	get firstChild() {
 		return this.childNodes[0];
 	}
@@ -142,11 +161,20 @@ class Element extends Node {
 		}
 	}
 	get style() {
+		for(let k in this._style) {
+			if (this._style[k] === '') delete this._style[k];
+		}
 		return this._style;
 	}
 	set className(v) {
 		this.attrs.class = v;
 		changeCount++;
+	}
+	get offsetHeight() {
+		return 20;
+	}
+	get offsetWidth() {
+		return 200;
 	}
 	toString() {
 		let props = Object.assign({}, this);
@@ -216,7 +244,12 @@ class TextNode extends Node {
 	}
 }
 
+function getComputedStyle(el) {
+	return el._style;
+}
+
 
 global.Node = Node;
 global.TextNode = TextNode;
 global.Element = Element;
+global.getComputedStyle = getComputedStyle;

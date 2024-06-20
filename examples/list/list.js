@@ -1,4 +1,4 @@
-import {node, prop, mount, Store, text} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm';
+import {node, mount, Store, text} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm';
 
 const items = new Store([])
 const orderIndex = new Store(0)

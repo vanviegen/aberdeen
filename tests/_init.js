@@ -7,6 +7,7 @@ Object.assign(global, require('./build/aberdeen'))
 let currentMountSeq = new Store(0)
 mocha.beforeEach(() => {
 	document.body = document.createElement('body')
+	resetCounts()
 })
 
 mocha.afterEach(() => {
@@ -28,7 +29,7 @@ global.testMount = function(func) {
 
 global.testUnmount = function() {
 	currentMountSeq.modify(n => n+1)
-	passTime()
+	passTime(2001) // wait for deletion transitions
 }
 
 function toDisplay(value) {

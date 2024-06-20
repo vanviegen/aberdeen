@@ -1,27 +1,39 @@
-import {node, Store, mount, text} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm'
+import {node, Store, mount, text, observe, grow, shrink} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm'
 
 const store = new Store({
 	name: 'John Doe',
 	age: 23,
 	gender: 'w',
-	active: true,
+	active: false,
 	vehicle: 'car',
-	bio: 'John was born on an unknown date at an unknown place, far away.\n\nHis main claim to fame is showing up out of nowhere.',
+	bio: 'John was born on an unknown date at an unknown location.\n\nHis main claim to fame is showing up out of nowhere.',
 	color: '#00fa9a',
 })
 
 mount(document.body, () => {
-	node('input', {placeholder: 'Name'}, store.ref('name'))
+	node('h2', () => {
+		text((store.get('name') || "Nobody") + "'s biography")
+	})
+	node('input', store.ref('name'))
 	node('input', {type: 'number', placeholder: 'Age'}, store.ref('age'))
 	node('label', () => {
 		node('input', {type: 'checkbox'}, store.ref('active'))
 		text('Active member')
 	})
+	observe(() => {
+		if (store.get('active')) node('input', {type: 'number', placeholder: 'Member id', create: grow, destroy: shrink}, store.ref('member_id'))
+		else store.delete('member_id')
+	})
 	node('select', () => {
 		node('option', {value: "m"}, "Man")
 		node('option', {value: "w"}, "Woman")
-		node('option', {value: "n"}, "Non-binary")
+		node('option', {value: "o"}, "Other..")
 	}, store.ref('gender'))
+
+	observe(() => {
+		if (store.get('gender')==='o') node('input', {placeholder: 'Specify gender', create: grow, destroy: shrink}, store.ref('gender_other'))
+		else store.delete('gender_other')
+	})
 	
 	node('fieldset', () => {
 		const vehicles = {plane: 'Plane', car: 'Car', bike: 'Bicycle', none: 'None'}

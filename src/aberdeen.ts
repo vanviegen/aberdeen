@@ -32,6 +32,7 @@ function queue(runner: QueueRunner) {
 }
 
 function runQueue(): void {
+	onCreateEnabled = true
 	for(let index = 0; index < queueArray.length; ) {
 		if (!queueOrdered) {
 			queueArray.splice(0, index)
@@ -52,8 +53,26 @@ function runQueue(): void {
 
 	queueArray.length = 0
 	runQueueDepth = 0
+	onCreateEnabled = false
 }
 
+/**
+ * Schedule a function to be executed by Aberdeen's internal task queue. This
+ * can be useful to batch together DOM layout read operations and DOM write
+ * operations, so that we're not forcing the browser to do more layout calculations
+ * than needed. Also, unlike setTimeout or requestAnimationFrame, this doesn't
+ * give the browser the chance to render partial DOM states to the screen (which
+ * would be seen as glitches/flashes).
+ * @param func The function to be called soon.
+ * @param order Higher mean later. Defaults to 0, which would still be *after* all
+ * node/observe redraws have been handled. 
+ * 
+ * **EXPERIMENTAL:** There's a good chance this function will be replaced by
+ * something that explicitly addresses DOM layout reads and DOM writes.
+ */
+export function scheduleTask(func: () => void, order=0): void {
+	queue({queueOrder: 1000+order, queueRun: func})
+}
 
 
 type SortKeyType = number | string | Array<number|string>
@@ -96,7 +115,6 @@ function numToString(num: number, neg: boolean): string {
 	}
 	return result
 }
-
 
 
 interface Observer {
@@ -145,21 +163,24 @@ abstract class Scope implements QueueRunner, Observer {
 		this.queueOrder = queueOrder
 	}
 
-	// Get a reference to the last Node preceding 
-	findPrecedingNode(): Node | undefined {
-		let pre = this.precedingSibling
-		while(pre) {
+	// Get a reference to the last Node preceding this Scope, or undefined if there is none
+	findPrecedingNode(stopAt: Scope | Node | undefined = undefined): Node | undefined {
+		let cur: Scope = this
+		let pre: Scope | Node | undefined
+		while((pre = cur.precedingSibling) && pre !== stopAt) {
 			if (pre instanceof Node) return pre
 			let node = pre.findLastNode()
 			if (node) return node
-			pre = pre.precedingSibling
+			cur = pre
 		}
 	}
 
 	// Get a reference to the last Node within this scope and parentElement
 	findLastNode(): Node | undefined {
-		if (this.lastChild instanceof Node) return this.lastChild
-		if (this.lastChild instanceof Scope) return this.lastChild.findLastNode() || this.lastChild.findPrecedingNode();
+		if (this.lastChild) {
+			if (this.lastChild instanceof Node) return this.lastChild
+			else return this.lastChild.findLastNode() || this.lastChild.findPrecedingNode(this.precedingSibling)
+		}
 	}
 
 	addNode(node: Node) {
@@ -173,26 +194,39 @@ abstract class Scope implements QueueRunner, Observer {
 	remove() {
 		if (this.parentElement) {
 			let lastNode: Node | undefined = this.findLastNode()
-
 			if (lastNode) {
 				// at least one DOM node to be removed
+				
+				let nextNode: Node | undefined = this.findPrecedingNode()
+				nextNode = (nextNode ? nextNode.nextSibling : this.parentElement.firstChild) as Node | undefined
 
-				let precedingNode = this.findPrecedingNode()
-
-				// Keep removing DOM nodes starting at our last node, until we encounter the preceding node
-				// (which can be undefined)
-				while(lastNode !== precedingNode) {
+				this.lastChild = undefined
+				
+				// Keep removing DOM nodes starting at our first node, until we encounter the last node
+				while(true) {
 					/* istanbul ignore next */ 
-					if (!lastNode) {
-						return internalError(1)
+					if (!nextNode) return internalError(1)
+						
+					const node = nextNode
+					nextNode = node.nextSibling || undefined
+					let onDestroy = onDestroyMap.get(node)
+					if (onDestroy && node instanceof Element) {
+						if (onDestroy !== true) {
+							if (typeof onDestroy === 'function') {
+								onDestroy(node)
+							} else {
+								destroyWithClass(node, onDestroy)
+							}
+							// This causes the element to be ignored from this function from now on:
+							onDestroyMap.set(node, true)
+						}
+					// Ignore the deleting element
+					} else {
+						this.parentElement.removeChild(node)
 					}
-
-					let nextLastNode: Node | undefined = lastNode.previousSibling || undefined
-					this.parentElement.removeChild(lastNode)
-					lastNode = nextLastNode
+					if (node === lastNode) break
 				}
 			}
-			this.lastChild = undefined
 		}
 
 		// run cleaners
@@ -318,6 +352,10 @@ class OnEachScope extends Scope {
 		this.makeSortKey = makeSortKey
 	}
 
+	// toString(): string {
+	// 	return `OnEachScope(collection=${this.collection})`
+	// }
+
 	onChange(index: any, newData: DatumType, oldData: DatumType) {
 		if (oldData===undefined) {
 			if (this.removedIndexes.has(index)) {
@@ -389,9 +427,9 @@ class OnEachScope extends Scope {
 		if (!scope) { 
 			return internalError(6)  
 		} 
+		scope.remove()
 		this.byIndex.delete(itemIndex)
 		this.removeFromPosition(scope)
-		scope.remove()
 	}
 
 	findPosition(sortStr: string) {
@@ -417,14 +455,15 @@ class OnEachScope extends Scope {
 	insertAtPosition(child: OnEachItemScope) {
 		let pos = this.findPosition(child.sortStr)
 		this.byPosition.splice(pos, 0, child)
-
+		
 		// Based on the position in the list, set the precedingSibling for the new Scope
-		child.precedingSibling = pos>0 ? this.byPosition[pos-1] : this.precedingSibling
-
-		// Now set the precedingSibling for the subsequent item to this new Scope
-		if (pos+1 < this.byPosition.length) {
-			this.byPosition[pos+1].precedingSibling = child
+		// and for the next sibling.
+		let nextSibling: OnEachItemScope = this.byPosition[pos+1]
+		if (nextSibling) {
+			child.precedingSibling = nextSibling.precedingSibling
+			nextSibling.precedingSibling = child
 		} else {
+			child.precedingSibling = this.lastChild || this.precedingSibling
 			this.lastChild = child
 		}
 	}
@@ -437,9 +476,16 @@ class OnEachScope extends Scope {
 				// Yep, this is the right scope
 				this.byPosition.splice(pos, 1)
 				if (pos < this.byPosition.length) {
-					this.byPosition[pos].precedingSibling = pos>0 ? this.byPosition[pos-1] : this.precedingSibling
+					let nextSibling: Scope | undefined = this.byPosition[pos] as (Scope | undefined)
+					/* istanbul ignore next */
+					if (!nextSibling) return internalError(8)
+					/* istanbul ignore next */
+					if (nextSibling.precedingSibling !== child) return internalError(13)
+					nextSibling.precedingSibling = child.precedingSibling
 				} else {
-					this.lastChild = this.byPosition.length ? this.byPosition[this.byPosition.length-1] : undefined
+					/* istanbul ignore next */
+					if (child !== this.lastChild) return internalError(12)
+					this.lastChild = child.precedingSibling === this.precedingSibling ? undefined : child.precedingSibling	
 				}
 				return
 			}
@@ -468,6 +514,10 @@ class OnEachItemScope extends Scope {
 		this.parent = parent
 		this.itemIndex = itemIndex
 	}
+
+	// toString(): string {
+	// 	return `OnEachItemScope(itemIndex=${this.itemIndex} parentElement=${this.parentElement} parent=${this.parent} precedingSibling=${this.precedingSibling} lastChild=${this.lastChild})`
+	// }
 
 	queueRun() {
 		/* istanbul ignore next */
@@ -539,6 +589,10 @@ type DatumType = string | number | Function | boolean | null | undefined | ObsMa
 abstract class ObsCollection {
 	observers: Map<any, Set<Observer>> = new Map()
 
+	// toString(): string {
+	// 	return JSON.stringify(peek(() => this.getRecursive(3)))
+	// }
+
 	addObserver(index: any, observer: Observer) {
 	   observer = observer
 	   let obsSet = this.observers.get(index)
@@ -597,7 +651,6 @@ class ObsArray extends ObsCollection {
 	}
 
 	getRecursive(depth: number) {
-		
 		if (currentScope) {
 			if (this.addObserver(ANY_INDEX, currentScope)) {
 				currentScope.cleaners.push(this)
@@ -739,7 +792,6 @@ class ObsMap extends ObsCollection {
  }
 
  class ObsObject extends ObsMap {
-
 	getType() {
 		return "object"
 	}
@@ -1394,12 +1446,21 @@ class DetachedStore extends Store {
 
 
 
+let onCreateEnabled = false
+let onDestroyMap: WeakMap<Node, string | Function | true> = new WeakMap()
+
+function destroyWithClass(element: Element, cls: string) {
+	element.classList.add(cls)
+	setTimeout(() => element.remove(), 2000)
+}
+
+
 /**
  * Create a new DOM element, and insert it into the DOM at the position held by the current scope.
  * @param tag - The tag of the element to be created and optionally dot-separated class names. For example: `h1` or `p.intro.has_avatar`.
  * @param rest - The other arguments are flexible and interpreted based on their types:
  *   - `string`: Used as textContent for the element.
- *   - `object`: Used as attributes, properties or event listeners for the element. See {@link Store.prop} on how the distinction is made.
+ *   - `object`: Used as attributes, properties or event listeners for the element. See {@link Store.prop} on how the distinction is made and to read about a couple of special keys.
  *   - `function`: The render function used to draw the scope of the element. This function gets its own `Scope`, so that if any `Store` it reads changes, it will redraw by itself.
  *   - `Store`: Presuming `tag` is `"input"`, `"textarea"` or `"select"`, create a two-way binding between this `Store` value and the input element. The initial value of the input will be set to the initial value of the `Store`, or the other way around if the `Store` holds `undefined`. After that, the `Store` will be updated when the input changes and vice versa.
  * @example
@@ -1435,7 +1496,13 @@ export function node(tag: string|Element = "", ...rest: any[]) {
 		let type = typeof item
 		if (type === 'function') {
 			let scope = new SimpleScope(el, undefined, currentScope.queueOrder+1, item)
-			scope.update()
+			if (onCreateEnabled) {
+				onCreateEnabled = false
+				scope.update()
+				onCreateEnabled = true
+			} else {
+				scope.update()
+			}
 
 			// Add it to our list of cleaners. Even if `scope` currently has
 			// no cleaners, it may get them in a future refresh.
@@ -1453,6 +1520,8 @@ export function node(tag: string|Element = "", ...rest: any[]) {
 		}
 	}
 }
+
+
 
 /**
  * Convert an HTML string to one or more DOM elements, and add them to the current DOM scope.
@@ -1483,11 +1552,11 @@ function bindInput(el: HTMLInputElement, store: Store) {
 			if (el.checked) store.set(el.value)
 		}
 	} else {
-		if (value === undefined) store.set(el.value)
+		onInputChange = () => store.set(type==='number' || type==='range' ? (el.value==='' ? null : +el.value) : el.value)
+		if (value === undefined) onInputChange()
 		onStoreChange = value => {
 			if (el.value !== value) el.value = value
 		}
-		onInputChange = () => store.set(el.value)
 	}
 	observe(() => {
 		onStoreChange(store.get())
@@ -1515,18 +1584,73 @@ export function text(text: string) {
  * without recreating the element itself. Also, code can be more readable this way.
  * Note that when a nested `observe()` is used, properties set this way do NOT
  * automatically revert to their previous values.
+ * 
+ * Here's how properties are handled:
+ * - If `name` is `"create"`, `value` should be either a function that gets
+ *   called with the element as its only argument immediately after creation, 
+ *   or a string being the name of a CSS class that gets added immediately 
+ *   after element creation, and removed shortly afterwards. This allows for
+ *   reveal animations. However, this is intentionally *not* done
+ *   for elements that are created as part of a larger (re)draw, to prevent
+ *   all elements from individually animating on page creation.
+ * - If `name` is `"destroy"`, `value` should be a function that gets called
+ *   with the element as its only argument, *instead of* the element being
+ *   removed from the DOM (which the function will presumably need to do 
+ *   eventually). This can be used for a conceal animation.
+ *   As a convenience, it's also possible to provide a string instead of
+ *   a function, which will be added to the element as a CSS class, allowing
+ *   for simple transitions. In this case, the DOM element in removed 2 seconds
+ *   later (currently not configurable).
+ *   Similar to `"create"` (and in this case doing anything else would make little
+ *   sense), this only happens when the element being is the top-level element
+ *   being removed from the DOM.
+ * - If `value` is a function, it is registered as an event handler for the
+ *   `name` event.
+ * - If `name` is `"class"` or `"className"` and the `value` is an
+ *   object, all keys of the object are either added or removed from `classList`,
+ *   depending on whether `value` is true-like or false-like.
+ * - If `value` is a boolean *or* `name` is `"value"`, `"className"` or
+ *   `"selectedIndex"`, it is set as a DOM element *property*.
+ * - If `name` is `"text"`, the `value` is set as the element's `textContent`.
+ * - If `name` is `"style"` and `value` is an object, each of its
+ *   key/value pairs are assigned to the element's `.style`.
+ * - In other cases, the `value` is set as the `name` HTML *attribute*.
+ * 
+ * @example
+ * ```
+ * node('input', () => {
+ *	   prop('type', 'password')
+ *	   prop('readOnly', true)
+ *	   prop('class', 'my-class')
+ *	   prop('class', {
+ *	   		'my-disabled-class': false,
+ *	   		'my-enabled-class': true,
+ *	   })
+ *	   prop({
+ *	   		class: 'my-class',
+ *	   		text: 'Here is something to read...',
+ *	   		style: {
+ *	   			backgroundColor: 'red',
+ *	   			fontWeight: 'bold',
+ *	   		},
+ *	   		create: aberdeen.fadeIn,
+ *	   		destroy: 'my-fade-out-class',
+ *	   		click: myClickHandler,
+ *	   })
+ * })
+ * ```
  */
-export function prop(prop: string, value: any): void
+export function prop(name: string, value: any): void
 export function prop(props: object): void
 
-export function prop(prop: any, value: any = undefined) {
+export function prop(name: any, value: any = undefined) {
 	if (!currentScope || !currentScope.parentElement) throw new ScopeError(true)
-	if (typeof prop === 'object') {
-		for(let k in prop) {
-			applyProp(currentScope.parentElement, k, prop[k])
+	if (typeof name === 'object') {
+		for(let k in name) {
+			applyProp(currentScope.parentElement, k, name[k])
 		}
 	} else {
-		applyProp(currentScope.parentElement, prop, value)
+		applyProp(currentScope.parentElement, name, value)
 	}
 }
 
@@ -1678,26 +1802,37 @@ export function peek<T>(func: () => T): T {
  */
 
 function applyProp(el: Element, prop: any, value: any) {
-	if ((prop==='class' || prop==='className') && typeof value === 'object') {
+	if (prop==='create') {
+		if (onCreateEnabled) {
+			if (typeof value === 'function') {
+				value(el)
+			} else {
+				el.classList.add(value)
+				setTimeout(function(){el.classList.remove(value)}, 0)
+			}
+		}
+	} else if (prop==='destroy') {
+		onDestroyMap.set(el, value)
+	} else if (typeof value === 'function') {
+		// Set an event listener; remove it again on clean.
+		el.addEventListener(prop, value)
+		clean(() => el.removeEventListener(prop, value))
+	} else if (prop==='value' || prop==='className' || prop==='selectedIndex' || value===true || value===false) {
+		// All boolean values and a few specific keys should be set as a property
+		(el as any)[prop] = value
+	} else if (prop==='text') {
+		// `text` is set as textContent
+		el.textContent = value
+	} else if ((prop==='class' || prop==='className') && typeof value === 'object') {
 		// Allow setting classes using an object where the keys are the names and
 		// the values are booleans stating whether to set or remove.
 		for(let name in value) {
 			if (value[name]) el.classList.add(name)
 			else el.classList.remove(name)
 		}
-	} else if (prop==='value' || prop==='className' || prop==='selectedIndex' || value===true || value===false) {
-		// All boolean values and a few specific keys should be set as a property
-		(el as any)[prop] = value
-	} else if (typeof value === 'function') {
-		// Set an event listener; remove it again on clean.
-		el.addEventListener(prop, value)
-		clean(() => el.removeEventListener(prop, value))
 	} else if (prop==='style' && typeof value === 'object') {
 		// `style` can receive an object
 		Object.assign((<HTMLElement>el).style, value)
-	} else if (prop==='text') {
-		// `text` is set as textContent
-		el.textContent = value
 	} else {
 		// Everything else is an HTML attribute
 		el.setAttribute(prop, value)
@@ -1760,6 +1895,74 @@ class ScopeError extends Error {
 	constructor(mount: boolean) {
 		super(`Operation not permitted outside of ${mount ? "a mount" : "an observe"}() scope`)
 	}
+}
+
+const FADE_TIME = 400
+const GROW_SHRINK_TRANSITION = `margin ${FADE_TIME}ms ease-out, transform ${FADE_TIME}ms ease-out`
+
+function getGrowShrinkProps(el: HTMLElement) {
+	const parentStyle: any = el.parentElement ? getComputedStyle(el.parentElement) : {}
+	const isHorizontal = parentStyle.display === 'flex' && (parentStyle.flexDirection||'').startsWith('row')
+	return isHorizontal ?
+		{marginLeft: `-${el.offsetWidth/2}px`, marginRight: `-${el.offsetWidth/2}px`, transform: "scaleX(0)"} :
+		{marginBottom: `-${el.offsetHeight/2}px`, marginTop: `-${el.offsetHeight/2}px`, transform: "scaleY(0)"}
+
+}
+
+/** Do a grow transition for the given element. This is meant to be used as a
+ * handler for the `create` property.
+ * 
+ * @param el The element to transition.
+ *
+ * The transition doesn't look great for table elements, and may have problems
+ * for other specific cases as well. 
+ */
+export function grow(el: HTMLElement): void {
+	// This timeout is to await all other elements having been added to the Dom
+	scheduleTask(() => {
+		// Make the element size 0 using transforms and negative margins.
+		// This causes a browser layout, as we're querying el.offset<>.
+		let props = getGrowShrinkProps(el)
+
+		// The timeout is in order to batch all reads and then all writes when there
+		// are multiple simultaneous grow transitions.
+		scheduleTask(() => {
+			Object.assign(el.style, props)
+
+			// This timeout is to combine multiple transitions into a single browser layout
+			scheduleTask(() => {
+				// Make sure the layouting has been performed, to cause transitions to trigger
+				el.offsetHeight
+				// Do the transitions
+				el.style.transition = GROW_SHRINK_TRANSITION
+				for(let prop in props) el.style[prop as any] = ""
+				setTimeout(() => {
+					// Reset the element to a clean state
+					el.style.transition = ""
+				}, FADE_TIME)
+			}, 2)
+		}, 1)
+	})
+}
+
+/** Do a shrink transition for the given element, and remove it from the DOM
+ * afterwards. This is meant to be used as a handler for the `destroy` property.
+ * 
+ * @param el The element to transition and remove.
+ * 
+ * The transition doesn't look great for table elements, and may have problems
+ * for other specific cases as well. 
+ */
+export function shrink(el: HTMLElement): void {
+	const props = getGrowShrinkProps(el)
+	// The timeout is in order to batch all reads and then all writes when there
+	// are multiple simultaneous shrink transitions.
+	scheduleTask(() => {
+		el.style.transition = GROW_SHRINK_TRANSITION
+		Object.assign(el.style, props)
+
+		setTimeout(() => el.remove(), FADE_TIME)
+	}, 1)
 }
 
 // @ts-ignore

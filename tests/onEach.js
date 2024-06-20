@@ -257,6 +257,44 @@ describe('onEach', function() {
 
 	})
 
+	it('keeps two onEaches in order', () => {
+		let store1 = new Store(['c1'])
+		let store2 = new Store(['c2'])
+		testMount(() => {
+			store1.onEach(item => {
+				node(item.getString())
+			})
+			store2.onEach(item => {
+				node(item.getString())
+			}, item => item.getString())
+		})
+		assertBody(`c1{} c2{}`)
+		
+		store1.set(1, 'b1')
+		passTime()
+		assertBody(`c1{} b1{} c2{}`)
+
+		store2.set(['b2', 'c2', 'd2'])
+		passTime()
+		assertBody(`c1{} b1{} b2{} c2{} d2{}`)
+
+		store1.set([])
+		passTime()
+		assertBody(`b2{} c2{} d2{}`)
+
+		store2.set([])
+		passTime()
+		assertBody(``)
+
+		store2.set(['c2', 'b2'])
+		passTime()
+		assertBody(`b2{} c2{}`)
+
+		store1.set(['c1', 'b1'])
+		passTime()
+		assertBody(`c1{} b1{} b2{} c2{}`)
+	})
+	
 	it(`iterates arrays`, () => {
 		let store = new Store(['e', 'b', 'a', 'd'])
 		testMount(() => {
