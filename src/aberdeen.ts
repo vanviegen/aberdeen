@@ -15,6 +15,9 @@ let queueArray: Array<QueueRunner> = []
 let queueSet: Set<QueueRunner> = new Set()
 let queueOrdered = true
 let runQueueDepth = 0
+let queueIndex: number | undefined
+type Patch = Map<ObsCollection, Map<any, [any, any]>>;
+let recordingPatch: Patch | undefined
 
 function queue(runner: QueueRunner) {
 	if (queueSet.has(runner)) return
@@ -33,46 +36,82 @@ function queue(runner: QueueRunner) {
 
 function runQueue(): void {
 	onCreateEnabled = true
-	for(let index = 0; index < queueArray.length; ) {
+	for(queueIndex = 0; queueIndex < queueArray.length; ) {
+		// Sort queue if new unordered items have been added since last time.
 		if (!queueOrdered) {
-			queueArray.splice(0, index)
-			index = 0
-			// Order queued observers by depth, lowest first
+			queueArray.splice(0, queueIndex)
+			queueIndex = 0
+			// Order queued observers by depth, lowest first.
 			queueArray.sort((a,b) => a.queueOrder - b.queueOrder)
 			queueOrdered = true
 		}
 		
-		let batchEndIndex = queueArray.length;
-		for(; index < batchEndIndex && queueOrdered; index++) {
-			let runner = queueArray[index]
+		// Process the rest of what's currently in the queue.
+		let batchEndIndex = queueArray.length
+		for(; queueIndex < batchEndIndex && queueOrdered; queueIndex++) {
+			let runner = queueArray[queueIndex]
 			queueSet.delete(runner)
 			runner.queueRun()
 		}
-		runQueueDepth++;
+		
+		// If new items have been added to the queue while processing the previous
+		// batch, we'll need to run this loop again.
+		runQueueDepth++
 	}
 
 	queueArray.length = 0
+	queueIndex = undefined
 	runQueueDepth = 0
 	onCreateEnabled = false
 }
 
+
+let scheduleOrder = 1000
 /**
- * Schedule a function to be executed by Aberdeen's internal task queue. This
- * can be useful to batch together DOM layout read operations and DOM write
- * operations, so that we're not forcing the browser to do more layout calculations
- * than needed. Also, unlike setTimeout or requestAnimationFrame, this doesn't
- * give the browser the chance to render partial DOM states to the screen (which
- * would be seen as glitches/flashes).
- * @param func The function to be called soon.
- * @param order Higher mean later. Defaults to 0, which would still be *after* all
- * node/observe redraws have been handled. 
- * 
- * **EXPERIMENTAL:** There's a good chance this function will be replaced by
- * something that explicitly addresses DOM layout reads and DOM writes.
+ * Schedule a DOM read operation to be executed in Aberdeen's internal task queue.
+ *
+ * This function is used to batch DOM read operations together, avoiding unnecessary
+ * layout recalculations and improving browser performance. A DOM read operation should
+ * only *read* from the DOM, such as measuring element dimensions or retrieving computed styles.
+ *
+ * By batching DOM reads separately from DOM writes, this prevents the browser from
+ * interleaving layout reads and writes, which can force additional layout recalculations.
+ * This helps reduce visual glitches and flashes by ensuring the browser doesn't render
+ * intermediate DOM states during updates.
+ *
+ * Unlike `setTimeout` or `requestAnimationFrame`, this mechanism ensures that DOM read
+ * operations happen before any DOM writes in the same queue cycle, minimizing layout thrashing.
+ *
+ * @param func The function to be executed as a DOM read operation.
  */
-export function scheduleTask(func: () => void, order=0): void {
-	queue({queueOrder: 1000+order, queueRun: func})
+export function scheduleDomReader(func: () => void): void {
+	let order = (queueIndex!=null && queueIndex < queueArray.length && queueArray[queueIndex].queueOrder >= 1000) ? ((queueArray[queueIndex].queueOrder+1) & (~1)) : 1000
+	queue({queueOrder: order, queueRun: func})
 }
+
+/**
+ * Schedule a DOM write operation to be executed in Aberdeen's internal task queue.
+ *
+ * This function is used to batch DOM write operations together, avoiding unnecessary
+ * layout recalculations and improving browser performance. A DOM write operation should
+ * only *write* to the DOM, such as modifying element properties or applying styles.
+ *
+ * By batching DOM writes separately from DOM reads, this prevents the browser from
+ * interleaving layout reads and writes, which can force additional layout recalculations.
+ * This helps reduce visual glitches and flashes by ensuring the browser doesn't render
+ * intermediate DOM states during updates.
+ *
+ * Unlike `setTimeout` or `requestAnimationFrame`, this mechanism ensures that DOM write
+ * operations happen after all DOM reads in the same queue cycle, minimizing layout thrashing.
+ *
+ * @param func The function to be executed as a DOM write operation.
+ */
+export function scheduleDomWriter(func: () => void): void {
+	let order = (queueIndex!=null && queueIndex < queueArray.length && queueArray[queueIndex].queueOrder >= 1000) ? (queueArray[queueIndex].queueOrder | 1) : 1001
+	queue({queueOrder: order, queueRun: func})
+}
+
+
 
 
 type SortKeyType = number | string | Array<number|string>
@@ -128,7 +167,7 @@ interface Observer {
  * and again when any of the `Store`s that this function reads are changed. Any
  * DOM elements that is given a `render` function for its contents has its own scope.
  * The `Scope` manages the position in the DOM tree elements created by `render`
- * are inserted at. Before a rerender, all previously created elements are removed 
+ * are inserted at. Before a rerender, all previously created elements are removed
  * and the `clean` functions for the scope and all sub-scopes are called.
  */
 
@@ -143,11 +182,11 @@ abstract class Scope implements QueueRunner, Observer {
 	precedingSibling: Node | Scope | undefined
 
 	// The last child node or scope within this scope that has the same `parentElement`
-	lastChild: Node | Scope | undefined 
+	lastChild: Node | Scope | undefined
 
 	// The list of clean functions to be called when this scope is cleaned. These can
 	// be for child scopes, subscriptions as well as `clean(..)` hooks.
-	cleaners: Array<{_clean: (scope: Scope) => void}> = [] 
+	cleaners: Array<{_clean: (scope: Scope) => void}> = []
 
 	// Set to true after the scope has been cleaned, causing any spurious reruns to
 	// be ignored.
@@ -204,7 +243,7 @@ abstract class Scope implements QueueRunner, Observer {
 				
 				// Keep removing DOM nodes starting at our first node, until we encounter the last node
 				while(true) {
-					/* istanbul ignore next */ 
+					/* istanbul ignore next */
 					if (!nextNode) return internalError(1)
 						
 					const node = nextNode
@@ -263,7 +302,7 @@ class SimpleScope extends Scope {
 
 	queueRun() {
 		/* istanbul ignore next */
-		if (currentScope) { 
+		if (currentScope) {
 			internalError(2)
 		}
 
@@ -404,7 +443,7 @@ class OnEachScope extends Scope {
 
 	renderInitial() {
 		/* istanbul ignore next */
-		if (!currentScope) { 
+		if (!currentScope) {
 			return internalError(3)
 		}
 		let parentScope = currentScope
@@ -424,9 +463,9 @@ class OnEachScope extends Scope {
 	removeChild(itemIndex: any) {
 		let scope = this.byIndex.get(itemIndex)
 		/* istanbul ignore next */
-		if (!scope) { 
-			return internalError(6)  
-		} 
+		if (!scope) {
+			return internalError(6)
+		}
 		scope.remove()
 		this.byIndex.delete(itemIndex)
 		this.removeFromPosition(scope)
@@ -521,7 +560,7 @@ class OnEachItemScope extends Scope {
 
 	queueRun() {
 		/* istanbul ignore next */
-		if (currentScope) { 
+		if (currentScope) {
 			internalError(4)
 		}
 
@@ -575,7 +614,7 @@ class OnEachItemScope extends Scope {
  * This global is set during the execution of a `Scope.render`. It is used by
  * functions like `node`, `text` and `clean`.
  */
-let currentScope: Scope | undefined;
+let currentScope: Scope | undefined
 
 /**
  * A special Node observer index to subscribe to any value in the map changing.
@@ -611,10 +650,14 @@ abstract class ObsCollection {
    }
 
    emitChange(index: any, newData: DatumType, oldData: DatumType) {
-	   let obsSet = this.observers.get(index)
-	   if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
-	   obsSet = this.observers.get(ANY_INDEX)
-	   if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
+		if (recordingPatch) {
+			addToPatch(recordingPatch, this, index, newData, oldData)
+		} else {
+			let obsSet = this.observers.get(index)
+			if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
+			obsSet = this.observers.get(ANY_INDEX)
+			if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
+		}
    }
 
    _clean(observer: Observer) {
@@ -802,7 +845,7 @@ class ObsMap extends ObsCollection {
 				currentScope.cleaners.push(this)
 			}
 		}
-		let result: any = {};
+		let result: any = {}
 		this.data.forEach((v: any, k: any) => {
 			result[k] = (v instanceof ObsCollection) ? (depth ? v.getRecursive(depth-1) : new Store(this,k)) : v
 		})
@@ -847,7 +890,7 @@ class ObsMap extends ObsCollection {
 /**
  * A data store that automatically subscribes the current scope to updates
  * whenever data is read from it.
- * 
+ *
  * Supported data types are: `string`, `number`, `boolean`, `undefined`, `null`,
  * `Array`, `object` and `Map`. The latter three will always have `Store` objects as
  * values, creating a tree of `Store`-objects.
@@ -859,10 +902,10 @@ export class Store {
 	private idx: any
 
 	/**
-	 * Create a new store with the given `value` as its value. Defaults to `undefined` if no value is given. 
+	 * Create a new store with the given `value` as its value. Defaults to `undefined` if no value is given.
 	 * When the value is a plain JavaScript object, an `Array` or a `Map`, it will be stored as a tree of
 	 * `Store`s. (Calling {@link Store.get} on the store will recreate the original data strucure, though.)
-	 * 
+	 *
 	 * @example
 	 * ```
 	 * let emptyStore = new Store()
@@ -892,11 +935,11 @@ export class Store {
 	}
 
 	/**
-	 * 
+	 *
 	 * @returns The index for this Store within its parent collection. This will be a `number`
 	 * when the parent collection is an array, a `string` when it's an object, or any data type
 	 * when it's a `Map`.
-	 * 
+	 *
 	 * @example
 	 * ```
 	 * let store = new Store({x: 123})
@@ -977,7 +1020,7 @@ export class Store {
 	 * Like {@link Store.get}, but the first parameter is the default value (returned when the Store
 	 * contains `undefined`). This default value is also used to determine the expected type,
 	 * and to throw otherwise.
-	 * 
+	 *
 	 * @example
 	 * ```
 	 * let store = {x: 42}
@@ -997,7 +1040,7 @@ export class Store {
 
 	/** Retrieve a value, subscribing to all read `Store` values. This is a more flexible
 	 * form of the {@link Store.get} and {@link Store.peek} methods.
-	 * 
+	 *
 	 * @returns The resulting value, or `undefined` if the `path` does not exist.
 	 */
 	query(opts: {
@@ -1006,7 +1049,7 @@ export class Store {
 		/** A string specifying what type the query is expected to return. Options are:
 		 *  "undefined", "null", "boolean", "number", "string", "function", "array", "map"
 		 *  and "object". If the store holds a different type of value, a `TypeError`
-		 *  exception is thrown. By default (when `type` is `undefined`) no type checking 
+		 *  exception is thrown. By default (when `type` is `undefined`) no type checking
 		 *  is done.
 		 */
 		type?: string,
@@ -1047,7 +1090,7 @@ export class Store {
 
 	/**
 	 * Checks if the specified collection is empty, and subscribes the current scope to changes of the emptiness of this collection.
-	 * 
+	 *
 	 * @param path Any path terms to resolve before retrieving the value.
 	 * @returns When the specified collection is not empty `true` is returned. If it is empty or if the value is undefined, `false` is returned.
 	 * @throws When the value is not a collection and not undefined, an Error will be thrown.
@@ -1072,7 +1115,7 @@ export class Store {
 
 	/**
 	 * Returns the number of items in the specified collection, and subscribes the current scope to changes in this count.
-	 * 
+	 *
 	 * @param path Any path terms to resolve before retrieving the value.
 	 * @returns The number of items contained in the collection, or 0 if the value is undefined.
 	 * @throws When the value is not a collection and not undefined, an Error will be thrown.
@@ -1097,10 +1140,10 @@ export class Store {
 
 	/**
 	 * Returns a strings describing the type of the store value, subscribing to changes of this type.
-	 * Note: this currently also subscribes to changes of primitive values, so changing a value from 3 to 4 
+	 * Note: this currently also subscribes to changes of primitive values, so changing a value from 3 to 4
 	 * would cause the scope to be rerun. This is not great, and may change in the future. This caveat does
 	 * not apply to changes made *inside* an object, `Array` or `Map`.
-	 * 
+	 *
 	 * @param path Any path terms to resolve before retrieving the value.
 	 * @returns Possible options: "undefined", "null", "boolean", "number", "string", "function", "array", "map" or "object".
 	 */
@@ -1113,29 +1156,29 @@ export class Store {
 	/**
 	 * Sets the value to the last given argument. Any earlier argument are a Store-path that is first
 	 * resolved/created using {@link Store.makeRef}.
-	 * 
+	 *
 	 * When a `Store` is passed in as the value, its value will be copied (subscribing to changes). In
 	 * case the value is an object, an `Array` or a `Map`, a *reference* to that data structure will
 	 * be created, so that changes made through one `Store` will be reflected through the other. Be
 	 * carefull not to create loops in your `Store` tree that way, as that would cause any future
 	 * call to {@link Store.get} to throw a `RangeError` (Maximum call stack size exceeded.)
-	 * 
+	 *
 	 * If you intent to make a copy instead of a reference, call {@link Store.get} on the origin `Store`.
-	 * 
-	 * 
+	 *
+	 *
 	 * @example
 	 * ```
 	 * let store = new Store() // Value is `undefined`
-	 * 
+	 *
 	 * store.set('x', 6) // Causes the store to become an object
 	 * assert(store.get() == {x: 6})
-	 * 
+	 *
 	 * store.set('a', 'b', 'c', 'd') // Create parent path as objects
 	 * assert(store.get() == {x: 6, a: {b: {c: 'd'}}})
-	 * 
+	 *
 	 * store.set(42) // Overwrites all of the above
 	 * assert(store.get() == 42)
-	 * 
+	 *
 	 * store.set('x', 6) // Throw Error (42 is not a collection)
 	 * ```
 	 */
@@ -1149,7 +1192,7 @@ export class Store {
 	 * Sets the `Store` to the given `mergeValue`, but without deleting any pre-existing
 	 * items when a collection overwrites a similarly typed collection. This results in
 	 * a deep merge.
-	 * 
+	 *
 	 * @example
 	 * ```
 	 * let store = new Store({a: {x: 1}})
@@ -1165,13 +1208,13 @@ export class Store {
 
 	/**
 	 * Sets the value for the store to `undefined`, which causes it to be omitted from the map (or array, if it's at the end)
-	 * 
+	 *
 	 * @example
 	 * ```
 	 * let store = new Store({a: 1, b: 2})
 	 * store.delete('a')
 	 * assert(store.get() == {b: 2})
-	 * 
+	 *
 	 * store = new Store(['a','b','c'])
 	 * store.delete(1)
 	 * assert(store.get() == ['a', undefined, 'c'])
@@ -1185,17 +1228,17 @@ export class Store {
 	}
 
 	/**
-	 * Pushes a value to the end of the Array that is at the specified path in the store. 
+	 * Pushes a value to the end of the Array that is at the specified path in the store.
 	 * If that store path is `undefined`, an Array is created first.
 	 * The last argument is the value to be added, any earlier arguments indicate the path.
-	 * 
+	 *
 	 * @example
 	 * ```
 	 * let store = new Store()
 	 * store.push(3) // Creates the array
 	 * store.push(6)
 	 * assert(store.get() == [3,6])
-	 * 
+	 *
 	 * store = new Store({myArray: [1,2]})
 	 * store.push('myArray', 3)
 	 * assert(store.get() == {myArray: [1,2,3]})
@@ -1259,17 +1302,17 @@ export class Store {
 	 * type.
 	 * Unlike `ref`, `makeRef` does *not* subscribe to the path levels, as it is intended to be
 	 * a write-only operation.
-	 * 
+	 *
 	 * @example
 	 * ```
 	 * let store = new Store() // Value is `undefined`
-	 * 
+	 *
 	 * let ref = store.makeRef('a', 'b', 'c')
 	 * assert(store.get() == {a: {b: {}}}
-	 * 
+	 *
 	 * ref.set(42)
 	 * assert(store.get() == {a: {b: {c: 42}}}
-	 * 
+	 *
 	 * ref.makeRef('d') // Throw Error (42 is not a collection)
 	 * ```
 	 */
@@ -1287,7 +1330,7 @@ export class Store {
 			store = new Store(value, value.normalizeIndex(path[i]))
 		}
 
-		return store	  
+		return store	
 	}
 
 	/** @internal */
@@ -1304,10 +1347,10 @@ export class Store {
 	 * Iterate the specified collection (Array, Map or object), running the given code block for each item.
 	 * When items are added to the collection at some later point, the code block will be ran for them as well.
 	 * When an item is removed, the {@link Store.clean} handlers left by its code block are executed.
-	 * 
-	 * 
-	 * 
-	 * @param pathAndFuncs 
+	 *
+	 *
+	 *
+	 * @param pathAndFuncs
 	 */
 	onEach(...pathAndFuncs: any): void {
 		let makeSortKey = defaultMakeSortKey
@@ -1340,13 +1383,13 @@ export class Store {
 	/**
 	 * Applies a filter/map function on each item within the `Store`'s collection,
 	 * and reactively manages the returned `Map` `Store` to hold any results.
-	 * 
+	 *
 	 * @param func - Function that transform the given store into an output value or
 	 * `undefined` in case this value should be skipped:
-	 * 
+	 *
 	 * @returns - A map `Store` with the values returned by `func` and the corresponding
 	 * keys from the original map, array or object `Store`.
-	 * 
+	 *
 	 * When items disappear from the `Store` or are changed in a way that `func` depends
 	 * upon, the resulting items are removed from the output `Store` as well. When multiple
 	 * input items produce the same output keys, this may lead to unexpected results.
@@ -1370,12 +1413,12 @@ export class Store {
 	 * Applies a filter/map function on each item within the `Store`'s collection,
 	 * each of which can deliver any number of key/value pairs, and reactively manages the
 	 * returned map `Store` to hold any results.
-	 * 
+	 *
 	 * @param func - Function that transform the given store into output values
 	 * that can take one of the following forms:
 	 * - an `Object` or a `Map`: Each key/value pair will be added to the output `Store`.
 	 * - anything else: No key/value pairs are added to the output `Store`.
-	 * 
+	 *
 	 * @returns - A map `Store` with the key/value pairs returned by all `func` invocations.
 	 *
 	 * When items disappear from the `Store` or are changed in a way that `func` depends
@@ -1396,7 +1439,7 @@ export class Store {
 				result.forEach((value: any, key: any) => {
 					out.set(key, value)
 				})
-				keys = Array.from(result.keys())
+				keys = [...result.keys()]
 			} else {
 				return
 			}
@@ -1413,12 +1456,12 @@ export class Store {
 
 	/**
 	 * @returns Returns `true` when the `Store` was created by {@link Store.ref}ing a path that
-	 * does not exist. 
+	 * does not exist.
 	 */
 	isDetached() { return false }
 
 	/*
-	* Dump a live view of the `Store` tree as HTML text, `ul` and `li` nodes at 
+	* Dump a live view of the `Store` tree as HTML text, `ul` and `li` nodes at
 	* the current mount position. Meant for debugging purposes.
 	*/
 	dump() {
@@ -1473,7 +1516,7 @@ function destroyWithClass(element: Element, cls: string) {
 export function node(tag: string|Element = "", ...rest: any[]) {
 	if (!currentScope) throw new ScopeError(true)
 
-	let el;
+	let el
 	if (tag instanceof Element) {
 		el = tag
 	} else {
@@ -1508,7 +1551,7 @@ export function node(tag: string|Element = "", ...rest: any[]) {
 			// no cleaners, it may get them in a future refresh.
 			currentScope.cleaners.push(scope)
 		} else if (type === 'string' || type === 'number') {
-			el.textContent = item;
+			el.textContent = item
 		} else if (type === 'object' && item && item.constructor === Object) {
 			for(let k in item) {
 				applyProp(el, k, item[k])
@@ -1584,18 +1627,18 @@ export function text(text: string) {
  * without recreating the element itself. Also, code can be more readable this way.
  * Note that when a nested `observe()` is used, properties set this way do NOT
  * automatically revert to their previous values.
- * 
+ *
  * Here's how properties are handled:
  * - If `name` is `"create"`, `value` should be either a function that gets
- *   called with the element as its only argument immediately after creation, 
- *   or a string being the name of a CSS class that gets added immediately 
+ *   called with the element as its only argument immediately after creation,
+ *   or a string being the name of a CSS class that gets added immediately
  *   after element creation, and removed shortly afterwards. This allows for
  *   reveal animations. However, this is intentionally *not* done
  *   for elements that are created as part of a larger (re)draw, to prevent
  *   all elements from individually animating on page creation.
  * - If `name` is `"destroy"`, `value` should be a function that gets called
  *   with the element as its only argument, *instead of* the element being
- *   removed from the DOM (which the function will presumably need to do 
+ *   removed from the DOM (which the function will presumably need to do
  *   eventually). This can be used for a conceal animation.
  *   As a convenience, it's also possible to provide a string instead of
  *   a function, which will be added to the element as a CSS class, allowing
@@ -1615,7 +1658,7 @@ export function text(text: string) {
  * - If `name` is `"style"` and `value` is an object, each of its
  *   key/value pairs are assigned to the element's `.style`.
  * - In other cases, the `value` is set as the `name` HTML *attribute*.
- * 
+ *
  * @example
  * ```
  * node('input', () => {
@@ -1684,18 +1727,18 @@ export function clean(clean: (scope: Scope) => void) {
  * during its execution is updated.
  * Calls to `observe` can be nested, such that changes to `Store`s read by the inner function do
  * no cause the outer function to rerun.
- * 
+ *
  * @param func - The function to be (repeatedly) executed.
  * @example
  * ```
  * let number = new Store(0)
  * let doubled = new Store()
  * setInterval(() => number.set(0|Math.random()*100)), 1000)
- * 
+ *
  * observe(() => {
  *   doubled.set(number.get() * 2)
  * })
- * 
+ *
  * observe(() => {
  *   console.log(doubled.get())
  * })
@@ -1710,22 +1753,22 @@ export function observe(func: () => void) {
 
  * @param func - The function to be (repeatedly) executed, possibly adding DOM elements to `parentElement`.
  * @param parentElement - A DOM element that will be used as the parent element for calls to `node`.
- * 
+ *
  * @example
  * ```
  * let store = new Store(0)
  * setInterval(() => store.modify(v => v+1), 1000)
- * 
+ *
  * mount(document.body, () => {
  * 	   node('h2', `${store.get()} seconds have passed`)
  * })
  * ```
- * 
+ *
  * An example nesting {@link Store.observe} within `mount`:
  * ```
  * let selected = new Store(0)
  * let colors = new Store(new Map())
- * 
+ *
  * mount(document.body, () => {
  * 	// This function will never rerun (as it does not read any `Store`s)
  * 	node('button', '<<', {click: () => selected.modify(n => n-1)})
@@ -1766,25 +1809,25 @@ export function mount(parentElement: Element | undefined, func: () => void) {
 
 
 /** Runs the given function, while not subscribing the current scope when reading {@link Store.Store} values.
- * 
+ *
  * @param func Function to be executed immediately.
  * @returns Whatever `func()` returns.
  * @example
  * ```
  * import {Store, peek, text} from aberdeen
- * 
+ *
  * let store = new Store(['a', 'b', 'c'])
- * 
+ *
  * mount(document.body, () => {
  *     // Prevent rerender when store changes
  *     let msg = peek(() => `Store has ${store.count()} elements, and the first is ${store.get(0)}`))
  *     text(msg)
  * })
  * ```
- * 
+ *
  * In the above example `store.get(0)` could be replaced with `store.peek(0)` to achieve the
  * same result without `peek()` wrapping everything. There is no non-subscribing equivalent
- * for `count()` however. 
+ * for `count()` however.
  */
 export function peek<T>(func: () => T): T {
 	let savedScope = currentScope
@@ -1910,60 +1953,182 @@ function getGrowShrinkProps(el: HTMLElement) {
 }
 
 /** Do a grow transition for the given element. This is meant to be used as a
- * handler for the `create` property.
- * 
- * @param el The element to transition.
- *
- * The transition doesn't look great for table elements, and may have problems
- * for other specific cases as well. 
- */
+* handler for the `create` property.
+*
+* @param el The element to transition.
+*
+* The transition doesn't look great for table elements, and may have problems
+* for other specific cases as well.
+*/
 export function grow(el: HTMLElement): void {
 	// This timeout is to await all other elements having been added to the Dom
-	scheduleTask(() => {
+	scheduleDomReader(() => {
 		// Make the element size 0 using transforms and negative margins.
 		// This causes a browser layout, as we're querying el.offset<>.
 		let props = getGrowShrinkProps(el)
-
+		
 		// The timeout is in order to batch all reads and then all writes when there
 		// are multiple simultaneous grow transitions.
-		scheduleTask(() => {
+		scheduleDomWriter(() => {
 			Object.assign(el.style, props)
-
+			
 			// This timeout is to combine multiple transitions into a single browser layout
-			scheduleTask(() => {
+			scheduleDomReader(() => {
 				// Make sure the layouting has been performed, to cause transitions to trigger
 				el.offsetHeight
-				// Do the transitions
-				el.style.transition = GROW_SHRINK_TRANSITION
-				for(let prop in props) el.style[prop as any] = ""
-				setTimeout(() => {
-					// Reset the element to a clean state
-					el.style.transition = ""
-				}, FADE_TIME)
-			}, 2)
-		}, 1)
+				scheduleDomWriter(() => {
+					// Do the transitions
+					el.style.transition = GROW_SHRINK_TRANSITION
+					for(let prop in props) el.style[prop as any] = ""
+					setTimeout(() => {
+						// Reset the element to a clean state
+						el.style.transition = ""
+					}, FADE_TIME)
+				})
+			})
+		})
 	})
 }
 
 /** Do a shrink transition for the given element, and remove it from the DOM
- * afterwards. This is meant to be used as a handler for the `destroy` property.
- * 
- * @param el The element to transition and remove.
- * 
- * The transition doesn't look great for table elements, and may have problems
- * for other specific cases as well. 
- */
+* afterwards. This is meant to be used as a handler for the `destroy` property.
+*
+* @param el The element to transition and remove.
+*
+* The transition doesn't look great for table elements, and may have problems
+* for other specific cases as well.
+*/
 export function shrink(el: HTMLElement): void {
-	const props = getGrowShrinkProps(el)
-	// The timeout is in order to batch all reads and then all writes when there
-	// are multiple simultaneous shrink transitions.
-	scheduleTask(() => {
-		el.style.transition = GROW_SHRINK_TRANSITION
-		Object.assign(el.style, props)
-
-		setTimeout(() => el.remove(), FADE_TIME)
-	}, 1)
+	scheduleDomReader(() => {
+		const props = getGrowShrinkProps(el)
+		// The timeout is in order to batch all reads and then all writes when there
+		// are multiple simultaneous shrink transitions.
+		scheduleDomWriter(() => {
+			el.style.transition = GROW_SHRINK_TRANSITION
+			Object.assign(el.style, props)
+			
+			setTimeout(() => el.remove(), FADE_TIME)
+		})
+	})
 }
+
+
+function recordPatch(func: () => void): Patch {
+	if (recordingPatch) throw new Error(`already recording a patch`)
+	recordingPatch = new Map()
+	try {
+		func()
+	} catch(e) {
+		recordingPatch = undefined
+		throw e
+	}
+	const result = recordingPatch
+	recordingPatch = undefined
+	return result
+}
+
+function addToPatch(patch: Patch, collection: ObsCollection, index: any, newData: any, oldData: any) {
+	let collectionMap = patch.get(collection)
+	if (collectionMap == null) {
+		collectionMap = new Map()
+		patch.set(collection, collectionMap)
+	}
+	let prev = collectionMap.get(index)
+	collectionMap.set(index, [newData, prev==null ? oldData : prev[1]])
+}
+
+function emitPatch(patch: Patch) {
+	for(let [collection, collectionMap] of patch) {
+		for(let [index, [newData, oldData]] of collectionMap) {
+			collection.emitChange(index, newData, oldData)
+		}
+	}
+}
+
+function mergePatch(target: Patch, source: Patch, reverse: boolean = false) {
+	for(let [collection, collectionMap] of source) {
+		for(let [index, [newData, oldData]] of collectionMap) {
+			addToPatch(target, collection, index, reverse ? oldData : newData, reverse ? newData : oldData)
+		}
+	}
+}
+
+function silentlyApplyPatch(patch: Patch, force: boolean = false): boolean {
+	for(let [collection, collectionMap] of patch) {
+		for(let [index, [newData, oldData]] of collectionMap) {
+			let actualData = collection.rawGet(index)
+			if (actualData !== oldData) {
+				if (force) handleError(new Error(`Applying invalid patch: data ${actualData} is unequal to expected old data ${oldData} for index ${index}`))
+				else return false
+			}
+		}
+	}
+	for(let [collection, collectionMap] of patch) {
+		for(let [index, [newData, oldData]] of collectionMap) {
+			collection.rawSet(index, newData)
+		}
+	}
+	return true
+}
+
+
+const appliedPredictions: Array<Patch> = []
+
+/**
+ * Run the provided function, while treating all changes to Observables as predictions,
+ * meaning they will be reverted when changes come back from the server (or some other
+ * async source).
+ * @param predictFunc The function to run. It will generally modify some Observables
+ * 	to immediately reflect state (as closely as possible) that we expect the server
+ *  to communicate back to us later on.
+ * @returns A `Patch` object. Don't modify it. This is only meant to be passed to `applyCanon`.
+ */
+export function applyPrediction(predictFunc: () => void): Patch {
+	let patch = recordPatch(predictFunc)
+	appliedPredictions.push(patch)
+	emitPatch(patch)
+	return patch
+}
+
+/**
+ * Temporarily revert all outstanding predictions, optionally run the provided function
+ * (which will generally make authoritative changes to the data based on a server response),
+ * and then attempt to reapply the predictions on top of the new canonical state, dropping 
+ * any predictions that can no longer be applied cleanly (the data has been modified) or
+ * that were specified in `dropPredictions`.
+ * 
+ * All of this is done such that redraws are only triggered if the overall effect is an
+ * actual change to an `Observable`.
+ * @param canonFunc The function to run without any predictions applied. This will typically
+ *  make authoritative changes to the data, based on a server response.
+ * @param dropPredictions An optional list of predictions (as returned by `applyPrediction`)
+ *  to undo. Typically, when a server response for a certain request is being handled,
+ *  you'd want to drop the prediction that was done for that request.
+ */
+export function applyCanon(canonFunc?: (() => void), dropPredictions: Array<Patch> = []) {
+	
+	let resultPatch = new Map()
+	for(let prediction of appliedPredictions) mergePatch(resultPatch, prediction, true)
+	silentlyApplyPatch(resultPatch, true)
+
+	for(let prediction of dropPredictions) {
+		let pos = appliedPredictions.indexOf(prediction)
+		if (pos >= 0) appliedPredictions.splice(pos, 1)
+	}
+	if (canonFunc) mergePatch(resultPatch, recordPatch(canonFunc))
+
+	for(let idx=0; idx<appliedPredictions.length; idx++) {
+		if (silentlyApplyPatch(appliedPredictions[idx])) {
+			mergePatch(resultPatch, appliedPredictions[idx])
+		} else {
+			appliedPredictions.splice(idx, 1)
+			idx--
+		}
+	}
+
+	emitPatch(resultPatch)
+}
+
 
 // @ts-ignore
 // istanbul ignore next

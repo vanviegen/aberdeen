@@ -116,3 +116,15 @@ mount(document.body, () => {
 ## Reference documentation
 
 https://vanviegen.github.io/aberdeen/modules.html
+
+
+## Roadmap
+
+- [x] Support for (dis)appear transitions.
+- [x] A better alternative for scheduleTask.
+- [ ] A simple router.
+- [ ] Architecture document.
+- [x] Optimistic client-side predictions.
+- [ ] SVG support.
+- [ ] More user friendly documentation generator.
+- [ ] Performance profiling and tuning regarding lists.
