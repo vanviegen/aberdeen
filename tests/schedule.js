@@ -1,6 +1,6 @@
 describe('DOM read/write scheduler', function() {
 
-    it('does not apply on initial rendering', () => {
+    it('orders in batches', () => {
         let order = ''
         let store = new Store('a')
 		testMount(() => {

@@ -79,4 +79,25 @@ describe('Prediction', function() {
             applyPrediction(() => applyPrediction(() => {}))
         })
     })
+
+    it('does not cause redraw when it comes true', () => {
+        let store = new Store('a')
+        let draws = 0
+		testMount(() => {
+            node(store.get())
+            draws++
+		})
+		assertBody(`a{}`)
+        assertEqual(draws, 1)
+
+        let prediction = applyPrediction(() => store.set('b'))
+        passTime()
+		assertBody(`b{}`)
+        assertEqual(draws, 2)
+
+        applyCanon(() => store.set('b'), [prediction])
+        passTime()
+		assertBody(`b{}`)
+        assertEqual(draws, 2)
+    })
 })

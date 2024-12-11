@@ -2029,12 +2029,14 @@ function recordPatch(func: () => void): Patch {
 
 function addToPatch(patch: Patch, collection: ObsCollection, index: any, newData: any, oldData: any) {
 	let collectionMap = patch.get(collection)
-	if (collectionMap == null) {
+	if (!collectionMap) {
 		collectionMap = new Map()
 		patch.set(collection, collectionMap)
 	}
 	let prev = collectionMap.get(index)
-	collectionMap.set(index, [newData, prev==null ? oldData : prev[1]])
+	if (prev) oldData = prev[1]
+	if (newData === oldData) collectionMap.delete(index)
+	else collectionMap.set(index, [newData, oldData])
 }
 
 function emitPatch(patch: Patch) {
