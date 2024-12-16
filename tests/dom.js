@@ -1,6 +1,6 @@
 describe('DOM creator', function() {
 	it('adds nodes', () => {
-		testMount(() => {
+		mount(document.body, () => {
 			node('p')
 		})
 		passTime();
@@ -8,7 +8,7 @@ describe('DOM creator', function() {
 	});
 
 	it('adds classes', () => {
-		testMount(() => {
+		mount(document.body, () => {
 			node('p.a.b')
 		})
 		passTime();
@@ -16,7 +16,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets attributes', () => {
-		testMount(() => {
+		mount(document.body, () => {
 			node('div', {class: 'C', text: "T"}, {id: 'I', index: 1})
 		})
 		passTime();
@@ -24,7 +24,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets properties', () => {
-		testMount(() => {
+		mount(document.body, () => {
 			node('p', {className: 'C', value: 3})
 		})
 		passTime();
@@ -32,7 +32,7 @@ describe('DOM creator', function() {
 	});
 
 	it('nests elements', () => {
-		testMount(() => {
+		mount(document.body, () => {
 			node('p', () => {
 				node('a', () => {
 					node('i', () => {
@@ -46,7 +46,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets properties from the inner scope', () => {
-		testMount(() => {
+		mount(document.body, () => {
 			node('a', () => {
 				prop('href', '/')
 				prop({
@@ -60,7 +60,7 @@ describe('DOM creator', function() {
 	});
 
 	it('sets style objects', () => {
-		testMount(() => {
+		mount(document.body, () => {
 			node('a', {style: 'color: red;'})
 			node('b', {style: {color: 'green'}})
 			node('c', () => {
@@ -83,13 +83,13 @@ describe('DOM creator', function() {
 	it('unmounts', () => {
 		let store = new Store('Hej world')
 		let cnt = 0
-		testMount(() => {
+		mount(document.body, () => {
 			cnt++
 			node('p', store.get())
 		})
 		assertBody(`p{"Hej world"}`)
 
-		testUnmount()
+		unmount()
 		assertBody(``)
 
 		store.set('Updated')
@@ -107,7 +107,7 @@ describe('DOM creator', function() {
 			[undefined, ``],
 			[false, `"false"`],
 		]
-		testMount(() => {
+		mount(document.body, () => {
 			text(cases[index.get()][0])
 		})
 
@@ -122,7 +122,7 @@ describe('DOM creator', function() {
 	})
 
 	it('adds preexisting elements to the DOM', () => {
-		testMount(() => {
+		mount(document.body, () => {
 			let el = document.createElement('video')
 			el.classList.add("test")
 			node(el)
@@ -139,13 +139,13 @@ describe('DOM creator', function() {
 			[`_!@#*{"replacement"}`, () => node("_!@#*", null, undefined, {}, "original", 1234, "replacement")],
 		]
 		for(let c of cases) {
-			testMount(() => {
+			mount(document.body, () => {
 				c[1]()
 			})
 			assertBody(c[0])
-			testUnmount()
+			unmount()
 		}
-		testMount(() => {
+		mount(document.body, () => {
 			assertThrow("Unexpected argument", () => node("span", []))
 			assertThrow("Unexpected argument", () => node("span", new Error()))
 			assertThrow("Unexpected argument", () => node("span", true))
@@ -154,13 +154,13 @@ describe('DOM creator', function() {
 
 	it('dumps all basic values', () => {
 		let store = new Store([true,false,null,undefined,-12,3.14,"test",'"quote"'])
-		testMount(() => store.dump())
+		mount(document.body, () => store.dump())
 		assertBody(`"<array>" ul{li{"0: " "true"} li{"1: " "false"} li{"2: " "null"} li{"4: " "-12"} li{"5: " "3.14"} li{"6: " "\\"test\\""} li{"7: " "\\"\\\\\\"quote\\\\\\"\\""}}`)
 	})
 
 	it('dumps maps, objects and arrays', () => {
 		let store = new Store(new Map([[3,4],['a','b']]))
-		testMount(() => store.dump())
+		mount(document.body, () => store.dump())
 		assertBody(`"<map>" ul{li{"\\"a\\": " "\\"b\\""} li{"3: " "4"}}`)
 		
 		store.set({3: 4, a: 'b'})
@@ -174,7 +174,7 @@ describe('DOM creator', function() {
 
 	it('adds html', () => {
 		let store = new Store('test')
-		testMount(() => {
+		mount(document.body, () => {
 			node('main', () => {
 				node('hr')
 				observe(() => {
@@ -201,7 +201,7 @@ describe('DOM creator', function() {
 
 	it('only unlinks the top parent of the tree being removed', () => {
 		let store = new Store(true)
-		testMount(() => {
+		mount(document.body, () => {
 			if (store.get()) node('main', () => {
 				node('a')
 				node('b')

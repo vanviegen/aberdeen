@@ -2,7 +2,7 @@ describe('Scope', () => {
 	it('rerenders only the inner scope', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
-		testMount(() => {
+		mount(document.body, () => {
 			node('a', () => {
 				cnt1++
 				node('span', () => {
@@ -20,12 +20,11 @@ describe('Scope', () => {
 		assertEqual(cnt2,2)
 	})
 
-
 	it('adds and removes elements', () => {
 		let store = new Store(false)
 		
 		let cnt1 = 0, cnt2 = 0
-		testMount(() => {
+		mount(document.body, () => {
 			cnt1++
 			node('a', () => {
 				cnt2++
@@ -48,7 +47,7 @@ describe('Scope', () => {
 		let store = new Store(false)
 		
 		let cnt1 = 0, cnt2 = 0
-		testMount(() => {
+		mount(document.body, () => {
 			cnt1++
 			node('a')
 			observe(() => {
@@ -73,7 +72,7 @@ describe('Scope', () => {
 		let store2 = new Store(false)
 		
 		let cnt0 = 0, cnt1 = 0, cnt2 = 0
-		testMount(() => {
+		mount(document.body, () => {
 			cnt0++
 			node('i')
 			observe(() => {
@@ -101,7 +100,7 @@ describe('Scope', () => {
 	})
 
 	it('insert at right position with an empty parent scope', () => {
-		testMount(() => {
+		mount(document.body, () => {
 			node('a')
 			observe(() => {
 				observe(() => {
@@ -115,7 +114,7 @@ describe('Scope', () => {
 	it('refrains from rerendering dead scopes', () => {
 		let cnts = [0,0,0,0]
 		let store = new Store('a')
-		testMount(() => {
+		mount(document.body, () => {
 			cnts[0]++
 			observe(() => {
 				cnts[1]++
@@ -139,7 +138,7 @@ describe('Scope', () => {
 	it('inserts higher priority updates', () => {
 		let store = new Store({})
 		let pcnt = 0, ccnt = 0
-		testMount(() => {
+		mount(document.body, () => {
 			pcnt++
 			if (store.get('parent')) return
 			
@@ -168,7 +167,7 @@ describe('Scope', () => {
 	it('does not rerender on peek', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
-		testMount(() => {
+		mount(document.body, () => {
 			node('a', () => {
 				cnt1++
 				node('span', () => {
@@ -189,7 +188,7 @@ describe('Scope', () => {
 	it('emits for objects with numeric get() paths', () => {
 		let values = new Store({})
 
-		testMount(() => {
+		mount(document.body, () => {
 			for(let i=0; i<4; i++) {
 				node('p', () => {
 					text(values.get(i))
@@ -208,7 +207,7 @@ describe('Scope', () => {
 		let store = new Store({})
 		let inverse = new Store({})
 
-		myMount = testMount(() => {
+		let myMount = mount(document.body, () => {
 			cnt0++
 			store.onEach(item => {
 				let key = item.get()
@@ -256,8 +255,23 @@ describe('Scope', () => {
 		assertBody(`"a=2" "d=3"`)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,2,4])
 
-		testUnmount()
+		unmount()
 		assertBody(``)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,4,4])
+	})
+
+	it('refrains from rerendering when inhibitEffect is used', () => {
+		let store = new Store('a')
+		let count = 0
+		mount(document.body, () => {
+			node(store.get())
+			count++
+		})
+		assertBody(`a{}`)
+
+		inhibitEffects(() => store.set('b'))
+		passTime()
+		assertBody(`a{}`)
+		assertEqual(count, 1)
 	})
 })

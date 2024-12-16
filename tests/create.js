@@ -2,7 +2,7 @@ describe('Create event', function() {
 
     it('does not apply on initial rendering', () => {
         let store = new Store(true)
-		testMount(() => {
+		mount(document.body, () => {
             node('b', {create: 'y'})
 		})
         
@@ -11,7 +11,7 @@ describe('Create event', function() {
 
     it('works at top-level', () => {
         let store = new Store(false)
-		testMount(() => {
+		mount(document.body, () => {
             if (store.get()) node('b', {create: 'y'})
 		})
         
@@ -26,7 +26,7 @@ describe('Create event', function() {
 
     it('does not apply when it is part of a larger whole newly rendered', () => {
         let store = new Store(false)
-		testMount(() => {
+		mount(document.body, () => {
             if (store.get()) node('b', () => node('c', {create: 'y'}))
 		})
         
@@ -41,7 +41,7 @@ describe('Create event', function() {
 
     it('works in an onEach', () => {
         let store = new Store([])
-		testMount(() => {
+		mount(document.body, () => {
             store.onEach(item => {
                 node(item.get(), {create: "y"})
             })
@@ -56,7 +56,7 @@ describe('Create event', function() {
 
     it('performs a grow animation', () => {
         let store = new Store(false)
-        testMount(() => {
+        mount(document.body, () => {
             node('div', {style: {display: 'flex'}}, () => {
                 if (store.get()) node('a', {create: grow})
             })
@@ -75,7 +75,7 @@ describe('Create event', function() {
 
     it('aborts a grow animation', () => {
         let store = new Store(false)
-        testMount(() => {
+        mount(document.body, () => {
             if (store.get()) {
                 node('a', {create: grow})
                 store.set(false)

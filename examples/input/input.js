@@ -1,4 +1,5 @@
-import {node, Store, mount, text, observe, grow, shrink} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm'
+import {node, Store, mount, text, observe} from '../../dist/aberdeen.js'
+import {grow, shrink} from '../../dist/transitions.js'
 
 const store = new Store({
 	name: 'John Doe',

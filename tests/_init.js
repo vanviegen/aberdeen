@@ -1,8 +1,11 @@
-const fakedom = require('./_fakedom')
-const mocha = require('mocha')
-const {deepEqual: equal} = require('fast-equals')
+import * as _ from './_fakedom.js';
+import mocha from 'mocha'
+import {deepEqual as equal} from 'fast-equals'
 
-Object.assign(global, require('./build/aberdeen'))
+import * as aberdeen from '../dist-min/aberdeen.js'
+import * as transitions from '../dist-min/transitions.js'
+import * as prediction from '../dist-min/prediction.js'
+Object.assign(global, aberdeen, transitions, prediction)
 
 let currentMountSeq = new Store(0)
 mocha.beforeEach(() => {
@@ -11,26 +14,10 @@ mocha.beforeEach(() => {
 })
 
 mocha.afterEach(() => {
-	testUnmount()
+	unmount()
+	passTime(2001) // wait for deletion transitions
 	assertBody(``)
 })
-
-global.testMount = function(func) {
-	let myMountSeq = currentMountSeq.peek()
-	mount(document.body, () => {
-		// The peek should make sure that all passed mounts can be fully garbage collected, as
-		// they won't need to keep observing currentMountSeq (in case it would go backwards,
-		// which it won't).
-		if (myMountSeq === currentMountSeq.peek() && myMountSeq === currentMountSeq.get()) {
-			func()
-		}
-	})
-}
-
-global.testUnmount = function() {
-	currentMountSeq.modify(n => n+1)
-	passTime(2001) // wait for deletion transitions
-}
 
 function toDisplay(value) {
 	if (value instanceof Map) {

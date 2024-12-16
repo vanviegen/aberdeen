@@ -1,10 +1,8 @@
-const { Store, mount, node, scope, prop, getParentElement } = require("./build/aberdeen")
-
 describe('Props', function() {
     it('Sets and unsets classes', () => {
         let cnt1 = 0, cnt2 = 0, cnt3 = 0
-        classObj = new Store({a: false, b: true, c: undefined})
-        testMount(() => {
+        let classObj = new Store({a: false, b: true, c: undefined})
+        mount(document.body, () => {
             cnt1++
             node('div', () => {
                 cnt2++
@@ -34,7 +32,7 @@ describe('Props', function() {
         let store = new Store(true)
         let el;
         let myFunc = ()=>{}
-        testMount(() => {
+        mount(document.body, () => {
             node('div', () => {
                 el = getParentElement()
                 if (store.get()) prop({click: myFunc})

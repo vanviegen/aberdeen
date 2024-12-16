@@ -1,41 +1,49 @@
 {
   "name": "aberdeen",
-  "version": "0.2.0",
-  "description": "A TypeScript/JavaScript library for quickly building performant declarative user interfaces without the use of a virtual DOM.",
-  "main": "dist/aberdeen.js",
-  "types": "dist/aberdeen.d.js",
+  "version": "0.2.1",
+  "description": "A TypeScript/JavaScript library for quickly building performant declarative user interfaces without the use of a virtual DOM nor any transpilation.",
+  "type": "module",
+  "main": "dist-min/aberdeen.js",
+  "types": "dist-min/aberdeen.d.ts",
+  "exports": {
+    ".": {
+      "default": "./dist-min/aberdeen.js",
+      "development": "./dist/aberdeen.js",
+      "types`": "./dist/aberdeen.d.ts"
+    },
+    "./route": {
+      "default": "./dist-min/route.js",
+      "development": "./dist/route.js",
+      "types`": "./dist/route.d.ts"
+    },
+    "./transition": {
+      "default": "./dist-min/transition.js",
+      "development": "./dist/transition.js",
+      "types`": "./dist/transition.d.ts"
+    },
+    "./prediction": {
+      "default": "./dist-min/prediction.js",
+      "development": "./dist/prediction.js",
+      "types`": "./dist/prediction.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "build": "$npm_execpath run build-dist && $npm_execpath run build-docs",
-    "build-dist": "rm -f dist/aberdeen.js && tsc && chmod a-w dist/aberdeen.js && terser --module --compress --mangle -- dist/aberdeen.js > dist/aberdeen.min.js",
-    "build-docs": "typedoc --excludePrivate --excludeInternal src/aberdeen.ts",
-    "build-test": "[ tests/build/aberdeen.js -nt src/aberdeen.ts ] || ( rm -f tests/build/aberdeen.js && tsc -t ES2015 -m commonjs --outdir tests/build src/aberdeen.ts && chmod a-w tests/build/aberdeen.js )",
-    "coverage": "$npm_execpath run build-test && nyc mocha --file tests/_init.js tests/[^_]*.js",
-    "test": "$npm_execpath run build-test && mocha --file tests/_init.js tests/[^_]*.js",
+    "build-dist": "rm -rf dist dist-min && tsc && mkdir -p dist-min && cp dist/*.d.ts dist-min && for f in dist/*.js ; do terser $f --module --compress --mangle --mangle-props 'regex=/^_/' --source-map \"content='$f.map',base='dist-min/',url='$(basename $f).map'\" --output dist-min/$(basename $f); done && chmod a-w dist/* dist-min/*",
+    "build-docs": "typedoc --excludePrivate --excludeInternal src/*.ts",
+    "coverage": "$npm_execpath run build-dist && NODE_OPTIONS=--enable-source-maps c8 --all -n dist-min -r html -r text mocha --file tests/_init.js tests/[^_]*.js",
+    "test": "$npm_execpath run build-dist && NODE_OPTIONS=--enable-source-maps mocha --file tests/_init.js tests/[^_]*.js",
     "prepack": "$npm_execpath run test && $npm_execpath run build"
   },
   "author": "Frank van Viegen",
   "license": "ISC",
   "devDependencies": {
+    "c8": "^10.1.3",
     "fast-equals": "^2.0.4",
     "mocha": "^9.1.3",
-    "nyc": "^15.0.1",
-    "terser": "^4.6.13",
+    "terser": "^5.37.0",
     "typedoc": "^0.23.28",
     "typescript": "^4.9.5"
-  },
-  "nyc": {
-    "reporter": [
-      "text-summary",
-      "lcov"
-    ],
-    "temp-directory": "./coverage/.nyc_output",
-    "sourceMap": true,
-    "include": [
-      "tests/build/**"
-    ],
-    "exclude": []
-  },
-  "files": [
-    "dist"
-  ]
+  }
 }

@@ -1,5 +1,3 @@
-const { Store, scope } = require("./build/aberdeen")
-
 describe('Store', function() {
 	it('is empty by default', () => {
 		let store = new Store()
@@ -222,7 +220,7 @@ describe('Store', function() {
 
 	it(`reactively links stores to each other`, () => {
 		let store1 = new Store({a: 1, b: 2})
-		let score2
+		let store2
 		observe(() => {
 			store2 = new Store({x: store1, y: 3})
 		})
@@ -239,6 +237,18 @@ describe('Store', function() {
 		let store1 = new Store({a: {b: {}}})
 		assertEqual(store1.ref('a', 'b', 'c').isDetached(), false)
 		assertEqual(store1.ref('a', 'b', 'c', 'd').isDetached(), true)
+	})
+
+	it(`can modify() values`, () => {
+		let store = new Store(21)
+		store.modify(c => c*2)
+		assertEqual(store.get(), 42)
+
+		store.modify(c => { return {num: c, str: 'x'} })
+		assertEqual(store.get(), {num: 42, str: 'x'})
+
+		store.ref('str').modify(c => c+'y')
+		assertEqual(store.get(), {num: 42, str: 'xy'})
 	})
 
 })

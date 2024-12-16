@@ -1,9 +1,7 @@
-const { scope, mount, Store, observe } = require("./build/aberdeen")
-
 describe('Error handling', () => {
 	it('continues rendering after an error', () => {
         let error = new Store(false)
-        testMount(() => {
+        mount(document.body, () => {
             node('a', () => {
                 node('b')
                 if (error.get()) {
@@ -43,7 +41,7 @@ describe('Error handling', () => {
 
     it('continue rendering after an error in onEach', () => {
         let store = new Store(['a','b','c'])
-        testMount(() => {  
+        mount(document.body, () => {
             store.onEach(item => {
                 if (item.index()%2) noSuchFunction()
                 text(item.get())
@@ -60,7 +58,7 @@ describe('Error handling', () => {
 
     it('continue rendering after an error in onEach sort', () => {
         let store = new Store(['a','b','c'])
-        testMount(() => {  
+        mount(document.body, () => {
             store.onEach(item => {
                 text(item.get())
             }, item => {
@@ -95,7 +93,7 @@ describe('Error handling', () => {
             store2.onEach('a', 3, true, item => {
                 assert(false, "Should not be invoked")
             })
-        })      
+        })
         passTime()
     })
 

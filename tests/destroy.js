@@ -1,7 +1,7 @@
 describe('Destroy event', function() {
 	it('works for simple deletes', () => {
         let store = new Store(true)
-		testMount(() => {
+		mount(document.body, () => {
             if (store.get()) node('b', {destroy: "x"})
             else node('c', {destroy: "x"})
 		})
@@ -20,7 +20,7 @@ describe('Destroy event', function() {
 
 	it('inserts before deleted item', () => {
         let store = new Store(['a'])
-		testMount(() => {
+		mount(document.body, () => {
             store.onEach(v => {
                 node(v.get(), {destroy: "x"})
             })
@@ -40,7 +40,7 @@ describe('Destroy event', function() {
 
 	it('transitions onEach deletes', () => {
         let store = new Store(['a', 'b', 'c'])
-		let mnt = testMount(() => {
+		let mnt = mount(document.body, () => {
             store.onEach(v => {
                 node(v.get(), {destroy: "x"})
             })
@@ -68,7 +68,7 @@ describe('Destroy event', function() {
 
     it('deletes in the middle of deleting items', () => {
         let store = new Store(['a', 'b', 'c'])
-		testMount(() => {
+		mount(document.body, () => {
             store.onEach(v => {
                 node(v.get(), {destroy: "x"})
             })
@@ -99,7 +99,7 @@ describe('Destroy event', function() {
 
     it('aborts deletion transition on higher level removal', () => {
         let store = new Store(['a'])
-		testMount(() => {
+		mount(document.body, () => {
             store.onEach(v => {
                 node(v.get(), {destroy: "x"})
             })
@@ -120,7 +120,7 @@ describe('Destroy event', function() {
 
     it('transitions removal of an entire onEach', () => {
         let store = new Store(['a'])
-		testMount(() => {
+		mount(document.body, () => {
             store.onEach(v => {
                 node(v.get(), {destroy: "x"})
             })
@@ -136,7 +136,7 @@ describe('Destroy event', function() {
 
     it('insert new elements after a recently deleted item', () => {
         let store = new Store({b: true, c: false})
-		testMount(() => {
+		mount(document.body, () => {
             node('a')
             observe(() => {
                 if (store.get('b')) node('b', {destroy: 'y'})
@@ -160,7 +160,7 @@ describe('Destroy event', function() {
 
     it('remove elements before and after a deleting element', () => {
         let store = new Store({a: true, b: true, c: true})
-		testMount(() => {
+		mount(document.body, () => {
             store.onEach(el => {
                 if (el.get()) node(el.index(), el.index()=='b' ? {destroy: 'y'}: null)
             })
@@ -185,7 +185,7 @@ describe('Destroy event', function() {
 
     it('remove middle elements before and after a deleting element', () => {
         let store = new Store({a: true, b: true, c: true, d: true, e: true})
-		testMount(() => {
+		mount(document.body, () => {
             store.onEach(el => {
                 if (el.get()) node(el.index(), el.index()=='c' ? {destroy: 'y'}: null)
             })
@@ -210,7 +210,7 @@ describe('Destroy event', function() {
 
     it('remove elements before and after a deleting element', () => {
         let store = new Store({a: true, b: true, c: true})
-		testMount(() => {
+		mount(document.body, () => {
             store.onEach(el => {
                 if (el.get()) node(el.index(), el.index()=='b' ? {destroy: 'y'}: null)
             })
@@ -235,7 +235,7 @@ describe('Destroy event', function() {
 
     it('performs a shrink animation', () => {
         let store = new Store(true)
-        testMount(() => {
+        mount(document.body, () => {
             if (store.get()) node('a', {destroy: shrink})
         })
 
@@ -251,7 +251,7 @@ describe('Destroy event', function() {
 
     it('performs a horizontal shrink animation', () => {
         let store = new Store(true)
-        testMount(() => {
+        mount(document.body, () => {
             node('div', {style: {display: 'flex', flexDirection: 'row-reverse'}}, () => {
                 if (store.get()) node('a', {destroy: shrink})
             })

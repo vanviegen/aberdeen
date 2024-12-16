@@ -1,4 +1,4 @@
-import {node, prop, mount, Store, text} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm';
+import {node, prop, mount, Store, text} from '../../dist/aberdeen.js';
 
 const store = new Store({
 	squares: [],

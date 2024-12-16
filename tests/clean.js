@@ -1,11 +1,9 @@
-const { mount, node, Store } = require("./build/aberdeen");
-
 describe('Clean', function() {
 	it('triggers once when redrawing', () => {
 
         let cnt1 = 0, cnt2 = 0
         let store = new Store(1)
-        testMount(() => {
+        mount(document.body, () => {
             cnt1++
             text(store.get())
             clean(() => {
@@ -22,7 +20,7 @@ describe('Clean', function() {
         assertBody(`"2"`)
         assertEqual([cnt1, cnt2], [2, 1])
 
-        testUnmount()
+        unmount()
         assertEqual([cnt1, cnt2], [2, 2])
     })
 })

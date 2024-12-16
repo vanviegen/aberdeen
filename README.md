@@ -8,13 +8,18 @@ The key insight is the use of many small anonymous functions, that will automati
 - It provides a flexible and simple to understand model for reactive user-interface building.
 - It allows you to express user-interfaces in plain JavaScript (or TypeScript) in an easy to read form, without (JSX-like) compilation steps.
 - It's fast, as it doesn't use a *virtual DOM* and only reruns small pieces of code in response to updated data. It also makes displaying and updating sorted lists very easy and very fast.
-- It's lightweight, at about 15kb minimized.
-
+- It's lightweight, at about 14kb minimized and without any run-time dependencies.
+- It comes with batteries included, providing modules for..
+  - Client-side routing.
+  - Optimistic user-interface updates (predictions) while awaiting a server response.
+  - Transitions.
 
 ## Examples
 
 - [Tic-tac-toe demo](https://vanviegen.github.io/aberdeen/examples/tic-tac-toe/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/tic-tac-toe)
 - [Input example demo](https://vanviegen.github.io/aberdeen/examples/input/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/input)
+- [List example demo](https://vanviegen.github.io/aberdeen/examples/list/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/list)
+- [Routing example demo](https://vanviegen.github.io/aberdeen/examples/router/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/router)
 
 
 To get a quick impression of what Aberdeen code looks like, this is all of the JavaScript for the above Tic-tac-toe demo:
@@ -122,9 +127,10 @@ https://vanviegen.github.io/aberdeen/modules.html
 
 - [x] Support for (dis)appear transitions.
 - [x] A better alternative for scheduleTask.
-- [ ] A simple router.
-- [ ] Architecture document.
+- [x] A simple router.
 - [x] Optimistic client-side predictions.
-- [ ] SVG support.
+- [ ] Support for (component local) CSS or possibly a tailwind-like abstraction.
 - [ ] More user friendly documentation generator.
+- [ ] Architecture document.
+- [ ] SVG support.
 - [ ] Performance profiling and tuning regarding lists.

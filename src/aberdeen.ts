@@ -7,8 +7,8 @@
  * `queueOrder` values.
  */
 interface QueueRunner {
-	queueOrder: number
-	queueRun(): void
+	_queueOrder: number
+	_queueRun(): void
 }
 
 let queueArray: Array<QueueRunner> = []
@@ -16,8 +16,9 @@ let queueSet: Set<QueueRunner> = new Set()
 let queueOrdered = true
 let runQueueDepth = 0
 let queueIndex: number | undefined
-type Patch = Map<ObsCollection, Map<any, [any, any]>>;
-let recordingPatch: Patch | undefined
+
+/** @internal */
+export type Patch = Map<ObsCollection, Map<any, [any, any]>>;
 
 function queue(runner: QueueRunner) {
 	if (queueSet.has(runner)) return
@@ -27,7 +28,7 @@ function queue(runner: QueueRunner) {
 	if (!queueArray.length) {
 		setTimeout(runQueue, 0)
 	}
-	else if (runner.queueOrder < queueArray[queueArray.length-1].queueOrder) {
+	else if (runner._queueOrder < queueArray[queueArray.length-1]._queueOrder) {
 		queueOrdered = false
 	}
 	queueArray.push(runner)
@@ -42,7 +43,7 @@ function runQueue(): void {
 			queueArray.splice(0, queueIndex)
 			queueIndex = 0
 			// Order queued observers by depth, lowest first.
-			queueArray.sort((a,b) => a.queueOrder - b.queueOrder)
+			queueArray.sort((a,b) => a._queueOrder - b._queueOrder)
 			queueOrdered = true
 		}
 		
@@ -51,7 +52,7 @@ function runQueue(): void {
 		for(; queueIndex < batchEndIndex && queueOrdered; queueIndex++) {
 			let runner = queueArray[queueIndex]
 			queueSet.delete(runner)
-			runner.queueRun()
+			runner._queueRun()
 		}
 		
 		// If new items have been added to the queue while processing the previous
@@ -66,7 +67,6 @@ function runQueue(): void {
 }
 
 
-let scheduleOrder = 1000
 /**
  * Schedule a DOM read operation to be executed in Aberdeen's internal task queue.
  *
@@ -85,8 +85,8 @@ let scheduleOrder = 1000
  * @param func The function to be executed as a DOM read operation.
  */
 export function scheduleDomReader(func: () => void): void {
-	let order = (queueIndex!=null && queueIndex < queueArray.length && queueArray[queueIndex].queueOrder >= 1000) ? ((queueArray[queueIndex].queueOrder+1) & (~1)) : 1000
-	queue({queueOrder: order, queueRun: func})
+	let order = (queueIndex!=null && queueIndex < queueArray.length && queueArray[queueIndex]._queueOrder >= 1000) ? ((queueArray[queueIndex]._queueOrder+1) & (~1)) : 1000
+	queue({_queueOrder: order, _queueRun: func})
 }
 
 /**
@@ -107,13 +107,12 @@ export function scheduleDomReader(func: () => void): void {
  * @param func The function to be executed as a DOM write operation.
  */
 export function scheduleDomWriter(func: () => void): void {
-	let order = (queueIndex!=null && queueIndex < queueArray.length && queueArray[queueIndex].queueOrder >= 1000) ? (queueArray[queueIndex].queueOrder | 1) : 1001
-	queue({queueOrder: order, queueRun: func})
+	let order = (queueIndex!=null && queueIndex < queueArray.length && queueArray[queueIndex]._queueOrder >= 1000) ? (queueArray[queueIndex]._queueOrder | 1) : 1001
+	queue({_queueOrder: order, _queueRun: func})
 }
 
 
-
-
+/** @internal */
 type SortKeyType = number | string | Array<number|string>
 
 
@@ -155,13 +154,14 @@ function numToString(num: number, neg: boolean): string {
 	return result
 }
 
-
+/** @internal */
 interface Observer {
-	onChange(index: any, newData: DatumType, oldData: DatumType): void
+	_onChange(index: any, newData: DatumType, oldData: DatumType): void
 }
 
 /*
  * Scope
+ * @internal
  *
  * A `Scope` is created with a `render` function that is run initially,
  * and again when any of the `Store`s that this function reads are changed. Any
@@ -172,78 +172,78 @@ interface Observer {
  */
 
 abstract class Scope implements QueueRunner, Observer {
-	parentElement: Element | undefined
+	_parentElement: Element | undefined
 
 	// How deep is this scope nested in other scopes; we use this to make sure events
 	// at lower depths are handled before events at higher depths.
-	queueOrder: number
+	_queueOrder: number
 	
 	// The node or scope right before this scope that has the same `parentElement`
-	precedingSibling: Node | Scope | undefined
+	_precedingSibling: Node | Scope | undefined
 
 	// The last child node or scope within this scope that has the same `parentElement`
-	lastChild: Node | Scope | undefined
+	_lastChild: Node | Scope | undefined
 
 	// The list of clean functions to be called when this scope is cleaned. These can
 	// be for child scopes, subscriptions as well as `clean(..)` hooks.
-	cleaners: Array<{_clean: (scope: Scope) => void}> = []
+	_cleaners: Array<{_clean: (scope: Scope) => void}> = []
 
 	// Set to true after the scope has been cleaned, causing any spurious reruns to
 	// be ignored.
-	isDead: boolean = false
+	_isDead: boolean = false
 
 	constructor(
 		parentElement: Element | undefined,
 		precedingSibling: Node | Scope | undefined,
 		queueOrder: number,
 	) {
-		this.parentElement = parentElement
-		this.precedingSibling = precedingSibling
-		this.queueOrder = queueOrder
+		this._parentElement = parentElement
+		this._precedingSibling = precedingSibling
+		this._queueOrder = queueOrder
 	}
 
 	// Get a reference to the last Node preceding this Scope, or undefined if there is none
-	findPrecedingNode(stopAt: Scope | Node | undefined = undefined): Node | undefined {
+	_findPrecedingNode(stopAt: Scope | Node | undefined = undefined): Node | undefined {
 		let cur: Scope = this
 		let pre: Scope | Node | undefined
-		while((pre = cur.precedingSibling) && pre !== stopAt) {
+		while((pre = cur._precedingSibling) && pre !== stopAt) {
 			if (pre instanceof Node) return pre
-			let node = pre.findLastNode()
+			let node = pre._findLastNode()
 			if (node) return node
 			cur = pre
 		}
 	}
 
 	// Get a reference to the last Node within this scope and parentElement
-	findLastNode(): Node | undefined {
-		if (this.lastChild) {
-			if (this.lastChild instanceof Node) return this.lastChild
-			else return this.lastChild.findLastNode() || this.lastChild.findPrecedingNode(this.precedingSibling)
+	_findLastNode(): Node | undefined {
+		if (this._lastChild) {
+			if (this._lastChild instanceof Node) return this._lastChild
+			else return this._lastChild._findLastNode() || this._lastChild._findPrecedingNode(this._precedingSibling)
 		}
 	}
 
-	addNode(node: Node) {
-		if (!this.parentElement) throw new ScopeError(true)
-		let prevNode = this.findLastNode() || this.findPrecedingNode()
+	_addNode(node: Node) {
+		if (!this._parentElement) throw new ScopeError(true)
+		let prevNode = this._findLastNode() || this._findPrecedingNode()
 
-		this.parentElement.insertBefore(node, prevNode ? prevNode.nextSibling : this.parentElement.firstChild)
-		this.lastChild = node
+		this._parentElement.insertBefore(node, prevNode ? prevNode.nextSibling : this._parentElement.firstChild)
+		this._lastChild = node
 	}
 
-	remove() {
-		if (this.parentElement) {
-			let lastNode: Node | undefined = this.findLastNode()
+	_remove() {
+		if (this._parentElement) {
+			let lastNode: Node | undefined = this._findLastNode()
 			if (lastNode) {
 				// at least one DOM node to be removed
 				
-				let nextNode: Node | undefined = this.findPrecedingNode()
-				nextNode = (nextNode ? nextNode.nextSibling : this.parentElement.firstChild) as Node | undefined
+				let nextNode: Node | undefined = this._findPrecedingNode()
+				nextNode = (nextNode ? nextNode.nextSibling : this._parentElement.firstChild) as Node | undefined
 
-				this.lastChild = undefined
+				this._lastChild = undefined
 				
 				// Keep removing DOM nodes starting at our first node, until we encounter the last node
 				while(true) {
-					/* istanbul ignore next */
+					/* c8 ignore next */
 					if (!nextNode) return internalError(1)
 						
 					const node = nextNode
@@ -261,7 +261,7 @@ abstract class Scope implements QueueRunner, Observer {
 						}
 					// Ignore the deleting element
 					} else {
-						this.parentElement.removeChild(node)
+						this._parentElement.removeChild(node)
 					}
 					if (node === lastNode) break
 				}
@@ -273,22 +273,22 @@ abstract class Scope implements QueueRunner, Observer {
 	}
 
 	_clean() {
-		this.isDead = true
-		for(let cleaner of this.cleaners) {
+		this._isDead = true
+		for(let cleaner of this._cleaners) {
 			cleaner._clean(this)
 		}
-		this.cleaners.length = 0
+		this._cleaners.length = 0
 	}
 
-	onChange(index: any, newData: DatumType, oldData: DatumType) {
+	_onChange(index: any, newData: DatumType, oldData: DatumType) {
 		queue(this)
 	}
 
-	abstract queueRun(): void
+	abstract _queueRun(): void
 }
 
 class SimpleScope extends Scope {
-	renderer: () => void
+	_renderer: () => void
 
 	constructor(
 		parentElement: Element | undefined,
@@ -297,32 +297,62 @@ class SimpleScope extends Scope {
 		renderer: () => void,
 	) {
 		super(parentElement, precedingSibling, queueOrder)
-		this.renderer = renderer
+		this._renderer = renderer
 	}
 
-	queueRun() {
-		/* istanbul ignore next */
-		if (currentScope) {
-			internalError(2)
-		}
+	_queueRun() {
+		/* c8 ignore next */
+		if (currentScope) internalError(2)
 
-		if (this.isDead) return
-		this.remove()
-		this.isDead = false
+		if (this._isDead) return
+		this._remove()
+		this._isDead = false
 
-		this.update()
+		this._update()
 	}
 
-	update() {
+	_update() {
 		let savedScope = currentScope
 		currentScope = this
 		try {
-			this.renderer()
+			this._renderer()
 		} catch(e) {
 			// Throw the error async, so the rest of the rendering can continue
 			handleError(e)
 		}
 		currentScope = savedScope
+	}
+}
+
+let immediateQueue: Set<Scope> = new Set()
+
+class ImmediateScope extends SimpleScope {
+	_onChange(index: any, newData: DatumType, oldData: DatumType) {
+		immediateQueue.add(this)
+	}
+}
+
+let immediateQueuerRunning = false
+function runImmediateQueue() {
+	if (immediateQueuerRunning) return
+	for(let count=0; immediateQueue.size; count++) {
+		if (count > 42) {
+			immediateQueue.clear()
+			throw new Error("Too many recursive updates from immediate-mode observes")
+		}
+		immediateQueuerRunning = true
+		let copy = immediateQueue
+		immediateQueue = new Set()
+		let savedScope = currentScope
+		currentScope = undefined
+		try {
+			for(const scope of copy) {
+				scope._queueRun()
+			}
+		} finally {
+			currentScope = savedScope
+			immediateQueuerRunning = false
+		}
 	}
 }
 
@@ -336,13 +366,13 @@ class IsEmptyObserver implements Observer {
 		this.scope = scope
 		this.collection = collection
 		this.triggerCount = triggerCount
-		this.count = collection.getCount()
+		this.count = collection._getCount()
 
-		collection.addObserver(ANY_INDEX, this)
-		scope.cleaners.push(this)
+		collection._addObserver(ANY_INDEX, this)
+		scope._cleaners.push(this)
 	}
 
-	onChange(index: any, newData: DatumType, oldData: DatumType) {
+	_onChange(index: any, newData: DatumType, oldData: DatumType) {
 		if (newData===undefined) {
 			// oldData is guaranteed not to be undefined
 			if (this.triggerCount || !--this.count) queue(this.scope)
@@ -352,30 +382,31 @@ class IsEmptyObserver implements Observer {
 	}
 
 	_clean() {
-		this.collection.removeObserver(ANY_INDEX, this)
+		this.collection._removeObserver(ANY_INDEX, this)
 	}
 }
 
+/** @internal */
 class OnEachScope extends Scope {
 
 	/** The Node we are iterating */
-	collection: ObsCollection
+	_collection: ObsCollection
 
 	/** A function returning a number/string/array that defines the position of an item */
-	makeSortKey: (value: Store) => SortKeyType
+	_makeSortKey: (value: Store) => SortKeyType
 
 	/** A function that renders an item */
-	renderer: (itemStore: Store) => void
+	_renderer: (itemStore: Store) => void
 
 	/** The ordered list of currently item scopes */
-	byPosition: OnEachItemScope[] = []
+	_byPosition: OnEachItemScope[] = []
 
 	/** The item scopes in a Map by index */
-	byIndex: Map<any, OnEachItemScope> = new Map()
+	_byIndex: Map<any, OnEachItemScope> = new Map()
 
 	/** Indexes that have been created/removed and need to be handled in the next `queueRun` */
-	newIndexes: Set<any> = new Set()
-	removedIndexes: Set<any> = new Set()
+	_newIndexes: Set<any> = new Set()
+	_removedIndexes: Set<any> = new Set()
 
 	constructor(
 		parentElement: Element | undefined,
@@ -386,103 +417,99 @@ class OnEachScope extends Scope {
 		makeSortKey: (itemStore: Store) => SortKeyType
 	) {
 		super(parentElement, precedingSibling, queueOrder)
-		this.collection = collection
-		this.renderer = renderer
-		this.makeSortKey = makeSortKey
+		this._collection = collection
+		this._renderer = renderer
+		this._makeSortKey = makeSortKey
 	}
 
 	// toString(): string {
 	// 	return `OnEachScope(collection=${this.collection})`
 	// }
 
-	onChange(index: any, newData: DatumType, oldData: DatumType) {
+	_onChange(index: any, newData: DatumType, oldData: DatumType) {
 		if (oldData===undefined) {
-			if (this.removedIndexes.has(index)) {
-				this.removedIndexes.delete(index)
+			if (this._removedIndexes.has(index)) {
+				this._removedIndexes.delete(index)
 			} else {
-				this.newIndexes.add(index)
+				this._newIndexes.add(index)
 				queue(this)
 			}
 		} else if (newData===undefined) {
-			if (this.newIndexes.has(index)) {
-				this.newIndexes.delete(index)
+			if (this._newIndexes.has(index)) {
+				this._newIndexes.delete(index)
 			} else {
-				this.removedIndexes.add(index)
+				this._removedIndexes.add(index)
 				queue(this)
 			}
 		}
 	}
 
-	queueRun() {
-		if (this.isDead) return
+	_queueRun() {
+		if (this._isDead) return
 
-		let indexes = this.removedIndexes
-		this.removedIndexes = new Set()
+		let indexes = this._removedIndexes
+		this._removedIndexes = new Set()
 		indexes.forEach(index => {
-			this.removeChild(index)
+			this._removeChild(index)
 		})
 
-		indexes = this.newIndexes
-		this.newIndexes = new Set()
+		indexes = this._newIndexes
+		this._newIndexes = new Set()
 		indexes.forEach(index => {
-			this.addChild(index)
+			this._addChild(index)
 		})
 	}
 
 	_clean() {
 		super._clean()
-		this.collection.observers.delete(this)
-		for (const [index, scope] of this.byIndex) {
+		this._collection._observers.delete(this)
+		for (const [index, scope] of this._byIndex) {
 			scope._clean()
 		}
 
 		// Help garbage collection:
-		this.byPosition.length = 0
-		this.byIndex.clear()
+		this._byPosition.length = 0
+		this._byIndex.clear()
 	}
 
-	renderInitial() {
-		/* istanbul ignore next */
-		if (!currentScope) {
-			return internalError(3)
-		}
+	_renderInitial() {
+		/* c8 ignore next */
+		if (!currentScope) return internalError(3)
 		let parentScope = currentScope
 
-		this.collection.iterateIndexes(this)
+		this._collection._iterateIndexes(this)
 
 		currentScope = parentScope
 	}
 
-	addChild(itemIndex: any) {
-		let scope = new OnEachItemScope(this.parentElement, undefined, this.queueOrder+1, this, itemIndex)
-		this.byIndex.set(itemIndex, scope)
-		scope.update()
+	_addChild(itemIndex: any) {
+		let scope = new OnEachItemScope(this._parentElement, undefined, this._queueOrder+1, this, itemIndex)
+		this._byIndex.set(itemIndex, scope)
+		scope._update()
 		// We're not adding a cleaner here, as we'll be calling them from our _clean function
 	}
 
-	removeChild(itemIndex: any) {
-		let scope = this.byIndex.get(itemIndex)
-		/* istanbul ignore next */
-		if (!scope) {
-			return internalError(6)
-		}
-		scope.remove()
-		this.byIndex.delete(itemIndex)
-		this.removeFromPosition(scope)
+	_removeChild(itemIndex: any) {
+		let scope = this._byIndex.get(itemIndex)
+		/* c8 ignore next */
+		if (!scope) return internalError(6)
+		scope._remove()
+		this._byIndex.delete(itemIndex)
+		this._removeFromPosition(scope)
 	}
 
-	findPosition(sortStr: string) {
+	_findPosition(sortStr: string) {
 		// In case of duplicate `sortStr`s, this will return the first match.
-		let items = this.byPosition
+		let items = this._byPosition
 		let min = 0, max = items.length
 		
 		// Fast-path for elements that are already ordered (as is the case when working with arrays ordered by index)
-		if (!max || sortStr > items[max-1].sortStr) return max
+		if (!max || sortStr > items[max-1]._sortStr) return max
 
 		// Binary search for the insert position		
 		while(min<max) {
 			let mid = (min+max)>>1
-			if (items[mid].sortStr < sortStr) {
+			if (items[mid]._sortStr < sortStr) {
 				min = mid+1
 			} else {
 				max = mid
@@ -491,56 +518,55 @@ class OnEachScope extends Scope {
 		return min
 	}
 
-	insertAtPosition(child: OnEachItemScope) {
-		let pos = this.findPosition(child.sortStr)
-		this.byPosition.splice(pos, 0, child)
+	_insertAtPosition(child: OnEachItemScope) {
+		let pos = this._findPosition(child._sortStr)
+		this._byPosition.splice(pos, 0, child)
 		
 		// Based on the position in the list, set the precedingSibling for the new Scope
 		// and for the next sibling.
-		let nextSibling: OnEachItemScope = this.byPosition[pos+1]
+		let nextSibling: OnEachItemScope = this._byPosition[pos+1]
 		if (nextSibling) {
-			child.precedingSibling = nextSibling.precedingSibling
-			nextSibling.precedingSibling = child
+			child._precedingSibling = nextSibling._precedingSibling
+			nextSibling._precedingSibling = child
 		} else {
-			child.precedingSibling = this.lastChild || this.precedingSibling
-			this.lastChild = child
+			child._precedingSibling = this._lastChild || this._precedingSibling
+			this._lastChild = child
 		}
 	}
 
-	removeFromPosition(child: OnEachItemScope) {
-		if (child.sortStr==='') return
-		let pos = this.findPosition(child.sortStr)
+	_removeFromPosition(child: OnEachItemScope) {
+		if (child._sortStr==='') return
+		let pos = this._findPosition(child._sortStr)
 		while(true) {
-			if (this.byPosition[pos] === child) {
+			if (this._byPosition[pos] === child) {
 				// Yep, this is the right scope
-				this.byPosition.splice(pos, 1)
-				if (pos < this.byPosition.length) {
-					let nextSibling: Scope | undefined = this.byPosition[pos] as (Scope | undefined)
-					/* istanbul ignore next */
+				this._byPosition.splice(pos, 1)
+				if (pos < this._byPosition.length) {
+					let nextSibling: Scope | undefined = this._byPosition[pos] as (Scope | undefined)
+					/* c8 ignore next */
 					if (!nextSibling) return internalError(8)
-					/* istanbul ignore next */
-					if (nextSibling.precedingSibling !== child) return internalError(13)
-					nextSibling.precedingSibling = child.precedingSibling
+					/* c8 ignore next */
+					if (nextSibling._precedingSibling !== child) return internalError(13)
+					nextSibling._precedingSibling = child._precedingSibling
 				} else {
-					/* istanbul ignore next */
-					if (child !== this.lastChild) return internalError(12)
-					this.lastChild = child.precedingSibling === this.precedingSibling ? undefined : child.precedingSibling	
+					/* c8 ignore next */
+					if (child !== this._lastChild) return internalError(12)
+					this._lastChild = child._precedingSibling === this._precedingSibling ? undefined : child._precedingSibling	
 				}
 				return
 			}
 			// There may be another Scope with the same sortStr
-			/* istanbul ignore next */
-			if (++pos >= this.byPosition.length || this.byPosition[pos].sortStr !== child.sortStr) {
-				return internalError(5)
-			}
+			/* c8 ignore next */
+			if (++pos >= this._byPosition.length || this._byPosition[pos]._sortStr !== child._sortStr) return internalError(5)
 		}
 	}
 }
 
+/** @internal */
 class OnEachItemScope extends Scope {
-	parent: OnEachScope
-	itemIndex: any
-	sortStr: string = ""
+	_parent: OnEachScope
+	_itemIndex: any
+	_sortStr: string = ""
 
 	constructor(
 		parentElement: Element | undefined,
@@ -550,56 +576,54 @@ class OnEachItemScope extends Scope {
 		itemIndex: any
 	) {
 		super(parentElement, precedingSibling, queueOrder)
-		this.parent = parent
-		this.itemIndex = itemIndex
+		this._parent = parent
+		this._itemIndex = itemIndex
 	}
 
 	// toString(): string {
 	// 	return `OnEachItemScope(itemIndex=${this.itemIndex} parentElement=${this.parentElement} parent=${this.parent} precedingSibling=${this.precedingSibling} lastChild=${this.lastChild})`
 	// }
 
-	queueRun() {
-		/* istanbul ignore next */
-		if (currentScope) {
-			internalError(4)
-		}
+	_queueRun() {
+		/* c8 ignore next */
+		if (currentScope) internalError(4)
 
-		if (this.isDead) return
-		this.remove()
-		this.isDead = false
+		if (this._isDead) return
+		this._remove()
+		this._isDead = false
 
-		this.update()
+		this._update()
 	}
 
-	update() {
+	_update() {
 		// Have the makeSortKey function return an ordering int/string/array.
 		// Since makeSortKey may get() the Store, we'll need to set currentScope first.
 		let savedScope = currentScope
 		currentScope = this
 
-		let itemStore = new Store(this.parent.collection, this.itemIndex)
+		let itemStore = new Store(this._parent._collection, this._itemIndex)
 
 		let sortKey
 		try {
-			sortKey = this.parent.makeSortKey(itemStore)
+			sortKey = this._parent._makeSortKey(itemStore)
 		} catch(e) {
 			handleError(e)
 		}
 
-		let oldSortStr: string = this.sortStr
+		let oldSortStr: string = this._sortStr
 		let newSortStr: string = sortKey==null ? '' : sortKeyToString(sortKey)
 
 		if (oldSortStr!=='' && oldSortStr!==newSortStr) {
-			this.parent.removeFromPosition(this)
+			this._parent._removeFromPosition(this)
 		}
 
-		this.sortStr = newSortStr
+		this._sortStr = newSortStr
 		if (newSortStr!=='') {
 			if (newSortStr !== oldSortStr) {
-				this.parent.insertAtPosition(this)
+				this._parent._insertAtPosition(this)
 			}
 			try {
-				this.parent.renderer(itemStore)
+				this._parent._renderer(itemStore)
 			} catch(e) {
 				handleError(e)
 			}
@@ -625,49 +649,46 @@ const ANY_INDEX = {}
 type DatumType = string | number | Function | boolean | null | undefined | ObsMap | ObsArray
 
 
-abstract class ObsCollection {
-	observers: Map<any, Set<Observer>> = new Map()
+/** @internal */
+export abstract class ObsCollection {
+	_observers: Map<any, Set<Observer>> = new Map()
 
 	// toString(): string {
 	// 	return JSON.stringify(peek(() => this.getRecursive(3)))
 	// }
 
-	addObserver(index: any, observer: Observer) {
+	_addObserver(index: any, observer: Observer) {
 	   observer = observer
-	   let obsSet = this.observers.get(index)
+	   let obsSet = this._observers.get(index)
 	   if (obsSet) {
 		   if (obsSet.has(observer)) return false
 		   obsSet.add(observer)
 	   } else {
-		   this.observers.set(index, new Set([observer]))
+		   this._observers.set(index, new Set([observer]))
 	   }
 	   return true
    }
 
-   removeObserver(index: any, observer: Observer) {
-	   let obsSet = <Set<Observer>>this.observers.get(index)
+   _removeObserver(index: any, observer: Observer) {
+	   let obsSet = <Set<Observer>>this._observers.get(index)
 	   obsSet.delete(observer)
    }
 
    emitChange(index: any, newData: DatumType, oldData: DatumType) {
-		if (recordingPatch) {
-			addToPatch(recordingPatch, this, index, newData, oldData)
-		} else {
-			let obsSet = this.observers.get(index)
-			if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
-			obsSet = this.observers.get(ANY_INDEX)
-			if (obsSet) obsSet.forEach(observer => observer.onChange(index, newData, oldData))
-		}
+		let obsSet = this._observers.get(index)
+		if (obsSet) obsSet.forEach(observer => observer._onChange(index, newData, oldData))
+		obsSet = this._observers.get(ANY_INDEX)
+		if (obsSet) obsSet.forEach(observer => observer._onChange(index, newData, oldData))
    }
 
    _clean(observer: Observer) {
-		this.removeObserver(ANY_INDEX, observer)
+		this._removeObserver(ANY_INDEX, observer)
 	}
 
-	setIndex(index: any, newValue: any, deleteMissing: boolean): void {
+	_setIndex(index: any, newValue: any, deleteMissing: boolean): void {
 		const curData = this.rawGet(index)
 
-		if (!(curData instanceof ObsCollection) || newValue instanceof Store || !curData.merge(newValue, deleteMissing)) {
+		if (!(curData instanceof ObsCollection) || newValue instanceof Store || !curData._merge(newValue, deleteMissing)) {
 			let newData = valueToData(newValue)
 			if (newData !== curData) {
 				this.rawSet(index, newData)
@@ -678,85 +699,86 @@ abstract class ObsCollection {
 
 	abstract rawGet(index: any): DatumType
 	abstract rawSet(index: any, data: DatumType): void
-	abstract merge(newValue: any, deleteMissing: boolean): void
-	abstract getType(): string
-	abstract getRecursive(depth: number): object | Set<any> | Array<any>
-	abstract iterateIndexes(scope: OnEachScope): void
-	abstract normalizeIndex(index: any): any
-	abstract getCount(): number
+	abstract _merge(newValue: any, deleteMissing: boolean): void
+	abstract _getType(): string
+	abstract _getRecursive(depth: number): object | Set<any> | Array<any>
+	abstract _iterateIndexes(scope: OnEachScope): void
+	abstract _normalizeIndex(index: any): any
+	abstract _getCount(): number
 }
 
+/** @internal */
 class ObsArray extends ObsCollection {
-	data: Array<DatumType> = []
+	_data: Array<DatumType> = []
 
-	getType() {
+	_getType() {
 		return "array"
 	}
 
-	getRecursive(depth: number) {
+	_getRecursive(depth: number) {
 		if (currentScope) {
-			if (this.addObserver(ANY_INDEX, currentScope)) {
-				currentScope.cleaners.push(this)
+			if (this._addObserver(ANY_INDEX, currentScope)) {
+				currentScope._cleaners.push(this)
 			}
 		}
 		let result: any[] = []
-		for(let i=0; i<this.data.length; i++) {
-			let v = this.data[i]
-			result.push(v instanceof ObsCollection ? (depth ? v.getRecursive(depth-1) : new Store(this,i)) : v)
+		for(let i=0; i<this._data.length; i++) {
+			let v = this._data[i]
+			result.push(v instanceof ObsCollection ? (depth ? v._getRecursive(depth-1) : new Store(this,i)) : v)
 		}
 		return result
 	}
 
 	rawGet(index: any): DatumType {
-		return this.data[index]
+		return this._data[index]
 	}
 
 	rawSet(index: any, newData: DatumType): void {
 		if (index !== (0|index) || index<0 || index>999999) {
 			throw new Error(`Invalid array index ${JSON.stringify(index)}`)
 		}
-		this.data[index] = newData
+		this._data[index] = newData
 		// Remove trailing `undefined`s
-		while(this.data.length>0 && this.data[this.data.length-1]===undefined) {
-			this.data.pop()
+		while(this._data.length>0 && this._data[this._data.length-1]===undefined) {
+			this._data.pop()
 		}
 	}
 
-	merge(newValue: any, deleteMissing: boolean): boolean {
+	_merge(newValue: any, deleteMissing: boolean): boolean {
 		if (!(newValue instanceof Array)) {
 			return false
 		}
 		// newValue is an array
 
 		for(let i=0; i<newValue.length; i++) {
-			this.setIndex(i, newValue[i], deleteMissing)
+			this._setIndex(i, newValue[i], deleteMissing)
 		}
 
 		// Overwriting just the first elements of an array and leaving the rest of
 		// the old data in place is just weird and unexpected, so we'll always use
 		// 'replace' behavior for arrays.
-		if (/*deleteMissing &&*/ this.data.length > newValue.length) {
-			for(let i=newValue.length; i<this.data.length; i++) {
-				let old = this.data[i]
+		if (/*deleteMissing &&*/ this._data.length > newValue.length) {
+			for(let i=newValue.length; i<this._data.length; i++) {
+				let old = this._data[i]
 				if (old!==undefined) {
 					this.emitChange(i, undefined, old)
 				}
 			}
-			this.data.length = newValue.length
+			this._data.length = newValue.length
 		}
 		return true
 	}
 
 
-	iterateIndexes(scope: OnEachScope): void {
-		for(let i=0; i<this.data.length; i++) {
-			if (this.data[i]!==undefined) {
-				scope.addChild(i)
+	_iterateIndexes(scope: OnEachScope): void {
+		for(let i=0; i<this._data.length; i++) {
+			if (this._data[i]!==undefined) {
+				scope._addChild(i)
 			}	
 		}
 	}
 
-	normalizeIndex(index: any): any {
+	_normalizeIndex(index: any): any {
 		if (typeof index==='number') return index
 		if (typeof index==='string') {
 			// Convert to int
@@ -767,27 +789,28 @@ class ObsArray extends ObsCollection {
 		throw new Error(`Invalid array index ${JSON.stringify(index)}`)
 	}
 
-	getCount() {
-		return this.data.length
+	_getCount() {
+		return this._data.length
 	}
 }
 
+/** @internal */
 class ObsMap extends ObsCollection {
 	data: Map<any, DatumType> = new Map()
 
-	getType() {
+	_getType() {
 		return "map"
 	}
 
-	getRecursive(depth: number) {
+	_getRecursive(depth: number) {
 		if (currentScope) {
-			if (this.addObserver(ANY_INDEX, currentScope)) {
-				currentScope.cleaners.push(this)
+			if (this._addObserver(ANY_INDEX, currentScope)) {
+				currentScope._cleaners.push(this)
 			}
 		}
 		let result: Map<any,any> = new Map()
 		this.data.forEach((v: any, k: any) => {
-			result.set(k, (v instanceof ObsCollection) ? (depth ? v.getRecursive(depth-1) : new Store(this, k)) : v)
+			result.set(k, (v instanceof ObsCollection) ? (depth ? v._getRecursive(depth-1) : new Store(this, k)) : v)
 		})
 		return result
 	}
@@ -804,84 +827,85 @@ class ObsMap extends ObsCollection {
 		}
 	}
 
-	merge(newValue: any, deleteMissing: boolean): boolean {
+	_merge(newValue: any, deleteMissing: boolean): boolean {
 		if (!(newValue instanceof Map)) {
 			return false
 		}
 
 		// Walk the pairs of the new value map
 		newValue.forEach((v: any, k: any) => {
-			this.setIndex(k, v, deleteMissing)
+			this._setIndex(k, v, deleteMissing)
 		})
 
 		if (deleteMissing) {
 			this.data.forEach((v: DatumType, k: any) => {
-				if (!newValue.has(k)) this.setIndex(k, undefined, false)
+				if (!newValue.has(k)) this._setIndex(k, undefined, false)
 			})
 		}
 		return true
 	}
 
-	iterateIndexes(scope: OnEachScope): void {
+	_iterateIndexes(scope: OnEachScope): void {
 		this.data.forEach((_, itemIndex) => {
-			scope.addChild(itemIndex)
+			scope._addChild(itemIndex)
 		})
 	}
 
-	normalizeIndex(index: any): any {
+	_normalizeIndex(index: any): any {
 		return index
 	}
 
-	getCount() {
+	_getCount() {
 		return this.data.size
 	}
  }
 
+ /** @internal */
  class ObsObject extends ObsMap {
-	getType() {
+	_getType() {
 		return "object"
 	}
 
-	getRecursive(depth: number) {
+	_getRecursive(depth: number) {
 		if (currentScope) {
-			if (this.addObserver(ANY_INDEX, currentScope)) {
-				currentScope.cleaners.push(this)
+			if (this._addObserver(ANY_INDEX, currentScope)) {
+				currentScope._cleaners.push(this)
 			}
 		}
 		let result: any = {}
 		this.data.forEach((v: any, k: any) => {
-			result[k] = (v instanceof ObsCollection) ? (depth ? v.getRecursive(depth-1) : new Store(this,k)) : v
+			result[k] = (v instanceof ObsCollection) ? (depth ? v._getRecursive(depth-1) : new Store(this,k)) : v
 		})
 		return result
 	}
 
-	merge(newValue: any, deleteMissing: boolean): boolean {
+	_merge(newValue: any, deleteMissing: boolean): boolean {
 		if (!newValue || newValue.constructor !== Object) {
 			return false
 		}
 
 		// Walk the pairs of the new value object
 		for(let k in newValue) {
-			this.setIndex(k, newValue[k], deleteMissing)
+			this._setIndex(k, newValue[k], deleteMissing)
 		}
 
 		if (deleteMissing) {
 			this.data.forEach((v: DatumType, k: any) => {
-				if (!newValue.hasOwnProperty(k)) this.setIndex(k, undefined, false)
+				if (!newValue.hasOwnProperty(k)) this._setIndex(k, undefined, false)
 			})
 		}
 		
 		return true
 	}
 
-	normalizeIndex(index: any): any {
+	_normalizeIndex(index: any): any {
 		let type = typeof index
 		if (type==='string') return index
 		if (type==='number') return ''+index
 		throw new Error(`Invalid object index ${JSON.stringify(index)}`)
 	}
 
-	getCount() {
+	_getCount() {
 		let cnt = 0
 		for(let key of this.data) cnt++
 		return cnt
@@ -900,9 +924,10 @@ class ObsMap extends ObsCollection {
  */
 
 export class Store {
-
-	private collection: ObsCollection
-	private idx: any
+	/** @internal */
+	private _collection: ObsCollection
+	/** @internal */
+	private _idx: any
 
 	/**
 	 * Create a new store with the given `value` as its value. Defaults to `undefined` if no value is given.
@@ -923,17 +948,17 @@ export class Store {
 
 	constructor(value: any = undefined, index: any = undefined) {
 		if (index===undefined) {
-			this.collection = new ObsArray()
-			this.idx = 0
+			this._collection = new ObsArray()
+			this._idx = 0
 			if (value!==undefined) {
-				this.collection.rawSet(0, valueToData(value))
+				this._collection.rawSet(0, valueToData(value))
 			}
 		} else {
 			if (!(value instanceof ObsCollection)) {
 				throw new Error("1st parameter should be an ObsCollection if the 2nd is also given")
 			}
-			this.collection = value
-			this.idx = index
+			this._collection = value
+			this._idx = index
 		}
 	}
 
@@ -952,12 +977,12 @@ export class Store {
 	 * ```
 	 */
 	index() {
-		return this.idx
+		return this._idx
 	}
 
 	/** @internal */
 	_clean(scope: Scope) {
-		this.collection.removeObserver(this.idx, scope)
+		this._collection._removeObserver(this._idx, scope)
 	}
 
 
@@ -1082,11 +1107,11 @@ export class Store {
 		let value = store._observe()
 
 		if (opts.type && (value!==undefined || opts.defaultValue===undefined)) {
-			let type = (value instanceof ObsCollection) ? value.getType() : (value===null ? "null" : typeof value)
+			let type = (value instanceof ObsCollection) ? value._getType() : (value===null ? "null" : typeof value)
 			if (type !== opts.type) throw new TypeError(`Expecting ${opts.type} but got ${type}`)
 		}
 		if (value instanceof ObsCollection) {
-			return value.getRecursive(opts.depth==null ? -1 : opts.depth-1)
+			return value._getRecursive(opts.depth==null ? -1 : opts.depth-1)
 		}
 		return value===undefined ? opts.defaultValue : value
 	}
@@ -1107,7 +1132,7 @@ export class Store {
 				let observer = new IsEmptyObserver(currentScope, value, false)
 				return !observer.count
 			} else {
-				return !value.getCount()
+				return !value._getCount()
 			}
 		} else if (value===undefined) {
 			return true
@@ -1132,7 +1157,7 @@ export class Store {
 				let observer = new IsEmptyObserver(currentScope, value, true)
 				return observer.count
 			} else {
-				return value.getCount()
+				return value._getCount()
 			}
 		} else if (value===undefined) {
 			return 0
@@ -1153,7 +1178,7 @@ export class Store {
 	getType(...path: any[]): string {
 		let store = this.ref(...path)
 		let value = store._observe()
-		return (value instanceof ObsCollection) ? value.getType() : (value===null ? "null" : typeof value)
+		return (value instanceof ObsCollection) ? value._getType() : (value===null ? "null" : typeof value)
 	}
 
 	/**
@@ -1188,7 +1213,8 @@ export class Store {
 	set(...pathAndValue: any[]): void {
 		let newValue = pathAndValue.pop()
 		let store = this.makeRef(...pathAndValue)
-		store.collection.setIndex(store.idx, newValue, true)
+		store._collection._setIndex(store._idx, newValue, true)
+		runImmediateQueue()
 	}
 
 	/**
@@ -1206,7 +1232,8 @@ export class Store {
 	merge(...pathAndValue: any): void {
 		let mergeValue = pathAndValue.pop()
 		let store = this.makeRef(...pathAndValue)
-		store.collection.setIndex(store.idx, mergeValue, false)
+		store._collection._setIndex(store._idx, mergeValue, false)
+		runImmediateQueue()
 	}
 
 	/**
@@ -1227,7 +1254,8 @@ export class Store {
 	 */
 	delete(...path: any) {
 		let store = this.makeRef(...path)
-		store.collection.setIndex(store.idx, undefined, true)
+		store._collection._setIndex(store._idx, undefined, true)
+		runImmediateQueue()
 	}
 
 	/**
@@ -1251,18 +1279,19 @@ export class Store {
 		let newValue = pathAndValue.pop()
 		let store = this.makeRef(...pathAndValue)
 
-		let obsArray = store.collection.rawGet(store.idx)
+		let obsArray = store._collection.rawGet(store._idx)
 		if (obsArray===undefined) {
 			obsArray = new ObsArray()
-			store.collection.setIndex(store.idx, obsArray, true)
+			store._collection._setIndex(store._idx, obsArray, true)
 		} else if (!(obsArray instanceof ObsArray)) {
 			throw new Error(`push() is only allowed for an array or undefined (which would become an array)`)
 		}
 
 		let newData = valueToData(newValue)
-		let pos = obsArray.data.length
-		obsArray.data.push(newData)
+		let pos = obsArray._data.length
+		obsArray._data.push(newData)
 		obsArray.emitChange(pos, newData, undefined)
+		runImmediateQueue()
 		return pos
 	}
 
@@ -1289,7 +1318,7 @@ export class Store {
 		for(let i=0; i<path.length; i++) {
 			let value = store._observe()
 			if (value instanceof ObsCollection) {
-				store = new Store(value, value.normalizeIndex(path[i]))
+				store = new Store(value, value._normalizeIndex(path[i]))
 			} else {
 				if (value!==undefined) throw new Error(`Value ${JSON.stringify(value)} is not a collection (nor undefined) in step ${i} of $(${JSON.stringify(path)})`)
 				return new DetachedStore()
@@ -1323,27 +1352,27 @@ export class Store {
 		let store: Store = this
 
 		for(let i=0; i<path.length; i++) {
-			let value = store.collection.rawGet(store.idx)
+			let value = store._collection.rawGet(store._idx)
 			if (!(value instanceof ObsCollection)) {
 				if (value!==undefined) throw new Error(`Value ${JSON.stringify(value)} is not a collection (nor undefined) in step ${i} of $(${JSON.stringify(path)})`)
 				value = new ObsObject()
-				store.collection.rawSet(store.idx, value)
-				store.collection.emitChange(store.idx, value, undefined)
+				store._collection.rawSet(store._idx, value)
+				store._collection.emitChange(store._idx, value, undefined)
 			}
-			store = new Store(value, value.normalizeIndex(path[i]))
+			store = new Store(value, value._normalizeIndex(path[i]))
 		}
-
+		runImmediateQueue()
 		return store	
 	}
 
 	/** @internal */
 	_observe() {
 		if (currentScope) {
-			if (this.collection.addObserver(this.idx, currentScope)) {
-				currentScope.cleaners.push(this)
+			if (this._collection._addObserver(this._idx, currentScope)) {
+				currentScope._cleaners.push(this)
 			}
 		}
-		return this.collection.rawGet(this.idx)
+		return this._collection.rawGet(this._idx)
 	}
 
 	/**
@@ -1371,13 +1400,13 @@ export class Store {
 		let val = store._observe()
 		if (val instanceof ObsCollection) {
 			// Subscribe to changes using the specialized OnEachScope
-			let onEachScope = new OnEachScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder+1, val, renderer, makeSortKey)
-			val.addObserver(ANY_INDEX, onEachScope)
+			let onEachScope = new OnEachScope(currentScope._parentElement, currentScope._lastChild || currentScope._precedingSibling, currentScope._queueOrder+1, val, renderer, makeSortKey)
+			val._addObserver(ANY_INDEX, onEachScope)
 
-			currentScope.cleaners.push(onEachScope)
-			currentScope.lastChild = onEachScope
+			currentScope._cleaners.push(onEachScope)
+			currentScope._lastChild = onEachScope
 
-			onEachScope.renderInitial()
+			onEachScope._renderInitial()
 		} else if (val!==undefined) {
 			throw new Error(`onEach() attempted on a value that is neither a collection nor undefined`)
 		}
@@ -1463,7 +1492,7 @@ export class Store {
 	 */
 	isDetached() { return false }
 
-	/*
+	/**
 	* Dump a live view of the `Store` tree as HTML text, `ul` and `li` nodes at
 	* the current mount position. Meant for debugging purposes.
 	*/
@@ -1536,23 +1565,23 @@ export function node(tag: string|Element = "", ...rest: any[]) {
 		}
 	}
 
-	currentScope.addNode(el)
+	currentScope._addNode(el)
 
 	for(let item of rest) {
 		let type = typeof item
 		if (type === 'function') {
-			let scope = new SimpleScope(el, undefined, currentScope.queueOrder+1, item)
+			let scope = new SimpleScope(el, undefined, currentScope._queueOrder+1, item)
 			if (onCreateEnabled) {
 				onCreateEnabled = false
-				scope.update()
+				scope._update()
 				onCreateEnabled = true
 			} else {
-				scope.update()
+				scope._update()
 			}
 
 			// Add it to our list of cleaners. Even if `scope` currently has
 			// no cleaners, it may get them in a future refresh.
-			currentScope.cleaners.push(scope)
+			currentScope._cleaners.push(scope)
 		} else if (type === 'string' || type === 'number') {
 			el.textContent = item
 		} else if (type === 'object' && item && item.constructor === Object) {
@@ -1574,11 +1603,11 @@ export function node(tag: string|Element = "", ...rest: any[]) {
  * @param html - The HTML string. For example `"<section><h2>Test</h2><p>Info..</p></section>"`.
  */
 export function html(html: string) {
-	if (!currentScope || !currentScope.parentElement) throw new ScopeError(true)
-	let tmpParent = document.createElement(currentScope.parentElement.tagName)
+	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
+	let tmpParent = document.createElement(currentScope._parentElement.tagName)
 	tmpParent.innerHTML = ''+html
 	while(tmpParent.firstChild) {
-		currentScope.addNode(tmpParent.firstChild)
+		currentScope._addNode(tmpParent.firstChild)
 	}
 }
 
@@ -1620,7 +1649,7 @@ function bindInput(el: HTMLInputElement, store: Store) {
 export function text(text: string) {
 	if (!currentScope) throw new ScopeError(true)
 	if (text==null) return
-	currentScope.addNode(document.createTextNode(text))
+	currentScope._addNode(document.createTextNode(text))
 }
 
 
@@ -1690,13 +1719,13 @@ export function prop(name: string, value: any): void
 export function prop(props: object): void
 
 export function prop(name: any, value: any = undefined) {
-	if (!currentScope || !currentScope.parentElement) throw new ScopeError(true)
+	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
 	if (typeof name === 'object') {
 		for(let k in name) {
-			applyProp(currentScope.parentElement, k, name[k])
+			applyProp(currentScope._parentElement, k, name[k])
 		}
 	} else {
-		applyProp(currentScope.parentElement, name, value)
+		applyProp(currentScope._parentElement, name, value)
 	}
 }
 
@@ -1709,8 +1738,8 @@ export function prop(name: any, value: any = undefined) {
  * terribly surprising. Be careful within the parent element of onEach() though.
  */
 export function getParentElement(): Element {
-	if (!currentScope || !currentScope.parentElement) throw new ScopeError(true)
-	return currentScope.parentElement
+	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
+	return currentScope._parentElement
 }
 
 
@@ -1719,9 +1748,9 @@ export function getParentElement(): Element {
  * disappears or redraws.
  * @param clean - The function to be executed.
  */
-export function clean(clean: (scope: Scope) => void) {
+export function clean(clean: () => void) {
 	if (!currentScope) throw new ScopeError(false)
-	currentScope.cleaners.push({_clean: clean})
+	currentScope._cleaners.push({_clean: clean})
 }
 
 
@@ -1732,6 +1761,7 @@ export function clean(clean: (scope: Scope) => void) {
  * no cause the outer function to rerun.
  *
  * @param func - The function to be (repeatedly) executed.
+ * @returns The mount id (usable for `unmount`) if this is a top-level observe.
  * @example
  * ```
  * let number = new Store(0)
@@ -1746,8 +1776,21 @@ export function clean(clean: (scope: Scope) => void) {
  *   console.log(doubled.get())
  * })
  */
-export function observe(func: () => void) {
-	mount(undefined, func)
+export function observe(func: () => void): number | undefined {
+	return _mount(undefined, func, SimpleScope)
+}
+
+/**
+ * Like `observe`, but instead of deferring running the observer function until
+ * a setTimeout 0, run it immediately and synchronously when a change to one of
+ * the observed  `Store`s is made. Use this sparingly, as this prevents Aberdeen
+ * from doing the usual batching and smart ordering of observers, leading to
+ * performance problems and observing of 'weird' partial states.
+ * @param func The function to be (repeatedly) executed.
+ * @returns The mount id (usable for `unmount`) if this is a top-level observe.
+ */
+export function immediateObserve(func: () => void): number | undefined {
+	return _mount(undefined, func, ImmediateScope)
 }
 
 
@@ -1756,6 +1799,7 @@ export function observe(func: () => void) {
 
  * @param func - The function to be (repeatedly) executed, possibly adding DOM elements to `parentElement`.
  * @param parentElement - A DOM element that will be used as the parent element for calls to `node`.
+ * @returns The mount id (usable for `unmount`) if this is a top-level mount.
  *
  * @example
  * ```
@@ -1791,22 +1835,47 @@ export function observe(func: () => void) {
  * })
  * ```
 */
-export function mount(parentElement: Element | undefined, func: () => void) {
+export function mount(parentElement: Element, func: () => void) {
+	return _mount(parentElement, func, SimpleScope)
+}
+
+let maxTopScopeId = 0
+const topScopes: Map<number, SimpleScope> = new Map()
+function _mount(parentElement: Element | undefined, func: () => void, MountScope: typeof SimpleScope): number | undefined {
 	let scope
 	if (parentElement || !currentScope) {
-		scope = new SimpleScope(parentElement, undefined, 0, func)
+		scope = new MountScope(parentElement, undefined, 0, func)
 	} else {
-		scope = new SimpleScope(currentScope.parentElement, currentScope.lastChild || currentScope.precedingSibling, currentScope.queueOrder+1, func)
-		currentScope.lastChild = scope
+		scope = new MountScope(currentScope._parentElement, currentScope._lastChild || currentScope._precedingSibling, currentScope._queueOrder+1, func)
+		currentScope._lastChild = scope
 	}
 
 	// Do the initial run
-	scope.update()
+	scope._update()
 
 	// Add it to our list of cleaners. Even if `scope` currently has
 	// no cleaners, it may get them in a future refresh.
 	if (currentScope) {
-		currentScope.cleaners.push(scope)
+		currentScope._cleaners.push(scope)
+	} else {
+		topScopes.set(++maxTopScopeId, scope)
+		return maxTopScopeId
+	}
+}
+
+/**
+ * Unmount one specific or all top-level mounts or observes, meaning those that were created outside of the scope 
+ * of any other mount or observe.
+ * @param id Optional mount number (as returned by `mount`, `observe` or `immediateObserve`). If `undefined`, unmount all.
+ */
+export function unmount(id?: number) {
+	if (id == null) {
+		for(let scope of topScopes.values()) scope._remove()
+		topScopes.clear()
+	} else {
+		let scope = topScopes.get(id)
+		if (!scope) throw new Error("No such mount "+id)
+		scope._remove()
 	}
 }
 
@@ -1926,11 +1995,12 @@ function defaultMakeSortKey(store: Store) {
 	return store.index()
 }
 
-/* istanbul ignore next */
+/* c8 ignore start */
 function internalError(code: number) {
 	let error = new Error("Aberdeen internal error "+code)
 	setTimeout(() => { throw error }, 0)
 }
+/* c8 ignore end */
 
 function handleError(e: any) {
 	// Throw the error async, so the rest of the rendering can continue
@@ -1943,198 +2013,25 @@ class ScopeError extends Error {
 	}
 }
 
-const FADE_TIME = 400
-const GROW_SHRINK_TRANSITION = `margin ${FADE_TIME}ms ease-out, transform ${FADE_TIME}ms ease-out`
-
-function getGrowShrinkProps(el: HTMLElement) {
-	const parentStyle: any = el.parentElement ? getComputedStyle(el.parentElement) : {}
-	const isHorizontal = parentStyle.display === 'flex' && (parentStyle.flexDirection||'').startsWith('row')
-	return isHorizontal ?
-		{marginLeft: `-${el.offsetWidth/2}px`, marginRight: `-${el.offsetWidth/2}px`, transform: "scaleX(0)"} :
-		{marginBottom: `-${el.offsetHeight/2}px`, marginTop: `-${el.offsetHeight/2}px`, transform: "scaleY(0)"}
-
-}
-
-/** Do a grow transition for the given element. This is meant to be used as a
-* handler for the `create` property.
-*
-* @param el The element to transition.
-*
-* The transition doesn't look great for table elements, and may have problems
-* for other specific cases as well.
-*/
-export function grow(el: HTMLElement): void {
-	// This timeout is to await all other elements having been added to the Dom
-	scheduleDomReader(() => {
-		// Make the element size 0 using transforms and negative margins.
-		// This causes a browser layout, as we're querying el.offset<>.
-		let props = getGrowShrinkProps(el)
-		
-		// The timeout is in order to batch all reads and then all writes when there
-		// are multiple simultaneous grow transitions.
-		scheduleDomWriter(() => {
-			Object.assign(el.style, props)
-			
-			// This timeout is to combine multiple transitions into a single browser layout
-			scheduleDomReader(() => {
-				// Make sure the layouting has been performed, to cause transitions to trigger
-				el.offsetHeight
-				scheduleDomWriter(() => {
-					// Do the transitions
-					el.style.transition = GROW_SHRINK_TRANSITION
-					for(let prop in props) el.style[prop as any] = ""
-					setTimeout(() => {
-						// Reset the element to a clean state
-						el.style.transition = ""
-					}, FADE_TIME)
-				})
-			})
-		})
-	})
-}
-
-/** Do a shrink transition for the given element, and remove it from the DOM
-* afterwards. This is meant to be used as a handler for the `destroy` property.
-*
-* @param el The element to transition and remove.
-*
-* The transition doesn't look great for table elements, and may have problems
-* for other specific cases as well.
-*/
-export function shrink(el: HTMLElement): void {
-	scheduleDomReader(() => {
-		const props = getGrowShrinkProps(el)
-		// The timeout is in order to batch all reads and then all writes when there
-		// are multiple simultaneous shrink transitions.
-		scheduleDomWriter(() => {
-			el.style.transition = GROW_SHRINK_TRANSITION
-			Object.assign(el.style, props)
-			
-			setTimeout(() => el.remove(), FADE_TIME)
-		})
-	})
-}
-
-
-function recordPatch(func: () => void): Patch {
-	if (recordingPatch) throw new Error(`already recording a patch`)
-	recordingPatch = new Map()
+/** @internal */
+export function withEmitHandler(handler: (this: ObsCollection, index: any, newData: DatumType, oldData: DatumType) => void, func: ()=>void) {
+	const oldEmitHandler = ObsCollection.prototype.emitChange
+	ObsCollection.prototype.emitChange = handler
 	try {
 		func()
-	} catch(e) {
-		recordingPatch = undefined
-		throw e
+	} finally {
+		ObsCollection.prototype.emitChange = oldEmitHandler
 	}
-	const result = recordingPatch
-	recordingPatch = undefined
-	return result
-}
-
-function addToPatch(patch: Patch, collection: ObsCollection, index: any, newData: any, oldData: any) {
-	let collectionMap = patch.get(collection)
-	if (!collectionMap) {
-		collectionMap = new Map()
-		patch.set(collection, collectionMap)
-	}
-	let prev = collectionMap.get(index)
-	if (prev) oldData = prev[1]
-	if (newData === oldData) collectionMap.delete(index)
-	else collectionMap.set(index, [newData, oldData])
-}
-
-function emitPatch(patch: Patch) {
-	for(let [collection, collectionMap] of patch) {
-		for(let [index, [newData, oldData]] of collectionMap) {
-			collection.emitChange(index, newData, oldData)
-		}
-	}
-}
-
-function mergePatch(target: Patch, source: Patch, reverse: boolean = false) {
-	for(let [collection, collectionMap] of source) {
-		for(let [index, [newData, oldData]] of collectionMap) {
-			addToPatch(target, collection, index, reverse ? oldData : newData, reverse ? newData : oldData)
-		}
-	}
-}
-
-function silentlyApplyPatch(patch: Patch, force: boolean = false): boolean {
-	for(let [collection, collectionMap] of patch) {
-		for(let [index, [newData, oldData]] of collectionMap) {
-			let actualData = collection.rawGet(index)
-			if (actualData !== oldData) {
-				if (force) handleError(new Error(`Applying invalid patch: data ${actualData} is unequal to expected old data ${oldData} for index ${index}`))
-				else return false
-			}
-		}
-	}
-	for(let [collection, collectionMap] of patch) {
-		for(let [index, [newData, oldData]] of collectionMap) {
-			collection.rawSet(index, newData)
-		}
-	}
-	return true
-}
-
-
-const appliedPredictions: Array<Patch> = []
-
-/**
- * Run the provided function, while treating all changes to Observables as predictions,
- * meaning they will be reverted when changes come back from the server (or some other
- * async source).
- * @param predictFunc The function to run. It will generally modify some Observables
- * 	to immediately reflect state (as closely as possible) that we expect the server
- *  to communicate back to us later on.
- * @returns A `Patch` object. Don't modify it. This is only meant to be passed to `applyCanon`.
- */
-export function applyPrediction(predictFunc: () => void): Patch {
-	let patch = recordPatch(predictFunc)
-	appliedPredictions.push(patch)
-	emitPatch(patch)
-	return patch
 }
 
 /**
- * Temporarily revert all outstanding predictions, optionally run the provided function
- * (which will generally make authoritative changes to the data based on a server response),
- * and then attempt to reapply the predictions on top of the new canonical state, dropping 
- * any predictions that can no longer be applied cleanly (the data has been modified) or
- * that were specified in `dropPredictions`.
- * 
- * All of this is done such that redraws are only triggered if the overall effect is an
- * actual change to an `Observable`.
- * @param canonFunc The function to run without any predictions applied. This will typically
- *  make authoritative changes to the data, based on a server response.
- * @param dropPredictions An optional list of predictions (as returned by `applyPrediction`)
- *  to undo. Typically, when a server response for a certain request is being handled,
- *  you'd want to drop the prediction that was done for that request.
+ * Run a function, while *not* causing reactive effects for any changes it makes to `Store`s.
+ * @param func The function to be executed once immediately.
  */
-export function applyCanon(canonFunc?: (() => void), dropPredictions: Array<Patch> = []) {
-	
-	let resultPatch = new Map()
-	for(let prediction of appliedPredictions) mergePatch(resultPatch, prediction, true)
-	silentlyApplyPatch(resultPatch, true)
-
-	for(let prediction of dropPredictions) {
-		let pos = appliedPredictions.indexOf(prediction)
-		if (pos >= 0) appliedPredictions.splice(pos, 1)
-	}
-	if (canonFunc) mergePatch(resultPatch, recordPatch(canonFunc))
-
-	for(let idx=0; idx<appliedPredictions.length; idx++) {
-		if (silentlyApplyPatch(appliedPredictions[idx])) {
-			mergePatch(resultPatch, appliedPredictions[idx])
-		} else {
-			appliedPredictions.splice(idx, 1)
-			idx--
-		}
-	}
-
-	emitPatch(resultPatch)
+export function inhibitEffects(func: () => void) {
+	withEmitHandler(() => {}, func)
 }
-
 
 // @ts-ignore
-// istanbul ignore next
+// c8 ignore next
 if (!String.prototype.replaceAll) String.prototype.replaceAll = function(from, to) { return this.split(from).join(to) }

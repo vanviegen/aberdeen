@@ -2,7 +2,7 @@ describe('Value binding', function() {
 	it('binds input values', () => {
 		let store = new Store('test')
 		let inputElement;
-		testMount(() => {
+		mount(document.body, () => {
 			node('input', store, () => {
 				inputElement = getParentElement()
 				prop('class', {correct: store.get().length >= 5})
@@ -20,7 +20,7 @@ describe('Value binding', function() {
 	it('binds checkboxes', () => {
 		let store = new Store(true)
 		let inputElement;
-		testMount(() => {
+		mount(document.body, () => {
 			node('input', {type: 'checkbox'}, store, () => {
 				inputElement = getParentElement()
 			})
@@ -37,7 +37,7 @@ describe('Value binding', function() {
 	it('binds radio buttons', () => {
 		let store = new Store('woman')
 		let inputElement1, inputElement2;
-		testMount(() => {
+		mount(document.body, () => {
 			node('input', {type: 'radio', name: 'gender', value: 'man'}, store, () => {
 				inputElement1 = getParentElement()
 			})
@@ -58,7 +58,7 @@ describe('Value binding', function() {
 
 	it('reads initial value when Store is undefined', () => {
 		let store = new Store({})
-		testMount(() => {
+		mount(document.body, () => {
 			node('input', {value: 'a'}, store.ref('input'))
 			node('input', {type: 'checkbox', checked: true}, store.ref('checkbox'))
 			node('input', {type: 'radio', name: 'abc', value: 'x', checked: false}, store.ref('radio'))
@@ -71,7 +71,7 @@ describe('Value binding', function() {
 	it('changes DOM when Store value is updated', () => {
 		let store = new Store("test")
 		let toggle = new Store(true)
-		testMount(() => {
+		mount(document.body, () => {
 			node('input', store)
 			node('input', {type: 'checkbox'}, toggle)
 		})
@@ -86,7 +86,7 @@ describe('Value binding', function() {
 	it('returns numbers for number/range typed inputs', () => {
 		let store = new Store("")
 		let inputElement;
-		testMount(() => {
+		mount(document.body, () => {
 			node('input', {type: 'number'}, store, () => {
 				inputElement = getParentElement()
 			})

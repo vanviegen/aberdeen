@@ -3,7 +3,7 @@ describe('The map() and multiMap() methods', () => {
         let store = new Store(objToMap({a: 0, b: 2, c: 3}))
         let cnt1 = 0, cnt2 = 0
 
-        testMount(() => {
+        mount(document.body, () => {
             let out = store.map(s => {
                 cnt1++
                 if (s.get()) return s.get()*10
@@ -28,7 +28,7 @@ describe('The map() and multiMap() methods', () => {
         let cnt1 = 0, cnt2 = 0
         let out
 
-        testMount(() => {
+        mount(document.body, () => {
             out = store.multiMap(s => {
                 cnt1++
                 return {[s.get()]: s.index()}

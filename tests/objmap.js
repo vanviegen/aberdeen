@@ -11,7 +11,7 @@ describe('Objects and maps', () => {
             let store = new Store(converter({a: 1, b: 2, c: 3, d: undefined}))
             assertEqual(store.count(), 3)
             let cnt = 0
-            testMount(() => {
+            mount(document.body, () => {
                 cnt++
                 text(store.get('a')+store.get('a')+store.get('b'))
                 store.get()
@@ -29,7 +29,7 @@ describe('Objects and maps', () => {
             assertBody(`"10"`)
             assertEqual(cnt, 3)
 
-            testUnmount()
+            unmount()
         }
     })
 

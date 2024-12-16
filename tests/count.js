@@ -1,10 +1,8 @@
-const { mount, text, Store } = require("./build/aberdeen")
-
 describe('Count', () => {
 	it('reactively counts object keys', () => {
         let store = new Store()
         let cnt = 0
-        testMount(() => {
+        mount(document.body, () => {
             text(store.count())
             cnt++
         })
@@ -71,7 +69,7 @@ describe('Count', () => {
     it('reactively handles isEmpty', () => {
         let store = new Store()
         let cnt = 0
-        testMount(() => {
+        mount(document.body, () => {
             text(store.isEmpty())
             cnt++
         })

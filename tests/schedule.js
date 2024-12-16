@@ -3,7 +3,7 @@ describe('DOM read/write scheduler', function() {
     it('orders in batches', () => {
         let order = ''
         let store = new Store('a')
-		testMount(() => {
+		mount(document.body, () => {
             node(store.get())
             order += store.get()
 		})
