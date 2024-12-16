@@ -72,12 +72,8 @@ describe('Array', () => {
 		assertBody(`div{"1"} div{"2"} div{"3"}`)
 		assertEqual([cnt1, cnt2], [1,3])
 
+		// Merging just replace the entire array
 		store.merge([1,"two"])
-		passTime()
-		assertBody(`div{"1"} div{"two"} div{"3"}`)
-		assertEqual([cnt1, cnt2], [1,4])
-
-		store.set([1,"two"])
 		passTime()
 		assertBody(`div{"1"} div{"two"}`)
 		assertEqual([cnt1, cnt2], [1,4])

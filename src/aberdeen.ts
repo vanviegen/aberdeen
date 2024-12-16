@@ -732,7 +732,10 @@ class ObsArray extends ObsCollection {
 			this.setIndex(i, newValue[i], deleteMissing)
 		}
 
-		if (deleteMissing && this.data.length > newValue.length) {
+		// Overwriting just the first elements of an array and leaving the rest of
+		// the old data in place is just weird and unexpected, so we'll always use
+		// 'replace' behavior for arrays.
+		if (/*deleteMissing &&*/ this.data.length > newValue.length) {
 			for(let i=newValue.length; i<this.data.length; i++) {
 				let old = this.data[i]
 				if (old!==undefined) {
