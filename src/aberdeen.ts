@@ -1545,56 +1545,154 @@ function destroyWithClass(element: Element, cls: string) {
  *	 })
  * })
  */
-export function node(tag: string|Element = "", ...rest: any[]) {
-	if (!currentScope) throw new ScopeError(true)
 
-	let el
-	if (tag instanceof Element) {
-		el = tag
-	} else {
-		let pos = tag.indexOf('.')
-		let classes
-		if (pos>=0) {
-			classes = tag.substr(pos+1)
-			tag = tag.substr(0, pos)
-		}
-		el = document.createElement(tag || 'div')
-		if (classes) {
-			// @ts-ignore (replaceAll is polyfilled)
-			el.className = classes.replaceAll('.', ' ')
-		}
-	}
-
-	currentScope._addNode(el)
-
-	for(let item of rest) {
-		let type = typeof item
-		if (type === 'function') {
-			let scope = new SimpleScope(el, undefined, currentScope._queueOrder+1, item)
-			if (onCreateEnabled) {
-				onCreateEnabled = false
-				scope._update()
-				onCreateEnabled = true
-			} else {
-				scope._update()
-			}
-
-			// Add it to our list of cleaners. Even if `scope` currently has
-			// no cleaners, it may get them in a future refresh.
-			currentScope._cleaners.push(scope)
-		} else if (type === 'string' || type === 'number') {
-			el.textContent = item
-		} else if (type === 'object' && item && item.constructor === Object) {
-			for(let k in item) {
-				applyProp(el, k, item[k])
-			}
-		} else if (item instanceof Store) {
-			bindInput(<HTMLInputElement>el, item)
-		} else if (item != null) {
-			throw new Error(`Unexpected argument ${JSON.stringify(item)}`)
-		}
-	}
+function applyStyle(el: Element, prop: string, value: any) {
+	console.log('applyStyle', el, prop, value);
+	(el as any).style[prop] = value
 }
+
+export function $(...args: any[]) {
+	const scope = currentScope
+	if (!scope || !scope._parentElement) throw new ScopeError(true)
+		
+	let topEl: Element | undefined
+	let deepEl: Element = scope._parentElement
+	let idx = 0
+	let op = ''
+
+	function parseStr(str: string, arg: any) {
+		let argAvailable = false
+		const parts = str.split(' ')
+		for(let partIndex=0; partIndex<parts.length; partIndex++) {
+			const part = parts[partIndex]
+			if (!part) continue
+			let reverse = false
+			argAvailable = partIndex === parts.length-1
+			if (argAvailable && part.endsWith('?')) {
+				reverse = !arg
+				argAvailable = false
+			}
+			if (part[0] === '.') {
+				if (argAvailable && part.length===1) {
+					if (arg instanceof Array) {
+						for(let cls of arg) deepEl.classList.add(cls)
+					} else if (typeof arg === 'object') {
+						for(let [cls,enable] of arg.items()) deepEl.classList.toggle(cls, enable)
+					} else if (arg != null) {
+						deepEl.classList.add(''+arg)
+					}
+					argAvailable = false
+				} else {
+					for(let cls of arg.slice('.').split('.')) deepEl.classList.toggle(cls, !reverse)
+				}
+			} else if (part.indexOf(op = '=') >= 0 || part.indexOf(op = ':') >= 0) {
+				let [prop, value] = part.split(op)
+				if (!value && argAvailable) {
+					value = arg
+					argAvailable = false
+				}
+				if (op === '=') applyProp(deepEl, prop, reverse ? "" : value)
+				else applyStyle(deepEl, prop, reverse ? "" : value)
+			} else {
+				
+			}
+		}
+		return !argAvailable
+	}
+
+	function runInScope(func: () => void) {
+		let childScope = new SimpleScope(deepEl, undefined, (scope as Scope)._queueOrder+1, func)
+		if (onCreateEnabled) {
+			onCreateEnabled = false
+			childScope._update()
+			onCreateEnabled = true
+		} else {
+			childScope._update()
+		}
+
+		// Add it to our list of cleaners. Even if `scope` currently has
+		// no cleaners, it may get them in a future refresh.
+		(scope as Scope)._cleaners.push(childScope)
+	}
+
+	if (args[0] instanceof Array) {
+		for(let str of args[idx++]) {
+			if (parseStr(str.trimLeft(), args[idx])) idx++
+		}
+	} else {
+		while (idx < args.length) {
+			let arg = args[idx++]
+			if (arg == null) continue
+			if (typeof arg === 'string') {
+				if (parseStr(arg, args[idx])) idx++
+			} if (arg instanceof Element) {
+				if (deepEl) {
+					deepEl.appendChild(arg)
+					deepEl = topEl = arg
+				}
+			} else if (typeof arg === 'function' && idx === args.length-1) {
+				runInScope(arg)
+			}
+		}
+	}
+
+	if (topEl) scope._addNode(topEl)
+
+	return runInScope
+}
+
+export const node = $
+
+// export function node(tag: string|Element = "", ...rest: any[]) {
+// 	if (!currentScope) throw new ScopeError(true)
+
+// 	let el
+// 	if (tag instanceof Element) {
+// 		el = tag
+// 	} else {
+// 		let pos = tag.indexOf('.')
+// 		let classes
+// 		if (pos>=0) {
+// 			classes = tag.substr(pos+1)
+// 			tag = tag.substr(0, pos)
+// 		}
+// 		el = document.createElement(tag || 'div')
+// 		if (classes) {
+// 			// @ts-ignore (replaceAll is polyfilled)
+// 			el.className = classes.replaceAll('.', ' ')
+// 		}
+// 	}
+
+// 	currentScope._addNode(el)
+
+// 	for(let item of rest) {
+// 		let type = typeof item
+// 		if (type === 'function') {
+// 			let scope = new SimpleScope(el, undefined, currentScope._queueOrder+1, item)
+// 			if (onCreateEnabled) {
+// 				onCreateEnabled = false
+// 				scope._update()
+// 				onCreateEnabled = true
+// 			} else {
+// 				scope._update()
+// 			}
+
+// 			// Add it to our list of cleaners. Even if `scope` currently has
+// 			// no cleaners, it may get them in a future refresh.
+// 			currentScope._cleaners.push(scope)
+// 		} else if (type === 'string' || type === 'number') {
+// 			el.textContent = item
+// 		} else if (type === 'object' && item && item.constructor === Object) {
+// 			for(let k in item) {
+// 				applyProp(el, k, item[k])
+// 			}
+// 		} else if (item instanceof Store) {
+// 			bindInput(<HTMLInputElement>el, item)
+// 		} else if (item != null) {
+// 			throw new Error(`Unexpected argument ${JSON.stringify(item)}`)
+// 		}
+// 	}
+// }
 
 
 
