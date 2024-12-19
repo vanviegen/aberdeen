@@ -1,9 +1,9 @@
 describe('Count', () => {
-	it('reactively counts object keys', () => {
+    it('reactively counts object keys', () => {
         let store = new Store()
         let cnt = 0
         mount(document.body, () => {
-            text(store.count())
+            $`~${store.count()}`
             cnt++
         })
         passTime()
@@ -48,7 +48,7 @@ describe('Count', () => {
         for(let c of cases) {
             let store = new Store(c.data)
             assertEqual(store.count(), c.count)
-            assertEqual(store.isEmpty(), c.count==0)
+            assertEqual(store.isEmpty(), c.count == 0)
         }
     })
 
@@ -70,7 +70,7 @@ describe('Count', () => {
         let store = new Store()
         let cnt = 0
         mount(document.body, () => {
-            text(store.isEmpty())
+            $`~${store.isEmpty()}`
             cnt++
         })
         passTime()

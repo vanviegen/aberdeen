@@ -7,8 +7,8 @@ import * as transitions from '../dist-min/transitions.js'
 import * as prediction from '../dist-min/prediction.js'
 Object.assign(global, aberdeen, transitions, prediction)
 
-let currentMountSeq = new Store(0)
 mocha.beforeEach(() => {
+	$.onError = (e) => { setTimeout(() => { throw e }, 0) }
 	document.body = document.createElement('body')
 	resetCounts()
 })
@@ -30,16 +30,16 @@ function toDisplay(value) {
 }
 
 global.AssertError = class extends Error {
-	constructor(text, actual, expected, expectLiteral) {
+	constructor(text, actual, expected, alreadyFormatted) {
 		text += `
-		Actual:   ${toDisplay(actual)}
-		Expected: ${expectLiteral ? expected : toDisplay(expected)}`
+		Actual:   ${alreadyFormatted ? actual : toDisplay(actual)}
+		Expected: ${alreadyFormatted ? expected : toDisplay(expected)}`
 		super(text)
 	}
 }
 
 global.assert = function(bool, msg) {
-	if (!bool) throw new AssertError(`assert failed${msg ? ": "+msg : ""}`, bool, "something trueish", true)
+	if (!bool) throw new AssertError(`assert failed${msg ? ": "+msg : ""}`, toDisplay(bool), "something trueish", true)
 }
 
 global.assertEqual = function(actual, expected, msg) {
@@ -63,10 +63,26 @@ global.assertThrow = function(what, func) {
 	try {
 		func()
 	} catch(e) {
-		if (what && e.toString().indexOf(what)<0) throw new AssertError(`wrong exception`, e.toString(), `something containing "${what}"`, true)
+		if (what && e.toString().indexOf(what)<0) throw new AssertError(`wrong exception`, e.toString(), `some exception containing "${what}"`, true)
 		return
 	}
-	throw new AssertError(`exception expected`, undefined, `something containing "${what}"`, true)
+	throw new AssertError(`exception expected`, 'no exception', what ? `an exception containing "${what}"` : `any exception`, true)
+}
+
+global.assertRenderError = function(what, func) {
+	if (typeof what == 'function') {
+		func = what
+		what = undefined
+	}
+	let except
+	const oldOnError = $.onError
+	$.onError = function(e) {
+		except = e
+	}
+	func()
+	$.onError = oldOnError
+	if (!except) throw new AssertError(`render error expected`, 'no error', what ? `a render error containing "${what}"` : `any error`, true)
+	if (what && except.toString().indexOf(what)<0) throw new AssertError(`wrong render error`, except.toString(), `some error containing "${what}"`, true)	
 }
 
 global.objToMap = function(obj) {

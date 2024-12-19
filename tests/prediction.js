@@ -3,7 +3,7 @@ describe('Prediction', function() {
     it('reverts', () => {
         let store = new Store('a')
 		mount(document.body, () => {
-            node(store.get())
+            $(store.get())
 		})
 		assertBody(`a{}`)
 
@@ -24,9 +24,9 @@ describe('Prediction', function() {
     it('reverts entire patch when it can no longer apply', () => {
         let store = new Store({1: 'a', 2: 'x', 3: 'm'})
 		mount(document.body, () => {
-            node(store.get(1))
-            node(store.get(2))
-            node(store.get(3))
+            $(store.get(1))
+            $(store.get(2))
+            $(store.get(3))
 		})
 		assertBody(`a{} x{} m{}`)
 
@@ -55,7 +55,7 @@ describe('Prediction', function() {
     it('forcibly reverts to canon state', () => {
         let store = new Store('a')
 		mount(document.body, () => {
-            node(store.get())
+            $(store.get())
 		})
 		assertBody(`a{}`)
 
@@ -78,7 +78,7 @@ describe('Prediction', function() {
         let store = new Store('a')
         let draws = 0
 		mount(document.body, () => {
-            node(store.get())
+            $(store.get())
             draws++
 		})
 		assertBody(`a{}`)

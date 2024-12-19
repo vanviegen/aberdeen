@@ -2,72 +2,73 @@ describe('Create event', function() {
 
     it('does not apply on initial rendering', () => {
         let store = new Store(true)
-		mount(document.body, () => {
-            node('b', {create: 'y'})
-		})
-        
-		assertBody(`b{}`)
-    });
+        mount(document.body, () => {
+            $`b create=y`
+        })
+        assertBody(`b{}`)
+    })
 
     it('works at top-level', () => {
         let store = new Store(false)
-		mount(document.body, () => {
-            if (store.get()) node('b', {create: 'y'})
-		})
-        
-		assertBody(``)
+        mount(document.body, () => {
+            if (store.get()) $`b create=y`
+        })
+
+        assertBody(``)
 
         store.set(true)
-        // We'll do this in a setTimeout 0, so that the assert can be done before the temporary class is removed in a later setTimeout 0.
-		setTimeout(() => assertBody(`b{@class="y"}`), 0)
+        // Assert before temporary class removal
+        setTimeout(() => assertBody(`b{@class="y"}`), 0)
         passTime(0)
-		assertBody(`b{}`)
-    });
+        assertBody(`b{}`)
+    })
 
     it('does not apply when it is part of a larger whole newly rendered', () => {
         let store = new Store(false)
-		mount(document.body, () => {
-            if (store.get()) node('b', () => node('c', {create: 'y'}))
-		})
-        
-		assertBody(``)
+        mount(document.body, () => {
+            if (store.get()) $`b`(() => {
+                $`c create=y`
+            })
+        })
+
+        assertBody(``)
 
         store.set(true)
-        // We do the assert in a setTimeout 0, so it's performed before the temporary class is removed in a later setTimeout 0.
-		setTimeout(() => assertBody(`b{c{}}`), 0)
+        // Assert before temporary class removal
+        setTimeout(() => assertBody(`b{c{}}`), 0)
         passTime(0)
-		assertBody(`b{c{}}`)
-    });
+        assertBody(`b{c{}}`)
+    })
 
     it('works in an onEach', () => {
         let store = new Store([])
-		mount(document.body, () => {
+        mount(document.body, () => {
             store.onEach(item => {
-                node(item.get(), {create: "y"})
+                $`${item.get()} create=y`
             })
-		})
+        })
 
         store.set(['a', undefined, 'c'])
-        // We do the assert in a setTimeout 0, so it's performed before the temporary class is removed in a later setTimeout 0.
-		setTimeout(() => assertBody(`a{@class="y"} c{@class="y"}`), 0)
+        // Assert before temporary class removal
+        setTimeout(() => assertBody(`a{@class="y"} c{@class="y"}`), 0)
         passTime(0)
-		assertBody(`a{} c{}`)
-    });
+        assertBody(`a{} c{}`)
+    })
 
     it('performs a grow animation', () => {
         let store = new Store(false)
         mount(document.body, () => {
-            node('div', {style: {display: 'flex'}}, () => {
-                if (store.get()) node('a', {create: grow})
+            $`div display:flex`(() => {
+                if (store.get()) $`a create=${grow}`
             })
         })
 
         assertBody(`div{:display="flex"}`)
-        
+
         store.set(true)
         passTime(0)
         assert(getBody().startsWith('div{:display="flex" a{'))
-        assert(getBody().indexOf('transition')>=0)
+        assert(getBody().indexOf('transition') >= 0)
 
         passTime(2000)
         assertBody(`div{:display="flex" a{}}`)
@@ -77,15 +78,14 @@ describe('Create event', function() {
         let store = new Store(false)
         mount(document.body, () => {
             if (store.get()) {
-                node('a', {create: grow})
+                $`a create=${grow}`
                 store.set(false)
             }
         })
 
         assertBody(``)
-        
-        store.set(true) // Naughty render function will set this back to false
 
+        store.set(true) // Naughty render function sets this back to false
         passTime()
         assertBody(``)
     })

@@ -318,7 +318,7 @@ class SimpleScope extends Scope {
 			this._renderer()
 		} catch(e) {
 			// Throw the error async, so the rest of the rendering can continue
-			handleError(e)
+			handleError(e, true)
 		}
 		currentScope = savedScope
 	}
@@ -607,7 +607,7 @@ class OnEachItemScope extends Scope {
 		try {
 			sortKey = this._parent._makeSortKey(itemStore)
 		} catch(e) {
-			handleError(e)
+			handleError(e, false)
 		}
 
 		let oldSortStr: string = this._sortStr
@@ -625,7 +625,7 @@ class OnEachItemScope extends Scope {
 			try {
 				this._parent._renderer(itemStore)
 			} catch(e) {
-				handleError(e)
+				handleError(e, true)
 			}
 		}
 
@@ -1499,18 +1499,18 @@ export class Store {
 	dump() {
 	  let type = this.getType()
 	  if (type === 'array' || type === 'object' || type === 'map') {
-	    text('<'+type+'>')
-	    node('ul', () => {
+	    $('~', '<'+type+'>')
+	    $('ul', () => {
 	      this.onEach((sub: Store) => {
-	        node('li', () => {
-	          text(JSON.stringify(sub.index())+': ')
-	          sub.dump()
+	        $('li', () => {
+				$('~', JSON.stringify(sub.index())+': ')
+	        	sub.dump()
 	        })
 	      })
 	    })
 	  }
 	  else {
-	    text(JSON.stringify(this.get()))
+	    $('~', JSON.stringify(this.get()))
 	  }
 	}
 }
@@ -1530,78 +1530,248 @@ function destroyWithClass(element: Element, cls: string) {
 }
 
 
-/**
- * Create a new DOM element, and insert it into the DOM at the position held by the current scope.
- * @param tag - The tag of the element to be created and optionally dot-separated class names. For example: `h1` or `p.intro.has_avatar`.
- * @param rest - The other arguments are flexible and interpreted based on their types:
- *   - `string`: Used as textContent for the element.
- *   - `object`: Used as attributes, properties or event listeners for the element. See {@link Store.prop} on how the distinction is made and to read about a couple of special keys.
- *   - `function`: The render function used to draw the scope of the element. This function gets its own `Scope`, so that if any `Store` it reads changes, it will redraw by itself.
- *   - `Store`: Presuming `tag` is `"input"`, `"textarea"` or `"select"`, create a two-way binding between this `Store` value and the input element. The initial value of the input will be set to the initial value of the `Store`, or the other way around if the `Store` holds `undefined`. After that, the `Store` will be updated when the input changes and vice versa.
- * @example
- * node('aside.editorial', 'Yada yada yada....', () => {
- *	 node('a', {href: '/bio'}, () => {
- *		 node('img.author', {src: '/me.jpg', alt: 'The author'})
- *	 })
- * })
- */
 
 function applyStyle(el: Element, prop: string, value: any) {
-	console.log('applyStyle', el, prop, value);
 	(el as any).style[prop] = value
 }
 
+/**
+ * The `$` function creates or modifies DOM elements within the current rendering scope.
+ *
+ * It can be invoked in two primary ways:
+ * 1. **As a tagged template:**
+ *    ```js
+ *    $`p.class1.class2 ~Text id=main anotherAttr=${value}`
+ *    ```
+ * 2. **As a function call:**
+ *    ```js
+ *    $('p.class1.class2', '~Text', {id: 'main', anotherAttr: value})
+ *    ```
+ *
+ * In either form, `$` interprets its arguments to create new elements, set attributes, apply properties, insert text content, apply styles, register event listeners, or nest further elements via callbacks.
+ *
+ * **Basics:**
+ *
+ * - **Tag, Classes, and Text:**
+ *     ```js
+ *     $`p.myClass ~Hello`
+ *     // or
+ *     $('p.myClass ~Hello')
+ *     ```
+ *   Both result in: `<p class="myClass">Hello</p>`
+ *
+ * - **Attributes and Properties:**
+ *     ```js
+ *     $`div.container ~Greeting id=main title=${someTitle}`
+ *     // or
+ *     $('div.container ~Greeting id=main', {title: someTitle})
+ *     ```
+ *   Both result in: `<div class="container" id="main" title="...">Greeting</div>`
+ *
+ * - **Modifying the Current Element:**
+ *   Inside a callback, `$` can set attributes/properties of the parent without creating a new element.
+ *     ```js
+ *     $`a`(() => {
+ *       $`href=/ target=_blank disabled=${true}`
+ *     })
+ *     // or
+ *     $('a', () => {
+ *       $('href=/ target=_blank', {disabled: true})
+ *     })
+ *     ```
+ *   Both modify the `<a>` created by the parent call to: `<a href="/" target="_blank" disabled=true></a>`
+ *
+ * - **Nesting Elements:**
+ *   Each call to `$` returns a child scope function. When you call it, providing a render function as
+ *   its only argument, all `$` operations done within that function will apply to the element of the
+ *   parent `$` invocation.
+ * 
+ *   Alternatively (for the function calling syntax), the render function may be provided as an argument.
+ * 
+ *     ```js
+ *     $`p`(() => {
+ *       $`a`(() => {
+ *         $`i ~Nested~text`
+ *       })
+ *     })
+ *     // or
+ *     $('p', () => {
+ *       $('a', () => {
+ *         $('i ~Nested~text')
+ *       })
+ *     })
+ *     ```
+ *   Both result in: `<p><a><i>Nested text</i></a></p>`
+ *
+ * - **Two-Way Data Binding with `Store`:**
+ *   The special `bind` attribute, when given a `Store` object will establishes a two-way binding with its parent HTML element (presumably an `input`, `textarea`, or `select`):
+ *     ```js
+ *     let nameStore = new Store('John')
+ * 
+ *     $`input bind=${nameStore}`
+ *     // or
+ *     $('input bind=', nameStore)
+ *     ```
+ *   Both keep the input value and the store in sync.
+ *
+ * - **Pre-existing DOM Elements:**
+ *   Passing an existing DOM element attaches it to the current scope:
+ *   - Tagged Template:
+ *     ```js
+ *     let el = document.createElement('video')
+ *     el.classList.add('test')
+ * 
+ *     $`${el}`
+ *     // or just
+ *     $(el)
+ *     ```
+ *   Both result in `<video class="test"></video>`
+ *
+ * **Reactive Updates:**
+ * `$` creates reactive scopes. Any dynamic data (like from a `Store`) read inside its callback will cause the corresponding DOM fragment to update automatically when that data changes.
+ */
+/**
+ * Set properties and attributes for the containing DOM element. Doing it this way
+ * as opposed to setting them directly from node() allows changing them later on
+ * without recreating the element itself. Also, code can be more readable this way.
+ * Note that when a nested `observe()` is used, properties set this way do NOT
+ * automatically revert to their previous values.
+ *
+ * Here's how properties are handled:
+ * - If `name` is `"create"`, `value` should be either a function that gets
+ *   called with the element as its only argument immediately after creation,
+ *   or a string being the name of a CSS class that gets added immediately
+ *   after element creation, and removed shortly afterwards. This allows for
+ *   reveal animations. However, this is intentionally *not* done
+ *   for elements that are created as part of a larger (re)draw, to prevent
+ *   all elements from individually animating on page creation.
+ * - If `name` is `"destroy"`, `value` should be a function that gets called
+ *   with the element as its only argument, *instead of* the element being
+ *   removed from the DOM (which the function will presumably need to do
+ *   eventually). This can be used for a conceal animation.
+ *   As a convenience, it's also possible to provide a string instead of
+ *   a function, which will be added to the element as a CSS class, allowing
+ *   for simple transitions. In this case, the DOM element in removed 2 seconds
+ *   later (currently not configurable).
+ *   Similar to `"create"` (and in this case doing anything else would make little
+ *   sense), this only happens when the element being is the top-level element
+ *   being removed from the DOM.
+ * - If `value` is a function, it is registered as an event handler for the
+ *   `name` event.
+ * - If `name` is `"class"` or `"className"` and the `value` is an
+ *   object, all keys of the object are either added or removed from `classList`,
+ *   depending on whether `value` is true-like or false-like.
+ * - If `value` is a boolean *or* `name` is `"value"`, `"className"` or
+ *   `"selectedIndex"`, it is set as a DOM element *property*.
+ * - If `name` is `"text"`, the `value` is set as the element's `textContent`.
+ * - If `name` is `"style"` and `value` is an object, each of its
+ *   key/value pairs are assigned to the element's `.style`.
+ * - In other cases, the `value` is set as the `name` HTML *attribute*.
+ *
+ * @example
+ * ```
+ * node('input', () => {
+ *	   prop('type', 'password')
+ *	   prop('readOnly', true)
+ *	   prop('class', 'my-class')
+ *	   prop('class', {
+ *	   		'my-disabled-class': false,
+ *	   		'my-enabled-class': true,
+ *	   })
+ *	   prop({
+ *	   		class: 'my-class',
+ *	   		text: 'Here is something to read...',
+ *	   		style: {
+ *	   			backgroundColor: 'red',
+ *	   			fontWeight: 'bold',
+ *	   		},
+ *	   		create: aberdeen.fadeIn,
+ *	   		destroy: 'my-fade-out-class',
+ *	   		click: myClickHandler,
+ *	   })
+ * })
+ * ```
+ */
+
 export function $(...args: any[]) {
-	const scope = currentScope
-	if (!scope || !scope._parentElement) throw new ScopeError(true)
+	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
+	const scope: Scope = currentScope
 		
 	let topEl: Element | undefined
-	let deepEl: Element = scope._parentElement
-	let idx = 0
-	let op = ''
+	let deepEl: Element = currentScope._parentElement
 
 	function parseStr(str: string, arg: any) {
-		let argAvailable = false
-		const parts = str.split(' ')
-		for(let partIndex=0; partIndex<parts.length; partIndex++) {
-			const part = parts[partIndex]
-			if (!part) continue
-			let reverse = false
-			argAvailable = partIndex === parts.length-1
-			if (argAvailable && part.endsWith('?')) {
-				reverse = !arg
-				argAvailable = false
+		const argUsed = "?:=.~".indexOf(str[str.length-1]) >= 0
+		const parts: any[] = str.split(/ |(?=[:.?=])|(?<=[:.?=])/g)
+		if (argUsed) parts.push(arg)
+
+		let partIndex = 0
+
+		function checkCondition() {
+			let enable = true
+			while (parts[partIndex+1] === '?') {
+				partIndex++
+				const check = parts[++partIndex]
+				if (typeof check === 'function') {
+					enable = !!(enable && check())
+				} else if (check===false || check==='n') {
+					enable = false
+				} else if (check!==true && check!=='y') {
+					throw new Error(`Invalid conditional check: ${check}`)
+				}
 			}
-			if (part[0] === '.') {
-				if (argAvailable && part.length===1) {
-					if (arg instanceof Array) {
-						for(let cls of arg) deepEl.classList.add(cls)
-					} else if (typeof arg === 'object') {
-						for(let [cls,enable] of arg.items()) deepEl.classList.toggle(cls, enable)
-					} else if (arg != null) {
-						deepEl.classList.add(''+arg)
-					}
-					argAvailable = false
+			return enable
+		}
+
+		while(partIndex<parts.length) {
+			const part = parts[partIndex++]
+			const next = parts[partIndex]
+			if (!part) continue
+			if (part === '.') { // css class
+				partIndex++ // consume class argument
+				if (typeof next === 'string') {
+					let enable = checkCondition()
+					deepEl.classList.toggle(next, enable)
+				} else if (next instanceof Array) {
+					for(let c of next) deepEl.classList.add(c)
+				} else if (arg && typeof arg === 'object') {
+					for(let cls in arg) deepEl.classList.toggle(cls, arg[cls])
 				} else {
-					for(let cls of arg.slice('.').split('.')) deepEl.classList.toggle(cls, !reverse)
+					throw new Error(`Invalid CSS class: ${next}`)
 				}
-			} else if (part.indexOf(op = '=') >= 0 || part.indexOf(op = ':') >= 0) {
-				let [prop, value] = part.split(op)
-				if (!value && argAvailable) {
-					value = arg
-					argAvailable = false
+			} else if (next === '=') { // attribute/property
+				partIndex++ // consume '='
+				const value = parts[partIndex++]
+				applyProp(deepEl, part, checkCondition() ? value : "")
+			} else if (next === ':') { // style
+				partIndex++ // consume ':'
+				const value = parts[partIndex++]
+				applyStyle(deepEl, part, checkCondition() ? value : "")
+			} else if (part[0] === '~') { //text
+				const text = part.length>1 ? part.slice(1).replace(/~/g, ' ') : parts[partIndex++]
+				if (text != null) {
+					const textE = document.createTextNode(text)
+					if (topEl) {
+						deepEl.appendChild(textE)
+					} else {
+						scope._addNode(textE)
+					}
 				}
-				if (op === '=') applyProp(deepEl, prop, reverse ? "" : value)
-				else applyStyle(deepEl, prop, reverse ? "" : value)
-			} else {
-				
+			} else { // node
+				let el = document.createElement(part)
+				if (topEl) {
+					deepEl.appendChild(el)
+				} else {
+					topEl = el
+				}
+				deepEl = el
 			}
 		}
-		return !argAvailable
+		return argUsed
 	}
 
 	function runInScope(func: () => void) {
-		let childScope = new SimpleScope(deepEl, undefined, (scope as Scope)._queueOrder+1, func)
+		let childScope = new SimpleScope(deepEl, undefined, scope._queueOrder+1, func)
 		if (onCreateEnabled) {
 			onCreateEnabled = false
 			childScope._update()
@@ -1612,26 +1782,37 @@ export function $(...args: any[]) {
 
 		// Add it to our list of cleaners. Even if `scope` currently has
 		// no cleaners, it may get them in a future refresh.
-		(scope as Scope)._cleaners.push(childScope)
+		scope._cleaners.push(childScope)
 	}
 
-	if (args[0] instanceof Array) {
+	let idx = 0
+	if (args[0] instanceof Array) { // template string
 		for(let str of args[idx++]) {
-			if (parseStr(str.trimLeft(), args[idx])) idx++
+			const arg = args[idx++] 
+			if (!parseStr(str.trim(), arg)) {
+				if (typeof arg === 'string') parseStr(''+arg, undefined)
+				else if (arg != null) throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`)
+			}
 		}
-	} else {
+	} else { // regular function call
 		while (idx < args.length) {
 			let arg = args[idx++]
 			if (arg == null) continue
 			if (typeof arg === 'string') {
 				if (parseStr(arg, args[idx])) idx++
-			} if (arg instanceof Element) {
-				if (deepEl) {
+			} else if (arg instanceof Element) {
+				if (topEl) {
 					deepEl.appendChild(arg)
-					deepEl = topEl = arg
+				} else {
+					topEl = arg
 				}
-			} else if (typeof arg === 'function' && idx === args.length-1) {
+				deepEl = arg
+			} else if (arg instanceof Store) {
+				bindInput(<HTMLInputElement>deepEl, arg)
+			} else if (typeof arg === 'function' && idx === args.length) {
 				runInScope(arg)
+			} else {
+				throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`)
 			}
 		}
 	}
@@ -1641,7 +1822,21 @@ export function $(...args: any[]) {
 	return runInScope
 }
 
-export const node = $
+/**
+ * This function, which is meant to be overridden, is called when an error occurs during rendering
+ * while in a reactive scope. The default implementation logs the error to the console, and then
+ * jsut returns `true`, which causes an 'Error' message to be displayed in the UI. When this function
+ * returns `false`, the error is suppressed. This mechanism exists because rendering errors can occur
+ * at any time, not just synchronous when making a call to Aberdeen, thus normal exception handling
+ * is not always possible. 
+ * @param error The `Error` object. 
+ * @returns `true` to display the error message, `false` to suppress it. The default implementation
+ *   just returns `true`.
+ */
+$.onError = function(error: Error) {
+	console.error('Error while in Aberdeen render:', error)
+	return true
+}
 
 // export function node(tag: string|Element = "", ...rest: any[]) {
 // 	if (!currentScope) throw new ScopeError(true)
@@ -1741,92 +1936,6 @@ function bindInput(el: HTMLInputElement, store: Store) {
 
 }
 
-/**
- * Add a text node at the current Scope position.
- */
-export function text(text: string) {
-	if (!currentScope) throw new ScopeError(true)
-	if (text==null) return
-	currentScope._addNode(document.createTextNode(text))
-}
-
-
-/**
- * Set properties and attributes for the containing DOM element. Doing it this way
- * as opposed to setting them directly from node() allows changing them later on
- * without recreating the element itself. Also, code can be more readable this way.
- * Note that when a nested `observe()` is used, properties set this way do NOT
- * automatically revert to their previous values.
- *
- * Here's how properties are handled:
- * - If `name` is `"create"`, `value` should be either a function that gets
- *   called with the element as its only argument immediately after creation,
- *   or a string being the name of a CSS class that gets added immediately
- *   after element creation, and removed shortly afterwards. This allows for
- *   reveal animations. However, this is intentionally *not* done
- *   for elements that are created as part of a larger (re)draw, to prevent
- *   all elements from individually animating on page creation.
- * - If `name` is `"destroy"`, `value` should be a function that gets called
- *   with the element as its only argument, *instead of* the element being
- *   removed from the DOM (which the function will presumably need to do
- *   eventually). This can be used for a conceal animation.
- *   As a convenience, it's also possible to provide a string instead of
- *   a function, which will be added to the element as a CSS class, allowing
- *   for simple transitions. In this case, the DOM element in removed 2 seconds
- *   later (currently not configurable).
- *   Similar to `"create"` (and in this case doing anything else would make little
- *   sense), this only happens when the element being is the top-level element
- *   being removed from the DOM.
- * - If `value` is a function, it is registered as an event handler for the
- *   `name` event.
- * - If `name` is `"class"` or `"className"` and the `value` is an
- *   object, all keys of the object are either added or removed from `classList`,
- *   depending on whether `value` is true-like or false-like.
- * - If `value` is a boolean *or* `name` is `"value"`, `"className"` or
- *   `"selectedIndex"`, it is set as a DOM element *property*.
- * - If `name` is `"text"`, the `value` is set as the element's `textContent`.
- * - If `name` is `"style"` and `value` is an object, each of its
- *   key/value pairs are assigned to the element's `.style`.
- * - In other cases, the `value` is set as the `name` HTML *attribute*.
- *
- * @example
- * ```
- * node('input', () => {
- *	   prop('type', 'password')
- *	   prop('readOnly', true)
- *	   prop('class', 'my-class')
- *	   prop('class', {
- *	   		'my-disabled-class': false,
- *	   		'my-enabled-class': true,
- *	   })
- *	   prop({
- *	   		class: 'my-class',
- *	   		text: 'Here is something to read...',
- *	   		style: {
- *	   			backgroundColor: 'red',
- *	   			fontWeight: 'bold',
- *	   		},
- *	   		create: aberdeen.fadeIn,
- *	   		destroy: 'my-fade-out-class',
- *	   		click: myClickHandler,
- *	   })
- * })
- * ```
- */
-export function prop(name: string, value: any): void
-export function prop(props: object): void
-
-export function prop(name: any, value: any = undefined) {
-	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
-	if (typeof name === 'object') {
-		for(let k in name) {
-			applyProp(currentScope._parentElement, k, name[k])
-		}
-	} else {
-		applyProp(currentScope._parentElement, name, value)
-	}
-}
-
 
 /**
  * Return the browser Element that `node()`s would be rendered to at this point.
@@ -1921,8 +2030,8 @@ export function immediateObserve(func: () => void): number | undefined {
  * 	
  * 	observe(() => {
  * 		// This will rerun whenever `selected` changes, recreating the <h2> and <input>.
- * 		node('h2', '#'+selected.get())
- * 		node('input', {type: 'color', value: '#ffffff'}, colors.ref(selected.get()))
+ * 		$`h2 ~${'#'+selected.get()}`
+ * 		$`input type=color value=#ffffff bind=${colors.ref(selected.get())}`
  * 	})
  * 	
  * 	observe(() => {
@@ -1934,11 +2043,18 @@ export function immediateObserve(func: () => void): number | undefined {
  * ```
 */
 export function mount(parentElement: Element, func: () => void) {
+	for(let scope of topScopes.values()) {
+		if (parentElement === scope._parentElement) {
+			throw new Error("Only a single mount per parent element")
+		}
+	}
+
 	return _mount(parentElement, func, SimpleScope)
 }
 
 let maxTopScopeId = 0
 const topScopes: Map<number, SimpleScope> = new Map()
+
 function _mount(parentElement: Element | undefined, func: () => void, MountScope: typeof SimpleScope): number | undefined {
 	let scope
 	if (parentElement || !currentScope) {
@@ -1973,6 +2089,7 @@ export function unmount(id?: number) {
 	} else {
 		let scope = topScopes.get(id)
 		if (!scope) throw new Error("No such mount "+id)
+		topScopes.delete(id)
 		scope._remove()
 	}
 }
@@ -2046,6 +2163,8 @@ function applyProp(el: Element, prop: any, value: any) {
 	} else if (prop==='style' && typeof value === 'object') {
 		// `style` can receive an object
 		Object.assign((<HTMLElement>el).style, value)
+	} else if (prop==='bind' && value instanceof Store) {
+		bindInput(<HTMLInputElement>el, value)
 	} else {
 		// Everything else is an HTML attribute
 		el.setAttribute(prop, value)
@@ -2095,14 +2214,15 @@ function defaultMakeSortKey(store: Store) {
 
 /* c8 ignore start */
 function internalError(code: number) {
-	let error = new Error("Aberdeen internal error "+code)
-	setTimeout(() => { throw error }, 0)
+	throw new Error("Aberdeen internal error "+code)
 }
 /* c8 ignore end */
 
-function handleError(e: any) {
-	// Throw the error async, so the rest of the rendering can continue
-	setTimeout(() => {throw e}, 0)
+function handleError(e: any, showMessage: boolean) {
+	try {
+		if ($.onError(e) === false) showMessage = false
+	} catch {}
+	if (showMessage && currentScope?._parentElement) $`div.aberdeen-error ~Error`
 }
 
 class ScopeError extends Error {

@@ -4,7 +4,7 @@ describe('DOM read/write scheduler', function() {
         let order = ''
         let store = new Store('a')
 		mount(document.body, () => {
-            node(store.get())
+            $(store.get())
             order += store.get()
 		})
         scheduleDomReader(() => order += 'r1')

@@ -3,11 +3,11 @@ describe('Scope', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
-			node('a', () => {
+			$('a', () => {
 				cnt1++
-				node('span', () => {
+				$('span', () => {
 					cnt2++
-					text(store.get())
+					$('~', store.get())
 				})
 			})
 		})
@@ -26,9 +26,9 @@ describe('Scope', () => {
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
 			cnt1++
-			node('a', () => {
+			$('a', () => {
 				cnt2++
-				if (store.get()) node('i')
+				if (store.get()) $`i`
 			})
 		})
 
@@ -49,10 +49,10 @@ describe('Scope', () => {
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
 			cnt1++
-			node('a')
+			$`a`
 			observe(() => {
 				cnt2++
-				if (store.get()) node('i')
+				if (store.get()) $`i`
 			})
 		})
 
@@ -74,16 +74,16 @@ describe('Scope', () => {
 		let cnt0 = 0, cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
 			cnt0++
-			node('i')
+			$`i`
 			observe(() => {
 				cnt1++
-				store1.get() && node('a')
+				store1.get() && $`a`
 			})
 			observe(() => {
 				cnt2++
-				store2.get() && node('b')
+				store2.get() && $`b`
 			})
-			node('p')
+			$`p`
 		})
 
 		assertBody(`i{} p{}`)
@@ -101,10 +101,10 @@ describe('Scope', () => {
 
 	it('insert at right position with an empty parent scope', () => {
 		mount(document.body, () => {
-			node('a')
+			$`a`
 			observe(() => {
 				observe(() => {
-					node('b')
+					$`b`
 				})
 			})
 		})
@@ -142,13 +142,13 @@ describe('Scope', () => {
 			pcnt++
 			if (store.get('parent')) return
 			
-			node('a', () => {
+			$('a', () => {
 				ccnt++
 				if (store.get('children')) {
 					store.merge({parent: true})
 				}
 			})
-			node('b', () => {
+			$('b', () => {
 				ccnt++
 				if (store.get('children')) {
 					store.merge({parent: true})
@@ -168,12 +168,12 @@ describe('Scope', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
-			node('a', () => {
+			$('a', () => {
 				cnt1++
-				node('span', () => {
+				$('span', () => {
 					cnt2++
-					text(peek(() => store.get()))
-					text(store.peek())
+					$('~', peek(() => store.get()))
+					$('~', store.peek())
 				})
 			})
 		})
@@ -190,8 +190,8 @@ describe('Scope', () => {
 
 		mount(document.body, () => {
 			for(let i=0; i<4; i++) {
-				node('p', () => {
-					text(values.get(i))
+				$('p', () => {
+					$("~", values.get(i))
 				})
 			}
 		})
@@ -207,7 +207,7 @@ describe('Scope', () => {
 		let store = new Store({})
 		let inverse = new Store({})
 
-		let myMount = mount(document.body, () => {
+		mount(document.body, () => {
 			cnt0++
 			store.onEach(item => {
 				let key = item.get()
@@ -221,7 +221,7 @@ describe('Scope', () => {
 			})
 
 			inverse.onEach(item => {
-				text(item.index()+"="+item.get())
+				$('~', item.index()+"="+item.get())
 				cnt3++
 			})
 		})
@@ -264,7 +264,7 @@ describe('Scope', () => {
 		let store = new Store('a')
 		let count = 0
 		mount(document.body, () => {
-			node(store.get())
+			$(store.get())
 			count++
 		})
 		assertBody(`a{}`)

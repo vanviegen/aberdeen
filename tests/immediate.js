@@ -76,12 +76,10 @@ describe('Immediate observe', function() {
             store.set('b', store.get('a') + 1)
         })
         // This will start an infinite recursion, which should be broken up.
-        immediateObserve(() => { 
-            store.set('a', store.get('b') + 1)
-        })
-        // The error for the above is to be thrown async.
-        assertThrow('recursive updates', () => {
-            passTime()
+        assertRenderError('recursive updates', () => {
+            immediateObserve(() => { 
+                store.set('a', store.get('b') + 1)
+            })
         })
     })
 })

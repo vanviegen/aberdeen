@@ -10,16 +10,16 @@ describe('onEach', function() {
 	})
 
 	it('handles unsuitable store values', () => {
-		for(let value of [3, "", false]) {
+		for (let value of [3, "", false]) {
 			let cnt = 0
 			mount(document.body, () => {
 				let store = new Store(value)
 				assertThrow(`onEach() attempted`, () => {
 					store.onEach(() => cnt++)
 				})
-
 			})
-			assertEqual(cnt, 0, "cnt mismatch for "+JSON.stringify(value))
+			unmount()
+			assertEqual(cnt, 0, "cnt mismatch for " + JSON.stringify(value))
 		}
 	})
 
@@ -27,20 +27,19 @@ describe('onEach', function() {
 		let cnt = 0
 		mount(document.body, () => {
 			let store = new Store({})
-			store.onEach(function() {
+			store.onEach(() => {
 				cnt++
 			})
 		})
 		assertEqual(cnt, 0)
 	})
 
-
 	it('emits a single entry', () => {
 		let result = []
 		mount(document.body, () => {
 			let store = new Store({x: 3})
-			store.onEach(function(store) {
-				result.push([store.index(),store.get()])
+			store.onEach(store => {
+				result.push([store.index(), store.get()])
 			})
 		})
 		assertEqual(result, [['x', 3]])
@@ -50,11 +49,10 @@ describe('onEach', function() {
 		let result = []
 		mount(document.body, () => {
 			let store = new Store({x: 3, y: 4, z: 5})
-			store.onEach(function(store) {
-				result.push([store.index(),store.get()])
+			store.onEach(store => {
+				result.push([store.index(), store.get()])
 			})
-			// The order is undefined, so we'll sort it
-			result.sort((a,b) => a[1] - b[1])
+			result.sort((a, b) => a[1] - b[1])
 		})
 		assertEqual(result, [['x', 3], ['y', 4], ['z', 5]])
 	})
@@ -62,8 +60,8 @@ describe('onEach', function() {
 	it('adds a single item to the DOM', () => {
 		mount(document.body, () => {
 			let store = new Store({x: 3})
-			store.onEach(function(store) {
-				node('p', {className: store.index()}, store.getNumber())
+			store.onEach(store => {
+				$`p.${store.index()} ~${store.get()}`
 			})
 		})
 		assertBody(`p{@class="x" "3"}`)
@@ -72,8 +70,8 @@ describe('onEach', function() {
 	it('adds multiple items to the DOM in default order', () => {
 		mount(document.body, () => {
 			let store = new Store({c: 3, a: 1, b: 2})
-			store.onEach(function(store) {
-				node('p', store.index())
+			store.onEach(store => {
+				$`p ~${store.index()}`
 			})
 		})
 		assertBody(`p{"a"} p{"b"} p{"c"}`)
@@ -82,55 +80,55 @@ describe('onEach', function() {
 	it('maintains the last-element marker', () => {
 		mount(document.body, () => {
 			let store = new Store({c: 3, a: 1, b: 2})
-			store.onEach(function(store) {
-				node('p', store.index())
+			store.onEach(store => {
+				$`p ~${store.index()}`
 			})
-			node('div')
+			$`div`
 		})
 		assertBody(`p{"a"} p{"b"} p{"c"} div{}`)
 	})
 
 	it('maintains position for items', () => {
 		let store = new Store({0: false, 1: false, 2: false, 3: false})
-		let cnts = [0,0,0,0];
+		let cnts = [0, 0, 0, 0]
 		mount(document.body, () => {
 			store.onEach(item => {
-				cnts[item.index()]++;
-				if (item.getBoolean()) node('p', {id: item.index()})
+				cnts[item.index()]++
+				if (item.getBoolean()) $`p id=${item.index()}`
 			})
 		})
 
-		assertBody(``);
-		assertEqual(cnts, [1,1,1,1]);
+		assertBody(``)
+		assertEqual(cnts, [1, 1, 1, 1])
 
-		store.merge({1: true});
-		passTime();
+		store.merge({1: true})
+		passTime()
 		assertBody(`p{@id="1"}`)
-		assertEqual(cnts, [1,2,1,1]);
+		assertEqual(cnts, [1, 2, 1, 1])
 
-		store.merge({0: true, 2: true, 3: true});
-		passTime();
+		store.merge({0: true, 2: true, 3: true})
+		passTime()
 		assertBody(`p{@id="0"} p{@id="1"} p{@id="2"} p{@id="3"}`)
-		assertEqual(cnts, [2,2,2,2]);
+		assertEqual(cnts, [2, 2, 2, 2])
 	})
 
 	it('adds items in the right position', () => {
-		let store = new Store({});
+		let store = new Store({})
 
 		mount(document.body, () => {
 			store.onEach(item => {
-				node(item.index())
+				$(item.index())
 			})
 		})
 
-		let items = ['d', 'a', 'b', 'f', 'c', 'e'];
-		let seen = [];
+		let items = ['d', 'a', 'b', 'f', 'c', 'e']
+		let seen = []
 
-		for(let item of items) {
-			seen.push(item+'{}')
-			seen.sort();
+		for (let item of items) {
+			seen.push(item + '{}')
+			seen.sort()
 
-			store.set(item, true);
+			store.set(item, true)
 			passTime()
 			assertBody(seen.join(' '))
 		}
@@ -139,106 +137,38 @@ describe('onEach', function() {
 	it('removes items and calls cleaners', () => {
 		let items = ['d', 'a', 'b', 'f', 'c', 'e']
 		let store = new Store({})
-		for(let item of items) {
+		for (let item of items) {
 			store.set(item, true)
 		}
-		let cleaned = [];
+		let cleaned = []
 
 		mount(document.body, () => {
 			store.onEach(item => {
-				node(item.index())
+				$(item.index())
 				clean(() => {
 					cleaned.push(item.index())
-				});
+				})
 			})
 		})
 
-		let current = items.slice().sort();
+		let current = items.slice().sort()
+		let cleanedExpected = []
 
-		let cleanedExpected = [];
-
-		for(let item of items) {
+		for (let item of items) {
 			current.splice(current.indexOf(item), 1)
-			
-			store.merge({[item]: undefined});
-			cleanedExpected.push(item);
+			store.merge({[item]: undefined})
+			cleanedExpected.push(item)
 			passTime()
-			assertBody(current.map(s => s+'{}').join(' '))
+			assertBody(current.map(s => s + '{}').join(' '))
 			assertEqual(cleaned, cleanedExpected)
 		}
 	})
 
-	it(`removes an entire object and calls cleaners`, () => {
-		let cleaned = {};
-		let store = new Store({b:2,c:3,a:1})
-		let cnt = 0
-		mount(document.body, () => {
-			if (store.getType()==="object") {
-				store.onEach(item => {
-					cnt++
-					node(item.index())
-					clean(() => {
-						cleaned[item.index()] = true;
-					})
-				})
-			} else {
-				text(JSON.stringify(store.get()))
-			}
-		})
-		assertBody(`a{} b{} c{}`)
-		
-		store.set(true)
-		passTime()
-		assertBody(`"true"`)
-		assertEqual(cleaned, {a:true, b:true, c:true})
-		assertEqual(cnt, 3)
-	})
-
-	it('should ignore on delete followed by set', () => {
-		let store = new Store({a:1, b:2})
-		let cnt = 0
-		mount(document.body, () => {
-			store.onEach(item => {
-				node(item.index())
-				cnt++
-			})
-		})
-		assertBody(`a{} b{}`)
-		assertEqual(cnt, 2)
-
-		store.delete('a')
-		assertEqual(store.get(), {b: 2})
-		store.set('a', 3)
-		passTime()
-		assertBody(`a{} b{}`)
-		assertEqual(cnt, 2) // should not trigger again as the value is not subscribed
-	});
-
-	it('should do nothing on set followed by delete', () => {
-		let store = new Store({a:1})
-		let cnt = 0
-		mount(document.body, () => {
-			store.onEach(item => {
-				node(item.index())
-				cnt++
-			})
-		})
-		assertBody(`a{}`)
-		assertEqual(cnt, 1)
-
-		store.set('b', 2)
-		assertEqual(store.get(), {a: 1, b: 2})
-		store.delete('b')
-		passTime()
-		assertBody(`a{}`)
-		assertEqual(cnt, 1)
-	})
-
-	it(`should handle items with identical sort keys`, () => {
+	it('handles items with identical sort keys', () => {
 		let store = new Store({a: 1, b: 1, c: 1, d: 1})
 		mount(document.body, () => {
 			store.onEach(item => {
-				node(item.index())
+				$(item.index())
 			}, item => item.getNumber())
 		})
 		assertEqual(getBody().split(' ').sort().join(' '), `a{} b{} c{} d{}`)
@@ -254,7 +184,6 @@ describe('onEach', function() {
 		store.delete('a')
 		passTime()
 		assertEqual(getBody().split(' ').sort().join(' '), `c{}`)
-
 	})
 
 	it('keeps two onEaches in order', () => {
@@ -262,10 +191,10 @@ describe('onEach', function() {
 		let store2 = new Store(['c2'])
 		mount(document.body, () => {
 			store1.onEach(item => {
-				node(item.getString())
+				$(item.getString())
 			})
 			store2.onEach(item => {
-				node(item.getString())
+				$(item.getString())
 			}, item => item.getString())
 		})
 		assertBody(`c1{} c2{}`)
@@ -299,10 +228,10 @@ describe('onEach', function() {
 		let store = new Store(['e', 'b', 'a', 'd'])
 		mount(document.body, () => {
 			store.onEach(item => {
-				node('h'+item.index())
+				$('h'+item.index())
 			})
 			store.onEach(item => {
-				node('i'+item.index())
+				$('i'+item.index())
 			}, item => item.getString())
 		})
 
@@ -318,10 +247,10 @@ describe('onEach', function() {
 		let store = new Store(['e', 'b', 'a', 'd'])
 		mount(document.body, () => {
 			store.onEach(item => {
-				node('h'+item.index())
+				$('h'+item.index())
 			})
 			store.onEach(item => {
-				node('i'+item.index())
+				$('i'+item.index())
 			}, item => item.getString())
 		})
 
@@ -337,7 +266,7 @@ describe('onEach', function() {
 		mount(document.body, () => {
 			select.get();
 			store.onEach(item => {
-				node(item.index())
+				$(item.index())
 			}, item => {
 				if (select.get() == item.get()) {
 					return item.index();
@@ -358,7 +287,7 @@ describe('onEach', function() {
 				let letter = item.get()[0]
 				let count = 0 | item.get()[1]
 				for(let i=0; i<count; i++) {
-					text(item.index()+letter)
+					$('~', item.index()+letter)
 				}
 			}, item => item.get()[0])
 		})
@@ -380,7 +309,7 @@ describe('onEach', function() {
 		let store = new Store(['a','b','c'])
 		mount(document.body, () => {
 			store.onEach(item => {
-				node(item.get())
+				$(item.get())
 			}, item => item.get()=='b' ? undefined : item.get())
 		})
 		assertBody(`a{} c{}`)

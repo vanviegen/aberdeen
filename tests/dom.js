@@ -1,7 +1,7 @@
 describe('DOM creator', function() {
 	it('adds nodes', () => {
 		mount(document.body, () => {
-			node('p')
+			$('p')
 		})
 		passTime();
 		assertBody(`p{}`)
@@ -9,7 +9,7 @@ describe('DOM creator', function() {
 
 	it('adds classes', () => {
 		mount(document.body, () => {
-			node('p.a.b')
+			$('p.a.b')
 		})
 		passTime();
 		assertBody(`p{@class="a b"}`)
@@ -17,7 +17,7 @@ describe('DOM creator', function() {
 
 	it('sets attributes', () => {
 		mount(document.body, () => {
-			node('div', {class: 'C', text: "T"}, {id: 'I', index: 1})
+			$`div.C ~T id=I index=1`
 		})
 		passTime();
 		assertBody(`div{@class="C" @id="I" @index="1" "T"}`)
@@ -25,7 +25,7 @@ describe('DOM creator', function() {
 
 	it('sets properties', () => {
 		mount(document.body, () => {
-			node('p', {className: 'C', value: 3})
+			$`p.C value=${3}`
 		})
 		passTime();
 		assertBody(`p{@class="C" value=3}`)
@@ -33,10 +33,10 @@ describe('DOM creator', function() {
 
 	it('nests elements', () => {
 		mount(document.body, () => {
-			node('p', () => {
-				node('a', () => {
-					node('i', () => {
-						text('contents')
+			$`p`(() => {
+				$`a`(() => {
+					$`i`(() => {
+						$`~contents`
 					})
 				})
 			})
@@ -47,12 +47,8 @@ describe('DOM creator', function() {
 
 	it('sets properties from the inner scope', () => {
 		mount(document.body, () => {
-			node('a', () => {
-				prop('href', '/')
-				prop({
-					target: '_blank',
-					disabled: true,
-				})
+			$`a`(() => {
+				$`href=/ target=_blank disabled=${true}`
 			})
 		})
 		passTime();
@@ -61,23 +57,15 @@ describe('DOM creator', function() {
 
 	it('sets style objects', () => {
 		mount(document.body, () => {
-			node('a', {style: 'color: red;'})
-			node('b', {style: {color: 'green'}})
-			node('c', () => {
-				prop({style: {color: 'orange'}})
+			$`a color:red`
+			$`b`(() => {
+				$`color:orange`
 			})
-			node('d', () => {
-				prop('style', {color: 'purple'})
+			$`c color:green`(() => {
+				$`color:blue`
 			})
-			node('e', () => {
-				prop('style', 'color: magento;')
-			})
-			node('f', () => {
-				prop({style: 'color: cyan;'})
-			})
-
 		})
-		assertBody(`a{@style="color: red;"} b{:color="green"} c{:color="orange"} d{:color="purple"} e{@style="color: magento;"} f{@style="color: cyan;"}`)
+		assertBody(`a{:color="red"} b{:color="orange"} c{:color="blue"}`)
 	})
 
 	it('unmounts', () => {
@@ -85,7 +73,7 @@ describe('DOM creator', function() {
 		let cnt = 0
 		mount(document.body, () => {
 			cnt++
-			node('p', store.get())
+			$`p ~${store.get()}`
 		})
 		assertBody(`p{"Hej world"}`)
 
@@ -108,7 +96,7 @@ describe('DOM creator', function() {
 			[false, `"false"`],
 		]
 		mount(document.body, () => {
-			text(cases[index.get()][0])
+			$("~", cases[index.get()][0])
 		})
 
 		while(true) {
@@ -125,18 +113,21 @@ describe('DOM creator', function() {
 		mount(document.body, () => {
 			let el = document.createElement('video')
 			el.classList.add("test")
-			node(el)
+			$(el)
 		})
 		assertBody(`video{@class="test"}`)
 	})
 
+	it('disallows multiple mounts per parent element', () => {
+		mount(document.body, () => $`a`)
+		assertThrow('single mount', () => mount(document.body, () => $`b`))
+	})
+
 	it('handles nontypical options well', () => {
 		let cases = [
-			[`div{}`, () => node("")],
-			[`div{}`, () => node(".")],
-			[`div{@class="a b c"}`, () => node(".a.b.c")],
-			[`div{"1234"}`, () => node(undefined, 1234)],
-			[`_!@#*{"replacement"}`, () => node("_!@#*", null, undefined, {}, "original", 1234, "replacement")],
+			[`div{@class="a b c"}`, () => $`div.a.b.c`],
+			[`div{@class="a b c d"}`, () => $('div', '.a', '.', 'b', '.c.d')],
+			[`div{"1234"}`, () => $`div ~ ${1234}`],
 		]
 		for(let c of cases) {
 			mount(document.body, () => {
@@ -145,11 +136,19 @@ describe('DOM creator', function() {
 			assertBody(c[0])
 			unmount()
 		}
-		mount(document.body, () => {
-			assertThrow("Unexpected argument", () => node("span", []))
-			assertThrow("Unexpected argument", () => node("span", new Error()))
-			assertThrow("Unexpected argument", () => node("span", true))
-		})
+		const funcs = [
+			() => $(new Error()),
+			() => $(true),
+			() => $`span ${[]}`,
+			() => $`span ${new Error()}`,
+			() => $`span ${true}`,
+		]
+		for(let func of funcs) {
+			assertRenderError('Unexpected argument', () => {
+				mount(document.body, func)
+			})
+			unmount()
+		}
 	})
 
 	it('dumps all basic values', () => {
@@ -175,12 +174,12 @@ describe('DOM creator', function() {
 	it('adds html', () => {
 		let store = new Store('test')
 		mount(document.body, () => {
-			node('main', () => {
-				node('hr')
+			$`main`(() => {
+				$`hr`
 				observe(() => {
 					html(store.get())
 				})
-				node('img')
+				$`img`
 			})
 		})
 		assertBody(`main{hr{} fake-emulated-html{"test"} img{}}`)
@@ -202,10 +201,10 @@ describe('DOM creator', function() {
 	it('only unlinks the top parent of the tree being removed', () => {
 		let store = new Store(true)
 		mount(document.body, () => {
-			if (store.get()) node('main', () => {
-				node('a')
-				node('b')
-				node('c')
+			if (store.get()) $`main`(() => {
+				$`a`
+				$`b`
+				$`c`
 			})
 		})
 		assertBody(`main{a{} b{} c{}}`)

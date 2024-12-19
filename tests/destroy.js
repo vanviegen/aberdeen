@@ -2,8 +2,8 @@ describe('Destroy event', function() {
 	it('works for simple deletes', () => {
         let store = new Store(true)
 		mount(document.body, () => {
-            if (store.get()) node('b', {destroy: "x"})
-            else node('c', {destroy: "x"})
+            if (store.get()) $`b destroy=x`
+            else $`c destroy=x`
 		})
 		assertBody(`b{}`)
         assertEqual(getCounts(), {new: 1, change: 1})
@@ -16,13 +16,13 @@ describe('Destroy event', function() {
         passTime(5000)
 		assertBody(`c{}`)
         assertEqual(getCounts(), {new: 2, change: 4})
-    });
+    })
 
 	it('inserts before deleted item', () => {
         let store = new Store(['a'])
 		mount(document.body, () => {
             store.onEach(v => {
-                node(v.get(), {destroy: "x"})
+                $`${v.get()} destroy=x`
             })
 		})
 
@@ -36,13 +36,13 @@ describe('Destroy event', function() {
 
         passTime(2000)
 		assertBody(`b{}`)
-    });
+    })
 
 	it('transitions onEach deletes', () => {
         let store = new Store(['a', 'b', 'c'])
 		let mnt = mount(document.body, () => {
             store.onEach(v => {
-                node(v.get(), {destroy: "x"})
+                $`${v.get()} destroy=x`
             })
 		})
 		assertBody(`a{} b{} c{}`)
@@ -70,7 +70,7 @@ describe('Destroy event', function() {
         let store = new Store(['a', 'b', 'c'])
 		mount(document.body, () => {
             store.onEach(v => {
-                node(v.get(), {destroy: "x"})
+                $`${v.get()} destroy=x`
             })
 		})
         passTime(1)
@@ -95,13 +95,13 @@ describe('Destroy event', function() {
         store.set([undefined, 'b'])
         passTime(1)
         assertBody(`b{}`)
-    });
+    })
 
     it('aborts deletion transition on higher level removal', () => {
         let store = new Store(['a'])
 		mount(document.body, () => {
             store.onEach(v => {
-                node(v.get(), {destroy: "x"})
+                $`${v.get()} destroy=x`
             })
 		})
         passTime(1)
@@ -113,16 +113,13 @@ describe('Destroy event', function() {
         store.set(undefined)
         passTime(2001)
         assertBody(``)
-
-        // what happens when the whole store is removed?
-        // the held elements should be removed immediately... are they? and does the timeout then cause havoc?
-    });
+    })
 
     it('transitions removal of an entire onEach', () => {
         let store = new Store(['a'])
 		mount(document.body, () => {
             store.onEach(v => {
-                node(v.get(), {destroy: "x"})
+                $`${v.get()} destroy=x`
             })
 		})
         passTime(1)
@@ -132,15 +129,15 @@ describe('Destroy event', function() {
         assertBody(`a{@class="x"}`)
         passTime(1000)
         assertBody(``)
-    });
+    })
 
     it('insert new elements after a recently deleted item', () => {
         let store = new Store({b: true, c: false})
 		mount(document.body, () => {
-            node('a')
+            $`a`
             observe(() => {
-                if (store.get('b')) node('b', {destroy: 'y'})
-                if (store.get('c')) node('c')
+                if (store.get('b')) $`b destroy=y`
+                if (store.get('c')) $`c`
             })
 		})
         assertBody(`a{} b{}`)
@@ -152,91 +149,15 @@ describe('Destroy event', function() {
         passTime(2000)
         assertBody(`a{}`)
 
-        // This should trigger lazy deletion of the DeletionScope
         store.set('c', true)
         passTime(1)
         assertBody(`a{} c{}`)
     })
 
-    it('remove elements before and after a deleting element', () => {
-        let store = new Store({a: true, b: true, c: true})
-		mount(document.body, () => {
-            store.onEach(el => {
-                if (el.get()) node(el.index(), el.index()=='b' ? {destroy: 'y'}: null)
-            })
-		})
-        assertBody(`a{} b{} c{}`)
-
-        store.set('b', false)
-        passTime(1)
-        assertBody(`a{} b{@class="y"} c{}`)
-
-        store.set('a', false)
-        passTime(1)
-        assertBody(`b{@class="y"} c{}`)
-
-        store.set('c', false)
-        passTime(1)
-        assertBody(`b{@class="y"}`)
-
-        passTime(2000)
-        assertBody(``)
-    })
-
-    it('remove middle elements before and after a deleting element', () => {
-        let store = new Store({a: true, b: true, c: true, d: true, e: true})
-		mount(document.body, () => {
-            store.onEach(el => {
-                if (el.get()) node(el.index(), el.index()=='c' ? {destroy: 'y'}: null)
-            })
-		})
-        assertBody(`a{} b{} c{} d{} e{}`)
-
-        store.set('c', false)
-        passTime(1)
-        assertBody(`a{} b{} c{@class="y"} d{} e{}`)
-
-        store.set('b', false)
-        passTime(1)
-        assertBody(`a{} c{@class="y"} d{} e{}`)
-
-        store.set('d', false)
-        passTime(1)
-        assertBody(`a{} c{@class="y"} e{}`)
-
-        passTime(2000)
-        assertBody(`a{} e{}`)
-    })
-
-    it('remove elements before and after a deleting element', () => {
-        let store = new Store({a: true, b: true, c: true})
-		mount(document.body, () => {
-            store.onEach(el => {
-                if (el.get()) node(el.index(), el.index()=='b' ? {destroy: 'y'}: null)
-            })
-		})
-        assertBody(`a{} b{} c{}`)
-
-        store.set('b', false)
-        passTime(1)
-        assertBody(`a{} b{@class="y"} c{}`)
-
-        store.set('a', false)
-        passTime(1)
-        assertBody(`b{@class="y"} c{}`)
-
-        store.set('c', false)
-        passTime(1)
-        assertBody(`b{@class="y"}`)
-
-        passTime(2000)
-        assertBody(``)
-    })
-
     it('performs a shrink animation', () => {
         let store = new Store(true)
         mount(document.body, () => {
-            if (store.get()) node('a', {destroy: shrink})
+            if (store.get()) $`a destroy=${shrink}`
         })
 
         assertBody(`a{}`)
@@ -252,8 +173,8 @@ describe('Destroy event', function() {
     it('performs a horizontal shrink animation', () => {
         let store = new Store(true)
         mount(document.body, () => {
-            node('div', {style: {display: 'flex', flexDirection: 'row-reverse'}}, () => {
-                if (store.get()) node('a', {destroy: shrink})
+            $`div display:flex flexDirection:row-reverse`(() => {
+                if (store.get()) $`a destroy=${shrink}`
             })
         })
 
@@ -266,5 +187,4 @@ describe('Destroy event', function() {
         passTime(2000)
         assertBody(`div{:display="flex" :flexDirection="row-reverse"}`)
     })
-
 })

@@ -4,11 +4,11 @@ describe('Props', function() {
         let classObj = new Store({a: false, b: true, c: undefined})
         mount(document.body, () => {
             cnt1++
-            node('div', () => {
+            $('div', () => {
                 cnt2++
                 observe(() => {
                     cnt3++
-                    prop({class: classObj.get()})
+                    $`.${classObj.get()}`
                 })
             })
         })
@@ -33,9 +33,9 @@ describe('Props', function() {
         let el;
         let myFunc = ()=>{}
         mount(document.body, () => {
-            node('div', () => {
+            $('div', () => {
                 el = getParentElement()
-                if (store.get()) prop({click: myFunc})
+                if (store.get()) $`click=${myFunc}`
             })
         })
 

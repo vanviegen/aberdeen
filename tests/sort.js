@@ -12,7 +12,7 @@ describe('Sort', () => {
 
 		mount(document.body, () => {
 			store.onEach(item => {
-				node(item.index())
+				$(item.index())
 			}, sort.get())
 		})
 
@@ -40,7 +40,7 @@ describe('Sort', () => {
 			p++
 			store.onEach(item => {
 				c++
-				node(item.index())
+				$(item.index())
 			}, item => item.getNumber())
 		})
 		assertBody(`e{} d{} c{} b{} a{}`)
@@ -67,7 +67,7 @@ describe('Sort', () => {
 			p++
 			store.onEach(item => {
 				c++
-				node(item.index())
+				$(item.index())
 			}, item => item.getBoolean() ? item.index() : null)
 		})
 		assertBody(`a{} c{}`)

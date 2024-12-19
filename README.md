@@ -8,7 +8,7 @@ The key insight is the use of many small anonymous functions, that will automati
 - It provides a flexible and simple to understand model for reactive user-interface building.
 - It allows you to express user-interfaces in plain JavaScript (or TypeScript) in an easy to read form, without (JSX-like) compilation steps.
 - It's fast, as it doesn't use a *virtual DOM* and only reruns small pieces of code in response to updated data. It also makes displaying and updating sorted lists very easy and very fast.
-- It's lightweight, at about 14kb minimized and without any run-time dependencies.
+- It's lightweight, at about 16kb minimized and without any run-time dependencies.
 - It comes with batteries included, providing modules for..
   - Client-side routing.
   - Optimistic user-interface updates (predictions) while awaiting a server response.

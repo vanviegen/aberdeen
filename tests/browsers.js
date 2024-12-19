@@ -7,7 +7,7 @@ describe('Browsers', () => {
 		let cnt = 0
 		mount(document.body, () => {
 			cnt++
-			if (store.get()) node('a')
+			if (store.get()) $`a`
 		})
 		assertBody(``)
 

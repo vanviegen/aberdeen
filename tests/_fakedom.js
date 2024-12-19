@@ -113,7 +113,7 @@ class Element extends Node {
 		changeCount++;
 	}
 	get classList() {
-		return {
+		return this._classList || (this._classList = {
 			add: name => {
 				let set = this._getClassSet();
 				set.add(name);
@@ -126,7 +126,11 @@ class Element extends Node {
 				this._setClassSet(set);
 				changeCount++;
 			},
-		}
+			toggle: (name, force) => {
+				if (force===true || (force!==false && !this._getClassSet().has(name))) this._classList.add(name);
+				else this._classList.remove(name);
+			}
+		})
 	}
 	get parentElement() {
 		if (this.parentNode instanceof Element) return this.parentNode;
@@ -182,13 +186,12 @@ class Element extends Node {
 		for(let k in this.style) props[':'+k] = this._style[k];
 		delete props.tag;
 		delete props.attrs;
-		delete props._style;
 		delete props.events;
 		delete props.childNodes;
 		delete props.parentNode;
 
 		let arr = [];
-		for(let k in props) arr.push(k+'='+JSON.stringify(props[k]));
+		for(let k in props) if (k[0]!=='_') arr.push(k+'='+JSON.stringify(props[k]));
 		arr.sort();
 		for(let child of this.childNodes) arr.push(child.toString());
 
