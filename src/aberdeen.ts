@@ -223,10 +223,9 @@ abstract class Scope implements QueueRunner, Observer {
 	}
 
 	_addNode(node: Node) {
-		if (!this._parentElement) throw new ScopeError(true)
 		let prevNode = this._findLastNode() || this._findPrecedingNode()
 
-		this._parentElement.insertBefore(node, prevNode ? prevNode.nextSibling : this._parentElement.firstChild)
+		this._parentElement!.insertBefore(node, prevNode ? prevNode.nextSibling : this._parentElement!.firstChild)
 		this._lastChild = node
 	}
 
@@ -1499,18 +1498,18 @@ export class Store {
 	dump() {
 	  let type = this.getType()
 	  if (type === 'array' || type === 'object' || type === 'map') {
-	    $('~', '<'+type+'>')
+	    $('text=', '<'+type+'>')
 	    $('ul', () => {
 	      this.onEach((sub: Store) => {
 	        $('li', () => {
-				$('~', JSON.stringify(sub.index())+': ')
+				$('text=', JSON.stringify(sub.index())+': ')
 	        	sub.dump()
 	        })
 	      })
 	    })
 	  }
 	  else {
-	    $('~', JSON.stringify(this.get()))
+	    $('text=', JSON.stringify(this.get()))
 	  }
 	}
 }
@@ -1541,11 +1540,11 @@ function applyStyle(el: Element, prop: string, value: any) {
  * It can be invoked in two primary ways:
  * 1. **As a tagged template:**
  *    ```js
- *    $`p.class1.class2 ~Text id=main anotherAttr=${value}`
+ *    $`p.class1.class2 text=Text id=main anotherAttr=${value}`
  *    ```
  * 2. **As a function call:**
  *    ```js
- *    $('p.class1.class2', '~Text', {id: 'main', anotherAttr: value})
+ *    $('p.class1.class2 text=Text id=main anotherAttr=', value)
  *    ```
  *
  * In either form, `$` interprets its arguments to create new elements, set attributes, apply properties, insert text content, apply styles, register event listeners, or nest further elements via callbacks.
@@ -1554,17 +1553,17 @@ function applyStyle(el: Element, prop: string, value: any) {
  *
  * - **Tag, Classes, and Text:**
  *     ```js
- *     $`p.myClass ~Hello`
+ *     $`p.myClass text=Hello`
  *     // or
- *     $('p.myClass ~Hello')
+ *     $('p.myClass text=Hello')
  *     ```
  *   Both result in: `<p class="myClass">Hello</p>`
  *
  * - **Attributes and Properties:**
  *     ```js
- *     $`div.container ~Greeting id=main title=${someTitle}`
+ *     $`div.container text=Greeting id=main title=${someTitle}`
  *     // or
- *     $('div.container ~Greeting id=main', {title: someTitle})
+ *     $('div.container text=Greeting id=main title=', someTitle)
  *     ```
  *   Both result in: `<div class="container" id="main" title="...">Greeting</div>`
  *
@@ -1576,7 +1575,7 @@ function applyStyle(el: Element, prop: string, value: any) {
  *     })
  *     // or
  *     $('a', () => {
- *       $('href=/ target=_blank', {disabled: true})
+ *       $('href=/ target=_blank disabled=', true)
  *     })
  *     ```
  *   Both modify the `<a>` created by the parent call to: `<a href="/" target="_blank" disabled=true></a>`
@@ -1591,13 +1590,13 @@ function applyStyle(el: Element, prop: string, value: any) {
  *     ```js
  *     $`p`(() => {
  *       $`a`(() => {
- *         $`i ~Nested~text`
+ *         $`i text=Nested_text`
  *       })
  *     })
  *     // or
  *     $('p', () => {
  *       $('a', () => {
- *         $('i ~Nested~text')
+ *         $('i text=Nested_text')
  *       })
  *     })
  *     ```
@@ -1621,9 +1620,9 @@ function applyStyle(el: Element, prop: string, value: any) {
  *     let el = document.createElement('video')
  *     el.classList.add('test')
  * 
- *     $`${el}`
- *     // or just
- *     $(el)
+ *     $`element=${el}`
+ *     // or
+ *     $('element=', el)
  *     ```
  *   Both result in `<video class="test"></video>`
  *
@@ -1693,218 +1692,118 @@ function applyStyle(el: Element, prop: string, value: any) {
  * ```
  */
 
-export function $(...args: any[]) {
-	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
-	const scope: Scope = currentScope
-		
-	let topEl: Element | undefined
-	let deepEl: Element = currentScope._parentElement
 
-	function parseStr(str: string, arg: any) {
-		const argUsed = "?:=.~".indexOf(str[str.length-1]) >= 0
-		const parts: any[] = str.split(/ |(?=[:.?=])|(?<=[:.?=])/g)
-		if (argUsed) parts.push(arg)
+ let $topEl: Element | undefined
+ let $deepEl: Element = undefined as unknown as Element
+ let $scope: Scope = undefined as unknown as Scope
 
-		let partIndex = 0
+let parseStrParts: any[]
+let parseStrIndex = 0
 
-		function checkCondition() {
-			let enable = true
-			while (parts[partIndex+1] === '?') {
-				partIndex++
-				const check = parts[++partIndex]
-				if (typeof check === 'function') {
-					enable = !!(enable && check())
-				} else if (check===false || check==='n') {
-					enable = false
-				} else if (check!==true && check!=='y') {
-					throw new Error(`Invalid conditional check: ${check}`)
-				}
-			}
-			return enable
+function checkCondition() {
+	let enable = true
+	while (parseStrParts[parseStrIndex+1] === '?') {
+		parseStrIndex++
+		const check = parseStrParts[++parseStrIndex]
+		if (typeof check === 'function') {
+			enable = !!(enable && check())
+		} else if (check===false || check==='n') {
+			enable = false
+		} else if (check!==true && check!=='y') {
+			throw new Error(`Invalid conditional check: ${check}`)
 		}
-
-		while(partIndex<parts.length) {
-			const part = parts[partIndex++]
-			const next = parts[partIndex]
-			if (!part) continue
-			if (part === '.') { // css class
-				partIndex++ // consume class argument
-				if (typeof next === 'string') {
-					let enable = checkCondition()
-					deepEl.classList.toggle(next, enable)
-				} else if (next instanceof Array) {
-					for(let c of next) deepEl.classList.add(c)
-				} else if (arg && typeof arg === 'object') {
-					for(let cls in arg) deepEl.classList.toggle(cls, arg[cls])
-				} else {
-					throw new Error(`Invalid CSS class: ${next}`)
-				}
-			} else if (next === '=') { // attribute/property
-				partIndex++ // consume '='
-				const value = parts[partIndex++]
-				applyProp(deepEl, part, checkCondition() ? value : "")
-			} else if (next === ':') { // style
-				partIndex++ // consume ':'
-				const value = parts[partIndex++]
-				applyStyle(deepEl, part, checkCondition() ? value : "")
-			} else if (part[0] === '~') { //text
-				const text = part.length>1 ? part.slice(1).replace(/~/g, ' ') : parts[partIndex++]
-				if (text != null) {
-					const textE = document.createTextNode(text)
-					if (topEl) {
-						deepEl.appendChild(textE)
-					} else {
-						scope._addNode(textE)
-					}
-				}
-			} else { // node
-				let el = document.createElement(part)
-				if (topEl) {
-					deepEl.appendChild(el)
-				} else {
-					topEl = el
-				}
-				deepEl = el
-			}
-		}
-		return argUsed
 	}
+	return enable
+}
 
-	function runInScope(func: () => void) {
-		let childScope = new SimpleScope(deepEl, undefined, scope._queueOrder+1, func)
-		if (onCreateEnabled) {
-			onCreateEnabled = false
-			childScope._update()
-			onCreateEnabled = true
-		} else {
-			childScope._update()
-		}
+const SPLIT_REGEX = /(?<=[:=]")[^"]*(?=")|(?<=[:=])[^" ?][^ ?]*|[a-z-]+|[^ "]/g
 
-		// Add it to our list of cleaners. Even if `scope` currently has
-		// no cleaners, it may get them in a future refresh.
-		scope._cleaners.push(childScope)
-	}
+function parseStr(str: string, arg: any) {
+	const argUsed = "?:=.".indexOf(str[str.length-1]) >= 0
+	parseStrParts = str.match(SPLIT_REGEX) || []
+	if (argUsed) parseStrParts.push(arg)
+	parseStrIndex = 0
 
-	let idx = 0
-	if (args[0] instanceof Array) { // template string
-		for(let str of args[idx++]) {
-			const arg = args[idx++] 
-			if (!parseStr(str.trim(), arg)) {
-				if (typeof arg === 'string') parseStr(''+arg, undefined)
-				else if (arg != null) throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`)
-			}
-		}
-	} else { // regular function call
-		while (idx < args.length) {
-			let arg = args[idx++]
-			if (arg == null) continue
-			if (typeof arg === 'string') {
-				if (parseStr(arg, args[idx])) idx++
-			} else if (arg instanceof Element) {
-				if (topEl) {
-					deepEl.appendChild(arg)
-				} else {
-					topEl = arg
-				}
-				deepEl = arg
-			} else if (arg instanceof Store) {
-				bindInput(<HTMLInputElement>deepEl, arg)
-			} else if (typeof arg === 'function' && idx === args.length) {
-				runInScope(arg)
+	while(parseStrIndex<parseStrParts.length) {
+		const part = parseStrParts[parseStrIndex++]
+		const next = parseStrParts[parseStrIndex]
+		if (!part) continue
+		if (part === '.') { // css class
+			parseStrIndex++ // consume class argument
+			if (typeof next === 'string') {
+				let enable = checkCondition()
+				$deepEl.classList.toggle(next, enable)
+			} else if (next instanceof Array) {
+				for(let c of next) $deepEl.classList.add(c)
+			} else if (arg && typeof arg === 'object') {
+				for(let cls in arg) $deepEl.classList.toggle(cls, arg[cls])
 			} else {
-				throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`)
+				throw new Error(`Invalid CSS class: ${next}`)
 			}
+		} else if (next === '=') { // attribute/property
+			parseStrIndex++ // consume '='
+			const value = parseStrParts[parseStrIndex++]
+			if (!checkCondition()) continue
+			let handler = SPECIAL_PROPS[part]
+			if (handler) {
+				handler(part, value)
+			} else if (typeof value === 'function') {
+				// Set an event listener; remove it again on clean.
+				$deepEl.addEventListener(part, value)
+				clean(() => $deepEl.removeEventListener(part, value))
+			} else if (value===true || value===false) {
+				($deepEl as any)[part] = value
+			} else {
+				// Everything else is an HTML attribute
+				$deepEl.setAttribute(part, value)
+			}
+		} else if (next === ':') { // style
+			parseStrIndex++ // consume ':'
+			const value = parseStrParts[parseStrIndex++]
+			applyStyle($deepEl, part, checkCondition() ? value : "")
+		} else { // create a node
+			let el = document.createElement(part)
+			if ($topEl) {
+				$deepEl.appendChild(el)
+			} else {
+				$topEl = el
+			}
+			$deepEl = el
 		}
 	}
-
-	if (topEl) scope._addNode(topEl)
-
-	return runInScope
+	return argUsed
 }
 
-/**
- * This function, which is meant to be overridden, is called when an error occurs during rendering
- * while in a reactive scope. The default implementation logs the error to the console, and then
- * jsut returns `true`, which causes an 'Error' message to be displayed in the UI. When this function
- * returns `false`, the error is suppressed. This mechanism exists because rendering errors can occur
- * at any time, not just synchronous when making a call to Aberdeen, thus normal exception handling
- * is not always possible. 
- * @param error The `Error` object. 
- * @returns `true` to display the error message, `false` to suppress it. The default implementation
- *   just returns `true`.
- */
-$.onError = function(error: Error) {
-	console.error('Error while in Aberdeen render:', error)
-	return true
+function runInScope(func: () => void) {
+	let childScope = new SimpleScope($deepEl, undefined, $scope._queueOrder+1, func)
+	if (onCreateEnabled) {
+		onCreateEnabled = false
+		childScope._update()
+		onCreateEnabled = true
+	} else {
+		childScope._update()
+	}
+
+	// Add it to our list of cleaners. Even if `scope` currently has
+	// no cleaners, it may get them in a future refresh.
+	$scope._cleaners.push(childScope)
 }
 
-// export function node(tag: string|Element = "", ...rest: any[]) {
-// 	if (!currentScope) throw new ScopeError(true)
-
-// 	let el
-// 	if (tag instanceof Element) {
-// 		el = tag
-// 	} else {
-// 		let pos = tag.indexOf('.')
-// 		let classes
-// 		if (pos>=0) {
-// 			classes = tag.substr(pos+1)
-// 			tag = tag.substr(0, pos)
-// 		}
-// 		el = document.createElement(tag || 'div')
-// 		if (classes) {
-// 			// @ts-ignore (replaceAll is polyfilled)
-// 			el.className = classes.replaceAll('.', ' ')
-// 		}
-// 	}
-
-// 	currentScope._addNode(el)
-
-// 	for(let item of rest) {
-// 		let type = typeof item
-// 		if (type === 'function') {
-// 			let scope = new SimpleScope(el, undefined, currentScope._queueOrder+1, item)
-// 			if (onCreateEnabled) {
-// 				onCreateEnabled = false
-// 				scope._update()
-// 				onCreateEnabled = true
-// 			} else {
-// 				scope._update()
-// 			}
-
-// 			// Add it to our list of cleaners. Even if `scope` currently has
-// 			// no cleaners, it may get them in a future refresh.
-// 			currentScope._cleaners.push(scope)
-// 		} else if (type === 'string' || type === 'number') {
-// 			el.textContent = item
-// 		} else if (type === 'object' && item && item.constructor === Object) {
-// 			for(let k in item) {
-// 				applyProp(el, k, item[k])
-// 			}
-// 		} else if (item instanceof Store) {
-// 			bindInput(<HTMLInputElement>el, item)
-// 		} else if (item != null) {
-// 			throw new Error(`Unexpected argument ${JSON.stringify(item)}`)
-// 		}
-// 	}
-// }
-
-
-
-/**
- * Convert an HTML string to one or more DOM elements, and add them to the current DOM scope.
- * @param html - The HTML string. For example `"<section><h2>Test</h2><p>Info..</p></section>"`.
- */
-export function html(html: string) {
-	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
-	let tmpParent = document.createElement(currentScope._parentElement.tagName)
-	tmpParent.innerHTML = ''+html
-	while(tmpParent.firstChild) {
-		currentScope._addNode(tmpParent.firstChild)
+function addLeafNode(node: Node) {
+	if ($topEl) {
+		$deepEl.appendChild(node)
+	} else {
+		$scope._addNode(node)
 	}
 }
 
-function bindInput(el: HTMLInputElement, store: Store) {
+function setProp(prop: any, value: any) {
+	($deepEl as any)[prop] = value
+}
+
+function bindInput(_key: string, store: Store) {
+	const el = $deepEl as HTMLInputElement
+	if (!(store instanceof Store)) throw new Error(`Unexpect bind-argument: ${JSON.parse(store)}`)
 	let onStoreChange: (value: any) => void
 	let onInputChange: () => void
 	let type = el.getAttribute('type')
@@ -1933,7 +1832,95 @@ function bindInput(el: HTMLInputElement, store: Store) {
 	clean(() => {
 		el.removeEventListener('input', onInputChange)
 	})
+}
 
+const SPECIAL_PROPS: any = {
+	create: function(prop: any, value: any) {
+		if (onCreateEnabled) {
+			if (typeof value === 'function') {
+				value($deepEl)
+			} else {
+				$deepEl.classList.add(value)
+				setTimeout(function(){$deepEl.classList.remove(value)}, 0)
+			}
+		}
+	},
+	destroy: function(_prop: any, value: any) {
+		onDestroyMap.set($deepEl, value)
+	},
+	bind: bindInput,
+	html: function(_prop: any, value: any) {
+		let tmpParent = document.createElement($scope._parentElement!.tagName)
+		tmpParent.innerHTML = ''+value
+		while(tmpParent.firstChild) addLeafNode(tmpParent.firstChild)
+	},
+	text: function(_prop: any, value: any) {
+		addLeafNode(document.createTextNode(value))
+	},
+	element: function(_prop: any, value: any) {
+		if (!(value instanceof Node)) throw new Error(`Unexpect element-argument: ${JSON.parse(value)}`)
+		addLeafNode(value)
+	},
+	value: setProp,
+	className: setProp,
+	selectedIndex: setProp,
+}
+
+
+export function $(...args: any[]) {
+	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
+	$topEl = undefined
+	$deepEl = currentScope._parentElement
+	$scope = currentScope
+
+	let idx = 0
+	if (args[0] instanceof Array) { // template string
+		for(let str of args[idx++]) {
+			const arg = args[idx++] 
+			if (!parseStr(str.trim(), arg)) {
+				if (typeof arg === 'string') parseStr(arg, undefined)
+				else if (arg != null) throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`)
+			}
+		}
+	} else { // regular function call
+		while (idx < args.length) {
+			let arg = args[idx++]
+			if (arg == null) continue
+			if (typeof arg === 'string') {
+				if (parseStr(arg, args[idx])) idx++
+			} else if (typeof arg === 'function' && idx === args.length) {
+				runInScope(arg)
+			} else {
+				throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`)
+			}
+		}
+	}
+
+	if ($topEl) $scope._addNode($topEl)
+
+	return runInScope
+}
+
+/**
+ * TODO:
+ * - fix everything
+ * - could $ be a Scope? would it be slow?
+ */
+
+/**
+ * This function, which is meant to be overridden, is called when an error occurs during rendering
+ * while in a reactive scope. The default implementation logs the error to the console, and then
+ * just returns `true`, which causes an 'Error' message to be displayed in the UI. When this function
+ * returns `false`, the error is suppressed. This mechanism exists because rendering errors can occur
+ * at any time, not just synchronous when making a call to Aberdeen, thus normal exception handling
+ * is not always possible. 
+ * @param error The `Error` object. 
+ * @returns `true` to display the error message, `false` to suppress it. The default implementation
+ *   just returns `true`.
+ */
+$.onError = function(error: Error) {
+	console.error('Error while in Aberdeen render:', error)
+	return true
 }
 
 
@@ -2127,50 +2114,6 @@ export function peek<T>(func: () => T): T {
 }
 
 
-/*
- * Helper functions
- */
-
-function applyProp(el: Element, prop: any, value: any) {
-	if (prop==='create') {
-		if (onCreateEnabled) {
-			if (typeof value === 'function') {
-				value(el)
-			} else {
-				el.classList.add(value)
-				setTimeout(function(){el.classList.remove(value)}, 0)
-			}
-		}
-	} else if (prop==='destroy') {
-		onDestroyMap.set(el, value)
-	} else if (typeof value === 'function') {
-		// Set an event listener; remove it again on clean.
-		el.addEventListener(prop, value)
-		clean(() => el.removeEventListener(prop, value))
-	} else if (prop==='value' || prop==='className' || prop==='selectedIndex' || value===true || value===false) {
-		// All boolean values and a few specific keys should be set as a property
-		(el as any)[prop] = value
-	} else if (prop==='text') {
-		// `text` is set as textContent
-		el.textContent = value
-	} else if ((prop==='class' || prop==='className') && typeof value === 'object') {
-		// Allow setting classes using an object where the keys are the names and
-		// the values are booleans stating whether to set or remove.
-		for(let name in value) {
-			if (value[name]) el.classList.add(name)
-			else el.classList.remove(name)
-		}
-	} else if (prop==='style' && typeof value === 'object') {
-		// `style` can receive an object
-		Object.assign((<HTMLElement>el).style, value)
-	} else if (prop==='bind' && value instanceof Store) {
-		bindInput(<HTMLInputElement>el, value)
-	} else {
-		// Everything else is an HTML attribute
-		el.setAttribute(prop, value)
-	}
-}
-
 function valueToData(value: any) {
 	if (typeof value !== "object" || !value) {
 		// Simple data types
@@ -2222,7 +2165,7 @@ function handleError(e: any, showMessage: boolean) {
 	try {
 		if ($.onError(e) === false) showMessage = false
 	} catch {}
-	if (showMessage && currentScope?._parentElement) $`div.aberdeen-error ~Error`
+	if (showMessage && currentScope?._parentElement) $`div.aberdeen-error text=Error`
 }
 
 class ScopeError extends Error {

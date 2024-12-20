@@ -110,4 +110,10 @@ describe('Error handling', () => {
         })
         assertRenderError('recursive', passTime)
     })
+
+    it('refuses to render a node outside a mount', () => {
+        assertThrow("outside of a mount", () => $`a`)
+        assertThrow("outside of a mount", () => $`.x`)
+        assertRenderError("outside of a mount", () => observe(() => $`a`))
+    })
 })
