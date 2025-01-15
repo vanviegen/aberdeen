@@ -11,7 +11,7 @@ describe('The map() and multiMap() methods', () => {
 
             out.onEach(s => {
                 cnt2++
-                $('~', s.index()+"="+s.get())
+                $('text=', s.index()+"="+s.get())
             }, s => s.index())
         })
 
@@ -36,7 +36,7 @@ describe('The map() and multiMap() methods', () => {
 
             out.onEach(s => {
                 cnt2++
-                $('~', s.index()+'='+s.get())
+                $('text=', s.index()+'='+s.get())
             }, s => -s.get())
         })
 

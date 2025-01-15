@@ -27,8 +27,8 @@ describe('Array', () => {
 	it('reactively get() full array', () => {
 		let store = new Store([3, 4, new Store([5, 6])])
 		mount(document.body, () => {
-			$('~', JSON.stringify(store.get()))
-			$('~', JSON.stringify(store.query({depth: 1})[2].get()))
+			$('text=', JSON.stringify(store.get()))
+			$('text=', JSON.stringify(store.query({depth: 1})[2].get()))
 		})
 		passTime()
 		assertBody(`"[3,4,[5,6]]" "[5,6]"`)
@@ -60,7 +60,7 @@ describe('Array', () => {
 			cnt1++
 			store.onEach(item => {
 				cnt2++
-				$`div ~${item.get()}`
+				$`div text=${item.get()}`
 			})
 		})
 

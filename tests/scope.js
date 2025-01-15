@@ -7,7 +7,7 @@ describe('Scope', () => {
 				cnt1++
 				$('span', () => {
 					cnt2++
-					$('~', store.get())
+					$('text=', store.get())
 				})
 			})
 		})
@@ -172,8 +172,8 @@ describe('Scope', () => {
 				cnt1++
 				$('span', () => {
 					cnt2++
-					$('~', peek(() => store.get()))
-					$('~', store.peek())
+					$('text=', peek(() => store.get()))
+					$('text=', store.peek())
 				})
 			})
 		})
@@ -191,7 +191,7 @@ describe('Scope', () => {
 		mount(document.body, () => {
 			for(let i=0; i<4; i++) {
 				$('p', () => {
-					$("~", values.get(i))
+					$("text=", values.get(i))
 				})
 			}
 		})
@@ -221,7 +221,7 @@ describe('Scope', () => {
 			})
 
 			inverse.onEach(item => {
-				$('~', item.index()+"="+item.get())
+				$('text=', item.index()+"="+item.get())
 				cnt3++
 			})
 		})

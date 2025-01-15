@@ -44,14 +44,14 @@ describe('Create event', function() {
         let store = new Store([])
         mount(document.body, () => {
             store.onEach(item => {
-                $`${item.get()} create=y`
+                $`${item.get()} create=cls`
             })
         })
 
         store.set(['a', undefined, 'c'])
         // Assert before temporary class removal
-        setTimeout(() => assertBody(`a{@class="y"} c{@class="y"}`), 0)
-        passTime(0)
+        setTimeout(() => assertBody(`a{@class="cls"} c{@class="cls"}`), 0)
+        passTime()
         assertBody(`a{} c{}`)
     })
 

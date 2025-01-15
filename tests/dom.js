@@ -17,7 +17,7 @@ describe('DOM creator', function() {
 
 	it('sets attributes', () => {
 		mount(document.body, () => {
-			$`div.C ~T id=I index=1`
+			$`div.C text=T id=I index=1`
 		})
 		passTime();
 		assertBody(`div{@class="C" @id="I" @index="1" "T"}`)
@@ -36,7 +36,7 @@ describe('DOM creator', function() {
 			$`p`(() => {
 				$`a`(() => {
 					$`i`(() => {
-						$`~contents`
+						$`text=contents`
 					})
 				})
 			})
@@ -73,7 +73,7 @@ describe('DOM creator', function() {
 		let cnt = 0
 		mount(document.body, () => {
 			cnt++
-			$`p ~${store.get()}`
+			$`p text=${store.get()}`
 		})
 		assertBody(`p{"Hej world"}`)
 
@@ -96,7 +96,7 @@ describe('DOM creator', function() {
 			[false, `"false"`],
 		]
 		mount(document.body, () => {
-			$("~", cases[index.get()][0])
+			$("text=", cases[index.get()][0])
 		})
 
 		while(true) {
@@ -113,7 +113,7 @@ describe('DOM creator', function() {
 		mount(document.body, () => {
 			let el = document.createElement('video')
 			el.classList.add("test")
-			$(el)
+			$("element=", el)
 		})
 		assertBody(`video{@class="test"}`)
 	})
@@ -127,7 +127,7 @@ describe('DOM creator', function() {
 		let cases = [
 			[`div{@class="a b c"}`, () => $`div.a.b.c`],
 			[`div{@class="a b c d"}`, () => $('div', '.a', '.', 'b', '.c.d')],
-			[`div{"1234"}`, () => $`div ~ ${1234}`],
+			[`div{"1234"}`, () => $`div text= ${1234}`],
 		]
 		for(let c of cases) {
 			mount(document.body, () => {
@@ -177,7 +177,7 @@ describe('DOM creator', function() {
 			$`main`(() => {
 				$`hr`
 				observe(() => {
-					html(store.get())
+					$('html=', store.get())
 				})
 				$`img`
 			})
@@ -192,9 +192,9 @@ describe('DOM creator', function() {
 		passTime()
 		assertBody(`main{hr{} fake-emulated-html{"123"} img{}}`)
 
-		assertThrow("Operation not permitted outside of a mount() scope", () => html("test"))
+		assertThrow("Operation not permitted outside of a mount() scope", () => $`html=test`)
 		observe(() => {
-			assertThrow("Operation not permitted outside of a mount() scope", () => html("test"))
+			assertThrow("Operation not permitted outside of a mount() scope", () => $`html=test`)
 		})
 	})
 

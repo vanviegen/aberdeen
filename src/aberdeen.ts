@@ -1498,9 +1498,9 @@ export class Store {
 	dump() {
 	  let type = this.getType()
 	  if (type === 'array' || type === 'object' || type === 'map') {
-	    $('text=', '<'+type+'>')
+	    $('text=', `<${type}>`)
 	    $('ul', () => {
-	      this.onEach((sub: Store) => {
+			this.onEach((sub: Store) => {
 	        $('li', () => {
 				$('text=', JSON.stringify(sub.index())+': ')
 	        	sub.dump()
@@ -1693,9 +1693,8 @@ function applyStyle(el: Element, prop: string, value: any) {
  */
 
 
- let $topEl: Element | undefined
  let $deepEl: Element = undefined as unknown as Element
- let $scope: Scope = undefined as unknown as Scope
+ let $scope: Scope | undefined
 
 let parseStrParts: any[]
 let parseStrIndex = 0
@@ -1704,19 +1703,20 @@ function checkCondition() {
 	let enable = true
 	while (parseStrParts[parseStrIndex+1] === '?') {
 		parseStrIndex++
-		const check = parseStrParts[++parseStrIndex]
-		if (typeof check === 'function') {
-			enable = !!(enable && check())
-		} else if (check===false || check==='n') {
+		let check = parseStrParts[++parseStrIndex]
+		if (!enable) continue
+		// This depends on the parent scope - we'd want to change this to a custom scope? Same for property values...
+		if (check instanceof Store) check = check.get()
+		if (check===false || check==='n') {
 			enable = false
 		} else if (check!==true && check!=='y') {
-			throw new Error(`Invalid conditional check: ${check}`)
+			throw new Error(`Invalid conditional: ${check}`)
 		}
 	}
 	return enable
 }
 
-const SPLIT_REGEX = /(?<=[:=]")[^"]*(?=")|(?<=[:=])[^" ?][^ ?]*|[a-z-]+|[^ "]/g
+const SPLIT_REGEX = /(?<=[:=]")[^"]*(?=")|(?<=[:=])[^" ?][^ ?]*|[A-Za-z0-9_-]+|[^ "]/g
 
 function parseStr(str: string, arg: any) {
 	const argUsed = "?:=.".indexOf(str[str.length-1]) >= 0
@@ -1762,11 +1762,11 @@ function parseStr(str: string, arg: any) {
 			const value = parseStrParts[parseStrIndex++]
 			applyStyle($deepEl, part, checkCondition() ? value : "")
 		} else { // create a node
-			let el = document.createElement(part)
-			if ($topEl) {
-				$deepEl.appendChild(el)
+			let el = document.createElement(part)			
+			if ($deepEl === currentScope!._parentElement) {
+				currentScope!._addNode(el)
 			} else {
-				$topEl = el
+				$deepEl.appendChild(el)
 			}
 			$deepEl = el
 		}
@@ -1775,7 +1775,11 @@ function parseStr(str: string, arg: any) {
 }
 
 function runInScope(func: () => void) {
-	let childScope = new SimpleScope($deepEl, undefined, $scope._queueOrder+1, func)
+	if (!$scope) throw new Error("Only a single scope may be attached to a $-created node")
+	const scope = $scope
+	$scope = undefined
+
+	let childScope = new SimpleScope($deepEl, $deepEl.lastChild as Node, scope._queueOrder+1, func)
 	if (onCreateEnabled) {
 		onCreateEnabled = false
 		childScope._update()
@@ -1786,14 +1790,14 @@ function runInScope(func: () => void) {
 
 	// Add it to our list of cleaners. Even if `scope` currently has
 	// no cleaners, it may get them in a future refresh.
-	$scope._cleaners.push(childScope)
+	scope._cleaners.push(childScope)
 }
 
 function addLeafNode(node: Node) {
-	if ($topEl) {
-		$deepEl.appendChild(node)
+	if ($deepEl === (currentScope as Scope)._parentElement) {
+		currentScope!._addNode(node)
 	} else {
-		$scope._addNode(node)
+		$deepEl.appendChild(node)
 	}
 }
 
@@ -1836,13 +1840,13 @@ function bindInput(_key: string, store: Store) {
 
 const SPECIAL_PROPS: any = {
 	create: function(prop: any, value: any) {
-		if (onCreateEnabled) {
-			if (typeof value === 'function') {
-				value($deepEl)
-			} else {
-				$deepEl.classList.add(value)
-				setTimeout(function(){$deepEl.classList.remove(value)}, 0)
-			}
+		if (!onCreateEnabled) return
+		const el = $deepEl
+		if (typeof value === 'function') {
+			value(el)
+		} else {
+			el.classList.add(value)
+			setTimeout(function(){el.classList.remove(value)}, 0)
 		}
 	},
 	destroy: function(_prop: any, value: any) {
@@ -1850,12 +1854,12 @@ const SPECIAL_PROPS: any = {
 	},
 	bind: bindInput,
 	html: function(_prop: any, value: any) {
-		let tmpParent = document.createElement($scope._parentElement!.tagName)
+		let tmpParent = document.createElement($deepEl.tagName)
 		tmpParent.innerHTML = ''+value
 		while(tmpParent.firstChild) addLeafNode(tmpParent.firstChild)
 	},
 	text: function(_prop: any, value: any) {
-		addLeafNode(document.createTextNode(value))
+		if (value!=null) addLeafNode(document.createTextNode(value))
 	},
 	element: function(_prop: any, value: any) {
 		if (!(value instanceof Node)) throw new Error(`Unexpect element-argument: ${JSON.parse(value)}`)
@@ -1866,10 +1870,14 @@ const SPECIAL_PROPS: any = {
 	selectedIndex: setProp,
 }
 
-
 export function $(...args: any[]) {
 	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
-	$topEl = undefined
+
+	// These should be considered local variables, except that we want to access them from our
+	// helper functions, and for performance, we don't want to be creating closures for 
+	// every $ invocation. This works, as $ is not reentrant.
+	// In addition, $deepEl and $scope are kept around, in case runInScope is called directly
+	// after this $ invocation. We use them to attach a new scope to the element created here.
 	$deepEl = currentScope._parentElement
 	$scope = currentScope
 
@@ -1889,23 +1897,15 @@ export function $(...args: any[]) {
 			if (typeof arg === 'string') {
 				if (parseStr(arg, args[idx])) idx++
 			} else if (typeof arg === 'function' && idx === args.length) {
-				runInScope(arg)
+				runInScope(arg) // clears $scope!
 			} else {
 				throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`)
 			}
 		}
 	}
 
-	if ($topEl) $scope._addNode($topEl)
-
 	return runInScope
 }
-
-/**
- * TODO:
- * - fix everything
- * - could $ be a Scope? would it be slow?
- */
 
 /**
  * This function, which is meant to be overridden, is called when an error occurs during rendering

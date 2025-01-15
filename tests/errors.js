@@ -21,7 +21,7 @@ describe('Error handling', () => {
     it('throws when doing DOM operations outside of mount', () => {
 		let ops = [
 			() => $`div`,
-			() => $`~hi`,
+			() => $`text=hi`,
             () => getParentElement(),
 		]
 		for(let op of ops) {
@@ -42,7 +42,7 @@ describe('Error handling', () => {
             mount(document.body, () => {
                 store.onEach(item => {
                     if (item.index() % 2) noSuchFunction()
-                    $`~${item.get()}`
+                    $`text=${item.get()}`
                 })
             })
         })
@@ -59,7 +59,7 @@ describe('Error handling', () => {
         assertRenderError(() => {
             mount(document.body, () => {
                 store.onEach(item => {
-                    $`~${item.get()}`
+                    $`text=${item.get()}`
                 }, item => {
                     if (item.index() % 2) noSuchFunction()
                     return -item.index()

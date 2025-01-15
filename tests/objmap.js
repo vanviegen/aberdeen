@@ -13,7 +13,7 @@ describe('Objects and maps', () => {
             let cnt = 0
             mount(document.body, () => {
                 cnt++
-                $('~', store.get('a')+store.get('a')+store.get('b'))
+                $('text=', store.get('a')+store.get('a')+store.get('b'))
                 store.get()
                 store.get()
             })

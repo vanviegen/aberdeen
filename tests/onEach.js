@@ -61,7 +61,7 @@ describe('onEach', function() {
 		mount(document.body, () => {
 			let store = new Store({x: 3})
 			store.onEach(store => {
-				$`p.${store.index()} ~${store.get()}`
+				$`p.${store.index()} text=${store.get()}`
 			})
 		})
 		assertBody(`p{@class="x" "3"}`)
@@ -71,7 +71,7 @@ describe('onEach', function() {
 		mount(document.body, () => {
 			let store = new Store({c: 3, a: 1, b: 2})
 			store.onEach(store => {
-				$`p ~${store.index()}`
+				$`p text=${store.index()}`
 			})
 		})
 		assertBody(`p{"a"} p{"b"} p{"c"}`)
@@ -81,7 +81,7 @@ describe('onEach', function() {
 		mount(document.body, () => {
 			let store = new Store({c: 3, a: 1, b: 2})
 			store.onEach(store => {
-				$`p ~${store.index()}`
+				$`p text=${store.index()}`
 			})
 			$`div`
 		})
@@ -287,7 +287,7 @@ describe('onEach', function() {
 				let letter = item.get()[0]
 				let count = 0 | item.get()[1]
 				for(let i=0; i<count; i++) {
-					$('~', item.index()+letter)
+					$('text=', item.index()+letter)
 				}
 			}, item => item.get()[0])
 		})

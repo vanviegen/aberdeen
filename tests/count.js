@@ -3,7 +3,7 @@ describe('Count', () => {
         let store = new Store()
         let cnt = 0
         mount(document.body, () => {
-            $`~${store.count()}`
+            $`text=${store.count()}`
             cnt++
         })
         passTime()
@@ -70,7 +70,7 @@ describe('Count', () => {
         let store = new Store()
         let cnt = 0
         mount(document.body, () => {
-            $`~${store.isEmpty()}`
+            $`text=${store.isEmpty()}`
             cnt++
         })
         passTime()

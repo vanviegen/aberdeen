@@ -5,7 +5,7 @@ describe('Value binding', function() {
 		mount(document.body, () => {
 			$`input bind=${store}`(() => {
 				inputElement = getParentElement();
-				$`class=${{correct: store.get().length >= 5}}`;
+				$('.', {correct: store.get().length >= 5})
 			});
 		});
 		assertBody(`input{value="test"}`);
