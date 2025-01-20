@@ -259,19 +259,4 @@ describe('Scope', () => {
 		assertBody(``)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,4,4])
 	})
-
-	it('refrains from rerendering when inhibitEffect is used', () => {
-		let store = new Store('a')
-		let count = 0
-		mount(document.body, () => {
-			node(store.get())
-			count++
-		})
-		assertBody(`a{}`)
-
-		inhibitEffects(() => store.set('b'))
-		passTime()
-		assertBody(`a{}`)
-		assertEqual(count, 1)
-	})
 })

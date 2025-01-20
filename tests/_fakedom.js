@@ -22,11 +22,14 @@ global.getCounts = function() { return {new: newCount, change: changeCount}; };
 let timeouts = [];
 let currentTime = 0;
 
+const realSetTimeout = global.setTimeout
+
 global.setTimeout = function(func,time) {
 	timeouts.push({func, time: time+currentTime});
 };
 
 global.passTime = function(ms) {
+	let count = 0
 	let targetTime = ms==null ? undefined : currentTime + ms;
 	while(timeouts.length) {
 		// Find the timeout that should occur first
@@ -41,10 +44,21 @@ global.passTime = function(ms) {
 		timeouts.splice(smallestIdx, 1);
 		currentTime = timeout.time;
 		timeout.func();
+		count++
 	}
 	currentTime = targetTime==null ? 0 : targetTime
+	return count
 }
 
+global.asyncPassTime = async function(ms) {
+	while(true) {
+		// Allow all async tasks that are ready (or become ready during another task) to run.
+		await new Promise(resolve => realSetTimeout(resolve, 0));
+		// Trigger virtual setTimeout, until there are none left. (They can be set from an async task.)
+		if (!passTime(ms)) break
+		ms = 0
+	}
+}
 
 class Node {
 	get nextSibling() {
@@ -102,7 +116,8 @@ class Element extends Node {
 		this.removeChild(oldNode);
 	}
 	setAttribute(k, v) {
-		this.attrs[k] = ''+v;
+		if (v==null) delete this.attrs[k]
+		else this.attrs[k] = ''+v;
 		changeCount++;
 	}
 	getAttribute(k) {
@@ -118,13 +133,11 @@ class Element extends Node {
 				let set = this._getClassSet();
 				set.add(name);
 				this._setClassSet(set);
-				changeCount++;
 			},
 			remove: name => {
 				let set = this._getClassSet();
 				set.delete(name);
 				this._setClassSet(set);
-				changeCount++;
 			},
 		}
 	}
@@ -135,8 +148,7 @@ class Element extends Node {
 		return new Set(this.attrs.class ? this.attrs.class.split(' ') : []);
 	}
 	_setClassSet(map) {
-		this.attrs.class = Array.from(map).sort().join(' ');
-		if (!this.attrs.class) delete this.attrs.class;
+		this.setAttribute('class', Array.from(map).sort().join(' ') || undefined)
 	}
 	get firstChild() {
 		return this.childNodes[0];

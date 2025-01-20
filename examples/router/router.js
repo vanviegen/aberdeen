@@ -66,8 +66,8 @@ function drawTemplate() {
             })
         }, {
             click: function(e) {if (e.target===this) route.merge({mode: 'back', state: {modal: undefined}})},
-            create: grow,
-            destroy: shrink,
+            create: "transparent",
+            destroy: "transparent",
         })
         
     })

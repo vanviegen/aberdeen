@@ -233,7 +233,7 @@ describe('Destroy event', function() {
         assertBody(``)
     })
 
-    it('performs a shrink animation', () => {
+    it('performs a shrink animation', async() => {
         let store = new Store(true)
         mount(document.body, () => {
             if (store.get()) node('a', {destroy: shrink})
@@ -242,14 +242,14 @@ describe('Destroy event', function() {
         assertBody(`a{}`)
         
         store.set(false)
-        passTime(1)
+        await asyncPassTime(1)
         assert(getBody().startsWith('a{'))
         assert(getBody().indexOf('scaleY')>=0 && getBody().indexOf('scaleX')<0)
-        passTime(2000)
+        await asyncPassTime(2000)
         assertBody(``)
     })
 
-    it('performs a horizontal shrink animation', () => {
+    it('performs a horizontal shrink animation', async() => {
         let store = new Store(true)
         mount(document.body, () => {
             node('div', {style: {display: 'flex', flexDirection: 'row-reverse'}}, () => {
@@ -260,10 +260,10 @@ describe('Destroy event', function() {
         assertBody(`div{:display="flex" :flexDirection="row-reverse" a{}}`)
         
         store.set(false)
-        passTime(1)
+        await asyncPassTime(1)
         assert(getBody().indexOf('scaleX')>=0 && getBody().indexOf('scaleY')<0)
 
-        passTime(2000)
+        await asyncPassTime(2000)
         assertBody(`div{:display="flex" :flexDirection="row-reverse"}`)
     })
 

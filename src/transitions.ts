@@ -1,4 +1,4 @@
-import {scheduleDomReader, scheduleDomWriter} from 'aberdeen'
+import {DOM_READ_PHASE, DOM_WRITE_PHASE} from './aberdeen.js'
 
 const FADE_TIME = 400
 const GROW_SHRINK_TRANSITION = `margin ${FADE_TIME}ms ease-out, transform ${FADE_TIME}ms ease-out`
@@ -20,34 +20,28 @@ function getGrowShrinkProps(el: HTMLElement) {
 * The transition doesn't look great for table elements, and may have problems
 * for other specific cases as well.
 */
-export function grow(el: HTMLElement): void {
-	// This timeout is to await all other elements having been added to the Dom
-	scheduleDomReader(() => {
-		// Make the element size 0 using transforms and negative margins.
-		// This causes a browser layout, as we're querying el.offset<>.
-		let props = getGrowShrinkProps(el)
-		
-		// The timeout is in order to batch all reads and then all writes when there
-		// are multiple simultaneous grow transitions.
-		scheduleDomWriter(() => {
-			Object.assign(el.style, props)
-			
-			// This timeout is to combine multiple transitions into a single browser layout
-			scheduleDomReader(() => {
-				// Make sure the layouting has been performed, to cause transitions to trigger
-				el.offsetHeight
-				scheduleDomWriter(() => {
-					// Do the transitions
-					el.style.transition = GROW_SHRINK_TRANSITION
-					for(let prop in props) el.style[prop as any] = ""
-					setTimeout(() => {
-						// Reset the element to a clean state
-						el.style.transition = ""
-					}, FADE_TIME)
-				})
-			})
-		})
-	})
+export async function grow(el: HTMLElement) {
+	// Wait until all DOM updates have been done. Then get info from the computed layout.
+	await DOM_READ_PHASE
+	let props = getGrowShrinkProps(el)
+
+	// In the write phase, make the element size 0 using transforms and negative margins.
+	await DOM_WRITE_PHASE
+	Object.assign(el.style, props)
+	
+	// Await read phase, to combine multiple transitions into a single browser layout
+	await DOM_READ_PHASE
+	// Make sure the layouting has been performed, to cause transitions to trigger
+	el.offsetHeight
+
+	// In the next write phase, do the transitions
+	await DOM_WRITE_PHASE
+	el.style.transition = GROW_SHRINK_TRANSITION
+	for(let prop in props) el.style[prop as any] = ""
+	setTimeout(() => {
+		// Disable transitions.
+		el.style.transition = ""
+	}, FADE_TIME)
 }
 
 /** Do a shrink transition for the given element, and remove it from the DOM
@@ -58,16 +52,18 @@ export function grow(el: HTMLElement): void {
 * The transition doesn't look great for table elements, and may have problems
 * for other specific cases as well.
 */
-export function shrink(el: HTMLElement): void {
-	scheduleDomReader(() => {
-		const props = getGrowShrinkProps(el)
-		// The timeout is in order to batch all reads and then all writes when there
-		// are multiple simultaneous shrink transitions.
-		scheduleDomWriter(() => {
-			el.style.transition = GROW_SHRINK_TRANSITION
-			Object.assign(el.style, props)
-			
-			setTimeout(() => el.remove(), FADE_TIME)
-		})
-	})
+export async function shrink(el: HTMLElement) {
+	// Wait until all DOM updates have been done. Then get info from the computed layout.
+	await DOM_READ_PHASE
+	const props = getGrowShrinkProps(el)
+
+	// Batch starting transitions in the write phase.
+	await DOM_WRITE_PHASE
+	el.style.transition = GROW_SHRINK_TRANSITION
+	Object.assign(el.style, props)
+	
+	// Remove the element after the transition is done.
+	setTimeout(() => {
+		el.remove()
+	}, FADE_TIME)
 }

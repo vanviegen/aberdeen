@@ -56,9 +56,15 @@ header {
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  transition: opacity 0.5s ease-out;
+}
+.modal-bg.transparent {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .modal {
+  position: fixed;
   background-color: white;
   padding: 20px;
   border-radius: 8px;

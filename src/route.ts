@@ -1,4 +1,4 @@
-import {Store, observe, immediateObserve, inhibitEffects} from 'aberdeen'
+import {Store, observe, immediateObserve, runQueue} from './aberdeen.js'
 
 /**
  * A `Store` object that holds the following keys:
@@ -43,6 +43,10 @@ function handleLocationUpdate(event?: PopStateEvent) {
 		hash: location.hash,
 		state: prevHistoryState,
 	})
+	if (event) {
+		runQueue();
+		restoreScrollPositions();
+	}
 }
 handleLocationUpdate()
 window.addEventListener("popstate", handleLocationUpdate);
@@ -51,15 +55,23 @@ window.addEventListener("popstate", handleLocationUpdate);
 // We want to to this immediately, so that user-code running immediately after a user-code
 // initiated `set` will see the canonical form (instead of doing a rerender shortly after,
 // or crashing due to non-canonical data).
-immediateObserve(() => {
-	let path = ''+route.get('path')
+function updatePath(): void {
+	let path = route.get('path')
+	if (path == null && route.peek('p')) {
+		return updateP();
+	} 
+	path = ''+path
 	if (!path.startsWith('/')) path = '/'+path
 	route.set('path', path)
 	route.set('p', path.slice(1).split('/'))
-})
+}
+immediateObserve(updatePath)
 
-immediateObserve(() => {
+function updateP(): void {
 	const p = route.get('p')
+	if (p == null && route.peek('path')) {
+		return updatePath()
+	}
 	if (!(p instanceof Array)) {
 		console.error(`aberdeen route: 'p' must be a non-empty array, not ${JSON.stringify(p)}`)
 		route.set('p', ['']) // This will cause a recursive call this observer.
@@ -68,7 +80,8 @@ immediateObserve(() => {
 	} else {
 		route.set('path', '/' + p.join('/'))
 	}
-})
+}
+immediateObserve(updateP)
 
 immediateObserve(() => {
 	if (route.getType('search') !== 'object') route.set('search', {})
@@ -88,7 +101,7 @@ immediateObserve(() => {
 observe(() => {
 	// Get and delete mode without triggering anything.
 	const mode = route.get('mode')
-	if (mode) inhibitEffects(() => route.delete('mode'))
+	if (mode) route.delete('mode')
 	const state = route.get('state')
 	
 	// Construct the URL.
@@ -110,6 +123,7 @@ observe(() => {
 		setTimeout(() => history.replaceState(state, '', url), 0)
 		stack[stack.length-1] = {url,state}
 	} else if (mode === 'push' || (!mode && (location.pathname !== path || JSON.stringify(Object.keys(state||{})) !== JSON.stringify(Object.keys(prevHistoryState||{}))))) {
+		// Default to `push` when the URL changed or top-level state keys changed.
 		history.pushState(state, '', url)
 		stack.push({url,state})
 	} else {
@@ -119,3 +133,57 @@ observe(() => {
 	prevHistoryState = state
 })
 
+
+function getCssPath(element: Element): string {
+	if (element.id) return '#' + element.id;
+
+	let selector = element.tagName.toLowerCase();
+	if (selector === 'body') return selector;
+	
+	if (element.className) selector += '.' + element.className.replace(/ /g, '.');
+
+	const parent = element.parentElement;
+	if (parent) {
+    const index = Array.from(parent.children).indexOf(element) + 1;
+    selector = `${getCssPath(parent)} > ${selector}:nth-child(${index})`;
+	}
+	return selector;
+}
+
+function onScrollHandler(event: Event) {
+	let target = event.target;
+	if (target instanceof Element) {
+		let path = getCssPath(target);
+		route.merge({mode: 'replace', state: {scroll: {[path]: {top: target.scrollTop, left: target.scrollLeft}}}});
+	}
+}
+
+function restoreScrollPositions() {
+	let scrolls = route.peek('state', 'scroll') || {};
+	for(let path in scrolls) {
+		let el = document.querySelector(path);
+		if (el) {
+			el.scrollTop = scrolls[path].top;
+			el.scrollLeft = scrolls[path].left;
+		}
+	}
+}
+
+/**
+ * Enables or disables automatic scroll position restoration.
+ * When enabled, scroll positions of elements are saved to the route state
+ * and automatically restored by the framework after navigation events
+ * (browser back/forward). Enabled by default.
+ *
+ * Note that this library makes a best effort to match scrolled elements
+ * with elements newly drawn after going back/forward, relying on a 
+ * combination of `id`, `tag`, `class` and `nth-child` of the element
+ * and its ancestors. It may fail if the restored page is significantly
+ * different from the original. You may want to add some `id`s in that case.
+ * 
+ * @param {boolean} enabled - True to enable scroll restoration, false to disable
+ */
+export function setScrollRestore(enabled: boolean) {
+	window[enabled ? 'addEventListener' : 'removeEventListener']('scroll', onScrollHandler, true)
+}
+setScrollRestore(true)

@@ -1,4 +1,4 @@
-import {withEmitHandler} from 'aberdeen'
+import {withEmitHandler} from './aberdeen.js'
 
 type ObsCollection = any
 type Patch = Map<ObsCollection, Map<any, [any, any]>>;

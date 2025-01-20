@@ -16,11 +16,16 @@ describe('Create event', function() {
 		})
         
 		assertBody(``)
+        assertEqual(getCounts(), {new: 0, change: 0})
 
         store.set(true)
-        // We'll do this in a setTimeout 0, so that the assert can be done before the temporary class is removed in a later setTimeout 0.
-		setTimeout(() => assertBody(`b{@class="y"}`), 0)
         passTime(0)
+        // We don't have a good way to know if the class has been set and immediately
+        // removed, so we'll just look at the number of changes, which would have
+        // been 1 (just inserting the newly created DOM element) without the
+        // create-transition.
+        assertEqual(getCounts(), {new: 1, change: 3})
+
 		assertBody(`b{}`)
     });
 
@@ -33,10 +38,14 @@ describe('Create event', function() {
 		assertBody(``)
 
         store.set(true)
-        // We do the assert in a setTimeout 0, so it's performed before the temporary class is removed in a later setTimeout 0.
-		setTimeout(() => assertBody(`b{c{}}`), 0)
         passTime(0)
-		assertBody(`b{c{}}`)
+        // We don't have a good way to know if the class has been set and immediately
+        // removed, so we'll just look at the number of changes, which would have
+        // been 4 (2 node insert + 1 class add + 1 class remove) with the
+        // create-transition.
+        assertEqual(getCounts(), {new: 2, change: 2}) // 2 new nodes, 2 node inserts 
+
+        assertBody(`b{c{}}`)
     });
 
     it('works in an onEach', () => {
@@ -48,13 +57,18 @@ describe('Create event', function() {
 		})
 
         store.set(['a', undefined, 'c'])
-        // We do the assert in a setTimeout 0, so it's performed before the temporary class is removed in a later setTimeout 0.
-		setTimeout(() => assertBody(`a{@class="y"} c{@class="y"}`), 0)
         passTime(0)
+
+        // We don't have a good way to know if the class has been set and immediately
+        // removed, so we'll just look at the number of changes, which would have
+        // been 2 (just inserting the newly created DOM elements) without the
+        // create-transition.
+        assertEqual(getCounts(), {new: 2, change: 6})
+
 		assertBody(`a{} c{}`)
     });
 
-    it('performs a grow animation', () => {
+    it('performs a grow animation', async() => {
         let store = new Store(false)
         mount(document.body, () => {
             node('div', {style: {display: 'flex'}}, () => {
@@ -65,11 +79,12 @@ describe('Create event', function() {
         assertBody(`div{:display="flex"}`)
         
         store.set(true)
-        passTime(0)
+        await asyncPassTime(0)
+
         assert(getBody().startsWith('div{:display="flex" a{'))
         assert(getBody().indexOf('transition')>=0)
 
-        passTime(2000)
+        await asyncPassTime(2000)
         assertBody(`div{:display="flex" a{}}`)
     })
 

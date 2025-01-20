@@ -11,11 +11,13 @@ interface QueueRunner {
 	_queueRun(): void
 }
 
-let queueArray: Array<QueueRunner> = []
-let queueSet: Set<QueueRunner> = new Set()
-let queueOrdered = true
-let runQueueDepth = 0
-let queueIndex: number | undefined
+let queueArray: Array<QueueRunner> = [] // When not empty, a runQueue is scheduled or currently running.
+let queueIndex = 0 // This first element in queueArray that still needs to be processed.
+let queueSet: Set<QueueRunner> = new Set() // Contains the subset of queueArray at index >= queueIndex.
+let queueOrdered = true // Set to `false` when `queue()` appends a runner to `queueArray` that should come before the previous last item in the array. Will trigger a sort.
+let runQueueDepth = 0 // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
+let showCreateTransitions = false // Set to `true` only when creating top level elements in response to `Store` changes, triggering `create` transitions.
+
 
 /** @internal */
 export type Patch = Map<ObsCollection, Map<any, [any, any]>>;
@@ -35,9 +37,18 @@ function queue(runner: QueueRunner) {
 	queueSet.add(runner)
 }
 
-function runQueue(): void {
-	onCreateEnabled = true
-	for(queueIndex = 0; queueIndex < queueArray.length; ) {
+/**
+ * Normally, changes to `Store`s are reacted to asynchronously, in an (optimized) 
+ * batch, after a timeout of 0s. Calling `runQueue()` will do so immediately
+ * and synchronously. Doing so may be helpful in cases where you need some DOM
+ * modification to be done synchronously.
+ *
+ * This function is re-entrant, meaning it is safe to call `runQueue` from a
+ * function that is called due to another (automatic) invocation of `runQueue`.
+ */
+export function runQueue(): void {
+	showCreateTransitions = true
+	for(; queueIndex < queueArray.length; ) {
 		// Sort queue if new unordered items have been added since last time.
 		if (!queueOrdered) {
 			queueArray.splice(0, queueIndex)
@@ -49,8 +60,8 @@ function runQueue(): void {
 		
 		// Process the rest of what's currently in the queue.
 		let batchEndIndex = queueArray.length
-		for(; queueIndex < batchEndIndex && queueOrdered; queueIndex++) {
-			let runner = queueArray[queueIndex]
+		while(queueIndex < batchEndIndex && queueOrdered) {
+			let runner = queueArray[queueIndex++]
 			queueSet.delete(runner)
 			runner._queueRun()
 		}
@@ -60,19 +71,20 @@ function runQueue(): void {
 		runQueueDepth++
 	}
 
+	queueIndex = 0
 	queueArray.length = 0
-	queueIndex = undefined
 	runQueueDepth = 0
-	onCreateEnabled = false
+	showCreateTransitions = false
 }
 
 
+let domWaiters: (() => void)[] = []
+let domInReadPhase = false
+
 /**
- * Schedule a DOM read operation to be executed in Aberdeen's internal task queue.
- *
- * This function is used to batch DOM read operations together, avoiding unnecessary
- * layout recalculations and improving browser performance. A DOM read operation should
- * only *read* from the DOM, such as measuring element dimensions or retrieving computed styles.
+ * A promise-like object that you can `await`. It will resolve *after* the current batch
+ * of DOM-write operations has completed. This is the best time to retrieve DOM properties
+ * that dependent on a layout being completed, such as `offsetHeight`.
  *
  * By batching DOM reads separately from DOM writes, this prevents the browser from
  * interleaving layout reads and writes, which can force additional layout recalculations.
@@ -81,20 +93,25 @@ function runQueue(): void {
  *
  * Unlike `setTimeout` or `requestAnimationFrame`, this mechanism ensures that DOM read
  * operations happen before any DOM writes in the same queue cycle, minimizing layout thrashing.
- *
- * @param func The function to be executed as a DOM read operation.
+ * 
+ * See `transitions.js` for some examples.
  */
-export function scheduleDomReader(func: () => void): void {
-	let order = (queueIndex!=null && queueIndex < queueArray.length && queueArray[queueIndex]._queueOrder >= 1000) ? ((queueArray[queueIndex]._queueOrder+1) & (~1)) : 1000
-	queue({_queueOrder: order, _queueRun: func})
-}
 
+export const DOM_READ_PHASE = {
+	then: function(fulfilled: () => void) {
+		if (domInReadPhase) fulfilled()
+		else {
+			if (!domWaiters.length) queue(DOM_PHASE_RUNNER)
+			domWaiters.push(fulfilled)
+		}
+		return this
+	}
+}
 /**
- * Schedule a DOM write operation to be executed in Aberdeen's internal task queue.
- *
- * This function is used to batch DOM write operations together, avoiding unnecessary
- * layout recalculations and improving browser performance. A DOM write operation should
- * only *write* to the DOM, such as modifying element properties or applying styles.
+ * A promise-like object that you can `await`. It will resolve *after* the current 
+ * DOM_READ_PHASE has completed (if any) and after any DOM triggered by Aberdeen
+ * have completed. This is a good time to do little manual DOM tweaks that depend
+ * on a *read phase* first, like triggering transitions.
  *
  * By batching DOM writes separately from DOM reads, this prevents the browser from
  * interleaving layout reads and writes, which can force additional layout recalculations.
@@ -104,11 +121,34 @@ export function scheduleDomReader(func: () => void): void {
  * Unlike `setTimeout` or `requestAnimationFrame`, this mechanism ensures that DOM write
  * operations happen after all DOM reads in the same queue cycle, minimizing layout thrashing.
  *
- * @param func The function to be executed as a DOM write operation.
+ * See `transitions.js` for some examples.
  */
-export function scheduleDomWriter(func: () => void): void {
-	let order = (queueIndex!=null && queueIndex < queueArray.length && queueArray[queueIndex]._queueOrder >= 1000) ? (queueArray[queueIndex]._queueOrder | 1) : 1001
-	queue({_queueOrder: order, _queueRun: func})
+
+export const DOM_WRITE_PHASE = {
+	then: function(fulfilled: () => void) {
+		if (!domInReadPhase) fulfilled()
+		else {
+			if (!domWaiters.length) queue(DOM_PHASE_RUNNER)
+			domWaiters.push(fulfilled)
+		}
+		return this
+	}
+}
+
+const DOM_PHASE_RUNNER = {
+	_queueOrder: 99999,
+	_queueRun: function() {
+		let waiters = domWaiters
+		domWaiters = []
+		domInReadPhase = !domInReadPhase
+		for(let waiter of waiters) {
+			try {
+				waiter()
+			} catch(e) {
+				console.error(e)
+			}
+		}
+	}
 }
 
 
@@ -1521,7 +1561,6 @@ class DetachedStore extends Store {
 
 
 
-let onCreateEnabled = false
 let onDestroyMap: WeakMap<Node, string | Function | true> = new WeakMap()
 
 function destroyWithClass(element: Element, cls: string) {
@@ -1571,10 +1610,10 @@ export function node(tag: string|Element = "", ...rest: any[]) {
 		let type = typeof item
 		if (type === 'function') {
 			let scope = new SimpleScope(el, undefined, currentScope._queueOrder+1, item)
-			if (onCreateEnabled) {
-				onCreateEnabled = false
+			if (showCreateTransitions) {
+				showCreateTransitions = false
 				scope._update()
-				onCreateEnabled = true
+				showCreateTransitions = true
 			} else {
 				scope._update()
 			}
@@ -1918,12 +1957,14 @@ export function peek<T>(func: () => T): T {
 
 function applyProp(el: Element, prop: any, value: any) {
 	if (prop==='create') {
-		if (onCreateEnabled) {
+		if (showCreateTransitions) {
 			if (typeof value === 'function') {
 				value(el)
 			} else {
-				el.classList.add(value)
-				setTimeout(function(){el.classList.remove(value)}, 0)
+				el.classList.add(value);
+				// Force browser layout, so we can trigger any transitions afterwards
+				(el as HTMLElement).offsetHeight;
+				el.classList.remove(value)
 			}
 		}
 	} else if (prop==='destroy') {
@@ -2022,14 +2063,6 @@ export function withEmitHandler(handler: (this: ObsCollection, index: any, newDa
 	} finally {
 		ObsCollection.prototype.emitChange = oldEmitHandler
 	}
-}
-
-/**
- * Run a function, while *not* causing reactive effects for any changes it makes to `Store`s.
- * @param func The function to be executed once immediately.
- */
-export function inhibitEffects(func: () => void) {
-	withEmitHandler(() => {}, func)
 }
 
 // @ts-ignore
