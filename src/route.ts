@@ -1,4 +1,4 @@
-import {Store, observe, immediateObserve, runQueue} from './aberdeen.js'
+import {Store, observe, immediateObserve, runQueue, getParentElement, clean} from './aberdeen.js'
 
 /**
  * A `Store` object that holds the following keys:
@@ -20,9 +20,6 @@ export const route = new Store()
 // entry on top. It is used for `mode: "back"`, to know how many entries to go back.
 let stack: Array<{url: string, state: object}> = []
 
-// Keep track of the initial history length, so we'll always know how long our `stack` should be.
-const initialHistoryLength = history.length;
-
 // Keep a copy of the last known history state, so we can tell if the user changed one of its
 // top-level keys, so we can decide between push/replace when `mode` is not set.
 let prevHistoryState: any
@@ -34,7 +31,8 @@ function handleLocationUpdate(event?: PopStateEvent) {
 		search[k] = v
 	}
 	prevHistoryState = event ? (event.state || {}) : {}
-	stack.length = Math.max(1, history.length - initialHistoryLength + 1)
+	const prevStackLen = stack.length
+	stack.length = (prevHistoryState.historyPos==null ? stack.length : prevHistoryState.historyPos) + 1
 	stack[stack.length-1] = {url: location.pathname + location.search, state: prevHistoryState}
 	route.set({
 		path: location.pathname,
@@ -42,11 +40,10 @@ function handleLocationUpdate(event?: PopStateEvent) {
 		search: search,
 		hash: location.hash,
 		state: prevHistoryState,
+		nav: prevHistoryState.historyPos==null ? 'unknown' : (stack.length > prevStackLen ? 'forward' : 'backward'),
 	})
-	if (event) {
-		runQueue();
-		restoreScrollPositions();
-	}
+	// Forward or back event. Redraw synchronously, because we can!
+	if (event) runQueue();
 }
 handleLocationUpdate()
 window.addEventListener("popstate", handleLocationUpdate);
@@ -102,7 +99,7 @@ observe(() => {
 	// Get and delete mode without triggering anything.
 	const mode = route.get('mode')
 	if (mode) route.delete('mode')
-	const state = route.get('state')
+	const state = route.get('state') || {}
 	
 	// Construct the URL.
 	const path = route.get('path')
@@ -124,66 +121,36 @@ observe(() => {
 		stack[stack.length-1] = {url,state}
 	} else if (mode === 'push' || (!mode && (location.pathname !== path || JSON.stringify(Object.keys(state||{})) !== JSON.stringify(Object.keys(prevHistoryState||{}))))) {
 		// Default to `push` when the URL changed or top-level state keys changed.
+		state.historyPos = stack.length
 		history.pushState(state, '', url)
 		stack.push({url,state})
 	} else {
+		state.historyPos = stack.length - 1
 		history.replaceState(state, '', url)
 		stack[stack.length-1] = {url,state}
 	}
 	prevHistoryState = state
 })
 
-
-function getCssPath(element: Element): string {
-	if (element.id) return '#' + element.id;
-
-	let selector = element.tagName.toLowerCase();
-	if (selector === 'body') return selector;
-	
-	if (element.className) selector += '.' + element.className.replace(/ /g, '.');
-
-	const parent = element.parentElement;
-	if (parent) {
-    const index = Array.from(parent.children).indexOf(element) + 1;
-    selector = `${getCssPath(parent)} > ${selector}:nth-child(${index})`;
-	}
-	return selector;
-}
-
-function onScrollHandler(event: Event) {
-	let target = event.target;
-	if (target instanceof Element) {
-		let path = getCssPath(target);
-		route.merge({mode: 'replace', state: {scroll: {[path]: {top: target.scrollTop, left: target.scrollLeft}}}});
-	}
-}
-
-function restoreScrollPositions() {
-	let scrolls = route.peek('state', 'scroll') || {};
-	for(let path in scrolls) {
-		let el = document.querySelector(path);
-		if (el) {
-			el.scrollTop = scrolls[path].top;
-			el.scrollLeft = scrolls[path].left;
-		}
-	}
-}
-
 /**
- * Enables or disables automatic scroll position restoration.
- * When enabled, scroll positions of elements are saved to the route state
- * and automatically restored by the framework after navigation events
- * (browser back/forward). Enabled by default.
- *
- * Note that this library makes a best effort to match scrolled elements
- * with elements newly drawn after going back/forward, relying on a 
- * combination of `id`, `tag`, `class` and `nth-child` of the element
- * and its ancestors. It may fail if the restored page is significantly
- * different from the original. You may want to add some `id`s in that case.
+ * Restore and store the vertical and horizontal scroll position for
+ * the parent element to the page state.
  * 
- * @param {boolean} enabled - True to enable scroll restoration, false to disable
+ * @param {string} name - A unique (within this page) name for this
+ * scrollable element. Defaults to 'main'.
  */
-export function setScrollRestore(enabled: boolean) {
-	window[enabled ? 'addEventListener' : 'removeEventListener']('scroll', onScrollHandler, true)
+export function persistScroll(name: string = 'main') {
+	const el = getParentElement()
+	el.addEventListener('scroll', onScroll)
+	clean(() => el.removeEventListener('scroll', onScroll))
+
+	let restore = route.peek('state', 'scroll', name)
+	if (restore) {
+		Object.assign(el, restore)
+	}
+
+	function onScroll() {
+		route.set('mode', 'replace')
+		route.set('state', 'scroll', name, {scrollTop: el.scrollTop, scrollLeft: el.scrollLeft})
+	}
 }
-setScrollRestore(true)
