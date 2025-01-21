@@ -4,44 +4,71 @@ import {Store, observe, immediateObserve, runQueue, getParentElement, clean} fro
  * A `Store` object that holds the following keys:
  * - `path`: The current path of the URL split into components. For instance `/` or `/users/123/feed`. Updates will be reflected in the URL and will *push* a new entry to the browser history.
  * - `p`: Array containing the path segments. For instance `[]` or `['users', 123, 'feed']`. Updates will be reflected in the URL and will *push* a new entry to the browser history. Also, the values of `p` and `path` will be synced.
- * - `search`: An observable object containing search parameters (a split up query string). For instance `{order: "date", title: "something"}` or just `{}`. Updates will be reflected in the URL, modifying the current history state. 
+ * - `search`: An observable object containing search parameters (a split up query string). For instance `{order: "date", title: "something"}` or just `{}`. By default, updates will be reflected in the URL, replacing the current history state. 
  * - `hash`: The document hash part of the URL. For instance `"#section-title"`. It can also be an empty string. Updates will be reflected in the URL, modifying the current history state.
- * - `state`: The browser history *state* object for the current page. Creating or removing top-level keys will cause *pushing* a new entry to the browser history.
+ * - `id`: A part of the browser history *state* that is considered part of the page *identify*, meaning changes will (by default) cause a history push, and when going *back*, it must match.
+ * - `aux`: The auxiliary part of the browser history *state*, not considered part of the page *identity*. Changes will be reflected in the browser history using a replace. 
+ * - `depth`: The navigation depth of the current session. Starts at 1. Writing to this property has no effect.
+ * - `nav`: The navigation action that got us to this page. Writing to this property has no effect.
+ *    - `"load"`: An initial page load.
+ *    - `"back"` or `"forward"`: When we navigated backwards or forwards in the stack.
+ *    - `"push"`: When we added a new page on top of the stack. 
  * 
  * The following key may also be written to `route` but will be immediately and silently removed: 
  * - `mode`: As described above, this library takes a best guess about whether pushing an item to the browser history makes sense or not. When `mode` is...
  * 	  	- `"push"`: Force creation of a new browser history entry. 
  * 	  	- `"replace"`: Update the current history entry, even when updates to other keys would normally cause a *push*.
- * 		- `"back"`: Unwind the history (like repeatedly pressing the *back* button) until we find a page that matches the given `path`, `search` and top-level `state` keys, and then *replace* that state by the full given state.
+ * 		- `"back"`: Unwind the history (like repeatedly pressing the *back* button) until we find a page that matches the given `path` and `id`, and then *replace* that state by the full given state.
  */
+
+// Idea: split `state` into `pstate` (primary) and `astate` (auxilary). The former is used to determine if new pages should be pushed and if, when moving back, a page matches.
+// Moving back is done by just doing history.back() while depth > 1, and repeating in handleLocationUpdate until matching page is found (or overriding base page).
+
 export const route = new Store()
 
-// Contains url (path+search) and state for all history entries for this session, with the current
-// entry on top. It is used for `mode: "back"`, to know how many entries to go back.
-let stack: Array<{url: string, state: object}> = []
-
-// Keep a copy of the last known history state, so we can tell if the user changed one of its
-// top-level keys, so we can decide between push/replace when `mode` is not set.
-let prevHistoryState: any
+let stateRoute = {
+	nonce: -1,
+	depth: 0,
+}
 
 // Reflect changes to the browser URL (back/forward navigation) in the `route` and `stack`.
 function handleLocationUpdate(event?: PopStateEvent) {
+	let state = event?.state || {}
+	let nav = 'load'
+	if (state.route?.nonce == null) {
+		state.route = {
+			nonce: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
+			depth: 1,
+		} 
+		history.replaceState(state, '')
+	} else if (stateRoute.nonce === state.route.nonce) {
+		nav = state.route.depth > stateRoute.depth ? 'forward' : 'back'
+	}
+	stateRoute = state.route
+
+	if (route.peek('mode') === 'back') {
+		route.set('depth', stateRoute.depth)
+		// We are still in the process of searching for a page in our navigation history..
+		updateHistory()
+		return
+	}
+
 	const search: any= {}
 	for(let [k, v] of new URLSearchParams(location.search)) {
 		search[k] = v
 	}
-	prevHistoryState = event ? (event.state || {}) : {}
-	const prevStackLen = stack.length
-	stack.length = (prevHistoryState.historyPos==null ? stack.length : prevHistoryState.historyPos) + 1
-	stack[stack.length-1] = {url: location.pathname + location.search, state: prevHistoryState}
+
 	route.set({
 		path: location.pathname,
 		p: location.pathname.slice(1).split('/'),
 		search: search,
 		hash: location.hash,
-		state: prevHistoryState,
-		nav: prevHistoryState.historyPos==null ? 'unknown' : (stack.length > prevStackLen ? 'forward' : 'backward'),
+		id: state.id,
+		aux: state.aux,
+		depth: stateRoute.depth,
+		nav,
 	})
+
 	// Forward or back event. Redraw synchronously, because we can!
 	if (event) runQueue();
 }
@@ -94,43 +121,54 @@ immediateObserve(() => {
 	route.set('hash', hash)
 })
 
-// This deferred-mode observer will update the URL and history based on `route` changes.
-observe(() => {
+function isSamePage(path: string, state: any): boolean {
+	return location.pathname === path && JSON.stringify(history.state.id) === JSON.stringify(state.id)
+}
+
+function updateHistory() {
 	// Get and delete mode without triggering anything.
-	const mode = route.get('mode')
-	if (mode) route.delete('mode')
-	const state = route.get('state') || {}
+	let mode = route.get('mode')
+	const state = {
+		id: route.get('id'),
+		aux: route.get('aux'),
+		route: stateRoute,
+	}
 	
 	// Construct the URL.
 	const path = route.get('path')
-	const search = new URLSearchParams(route.get('search')).toString()
-	const url = (search ? path+'?'+search : path) + route.get('hash')
 
 	// Change browser state, according to `mode`.
 	if (mode === 'back') {
-		let goDelta = 0
-		while(stack.length > 1) {
-			const item = stack[stack.length-1]
-			if (item.url === url && JSON.stringify(Object.keys(state||{})) === JSON.stringify(Object.keys(item.state||{}))) break // Found it!
-			goDelta--
-			stack.pop()
+		route.set('nav', 'back')
+		if (!isSamePage(path, state) && (history.state.route?.depth||0) > 1) {
+			history.back()
+			return
 		}
-		if (goDelta) history.go(goDelta)
+		mode = 'replace'
 		// We'll replace the state async, to give the history.go the time to take affect first.
-		setTimeout(() => history.replaceState(state, '', url), 0)
-		stack[stack.length-1] = {url,state}
-	} else if (mode === 'push' || (!mode && (location.pathname !== path || JSON.stringify(Object.keys(state||{})) !== JSON.stringify(Object.keys(prevHistoryState||{}))))) {
-		// Default to `push` when the URL changed or top-level state keys changed.
-		state.historyPos = stack.length
-		history.pushState(state, '', url)
-		stack.push({url,state})
-	} else {
-		state.historyPos = stack.length - 1
-		history.replaceState(state, '', url)
-		stack[stack.length-1] = {url,state}
+		//setTimeout(() => history.replaceState(state, '', url), 0)
 	}
-	prevHistoryState = state
-})
+
+	if (mode) route.delete('mode')
+	const search = new URLSearchParams(route.get('search')).toString()
+	const url = (search ? path+'?'+search : path) + route.get('hash')
+		
+	if (mode === 'push' || (!mode && !isSamePage(path, state))) {
+		stateRoute.depth++ // stateRoute === state.route
+		history.pushState(state, '', url)
+		route.merge({
+			nav: 'push',
+			depth: stateRoute.depth
+		})
+	} else {
+		// Default to `push` when the URL changed or top-level state keys changed.
+		history.replaceState(state, '', url)
+	}
+}
+
+// This deferred-mode observer will update the URL and history based on `route` changes.
+observe(updateHistory)
+
 
 /**
  * Restore and store the vertical and horizontal scroll position for

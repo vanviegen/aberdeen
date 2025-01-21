@@ -6,7 +6,7 @@ import {grow, shrink} from "../../dist/transitions.js"
 // This is not something you'd normally do: when opening this example from a file
 // (instead of serving it from a well-configured backend), fake the initial path
 // as if it were `/`.
-if (route.get('p').indexOf('router') >= 0) route.set({path: '/'})
+if (route.get('p').indexOf('router') >= 0) route.set({path: '/', mode: 'replace'})
 
 // Load modules on-demand
 const modules = new Store({})
@@ -30,7 +30,7 @@ async function backgroundLoadModule(name) {
 function drawTemplate() {
     node('header', () => {
         node('nav', () => {
-            node('button.no-line.logo', 'LOGO', {click: () => route.set({path: '/'})})
+            node('button.no-line.logo', 'LOGO', {click: () => route.set({path: '/', mode: 'back'})})
             // Draw the top navigation bar
             const menu = {"": 'Home', settings: 'Settings', list: 'List'}
             for(const [id, label] of Object.entries(menu)) {
@@ -39,7 +39,7 @@ function drawTemplate() {
                 })
             }
             node('div', {style: {flex: 1}})
-            node('button.no-line', 'Modal!', {click: () => route.set('state', 'modal', 'home')})
+            node('button.no-line', 'Modal!', {click: () => route.set('id', 'modal', 'home')})
         })
     })
 
@@ -55,7 +55,7 @@ function drawTemplate() {
     })
 
     observe(() => {
-        let modal = route.get('state', 'modal');
+        let modal = route.get('id', 'modal');
         if (!modal) return
         node('.modal-bg', () => {
             node('.modal', () => {
@@ -65,7 +65,7 @@ function drawTemplate() {
                 else node('p', 'Loading...')
             })
         }, {
-            click: function(e) {if (e.target===this) route.merge({mode: 'back', state: {modal: undefined}})},
+            click: function(e) {if (e.target===this) route.merge({mode: 'back', id: undefined})},
             create: "transparent",
             destroy: "transparent",
         })
