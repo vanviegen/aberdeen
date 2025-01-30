@@ -32,8 +32,8 @@
     "build": "$npm_execpath run build-dist && $npm_execpath run build-docs",
     "build-dist": "rm -rf dist dist-min && tsc && mkdir -p dist-min && cp dist/*.d.ts dist-min && for f in dist/*.js ; do terser $f --module --compress --mangle --mangle-props 'regex=/^_/' --source-map \"content='$f.map',base='dist-min/',url='$(basename $f).map'\" --output dist-min/$(basename $f); done && chmod a-w dist/* dist-min/*",
     "build-docs": "typedoc --excludePrivate --excludeInternal src/*.ts",
-    "coverage": "$npm_execpath run build-dist && NODE_OPTIONS=--enable-source-maps c8 --all -n dist-min -r html -r text mocha --file tests/_init.js tests/[^_]*.js",
-    "test": "$npm_execpath run build-dist && NODE_OPTIONS=--enable-source-maps mocha --file tests/_init.js tests/[^_]*.js",
+    "coverage": "$npm_execpath run build-dist && NODE_OPTIONS=--enable-source-maps c8 --all -n dist-min -r html -r text mocha --file tests/_init.js tests/[a-z$]*.js",
+    "test": "$npm_execpath run build-dist && echNODE_OPTIONS=--enable-source-maps mocha --file tests/_init.js tests/[a-z$]*.js",
     "prepack": "$npm_execpath run test && $npm_execpath run build"
   },
   "author": "Frank van Viegen",
