@@ -5,15 +5,15 @@ describe('Array', () => {
 		mount(document.body, () => {
 			cnt1++
 			if (!store.isEmpty()) {
-				node('div', () => {
+				$('div', () => {
 					cnt2++;
-					text(store.get(0))
+					$({text: store(0).get()})
 				})
 			}
 		})
 		assertBody(`div{"a"}`)
 
-		store.set(0, 'b')
+		store(0).set('b')
 		passTime();
 		assertBody(`div{"b"}`)
 		assertEqual([cnt1,cnt2], [1,2])
@@ -27,30 +27,30 @@ describe('Array', () => {
 	it('reactively get() full array', () => {
 		let store = new Store([3, 4, new Store([5, 6])])
 		mount(document.body, () => {
-			text(JSON.stringify(store.get()))
-			text(JSON.stringify(store.query({depth: 1})[2].get()))
+			$({text: JSON.stringify(store.get())})
+			$({text: JSON.stringify(store.get(1)[2].get())})
 		})
 		passTime()
 		assertBody(`"[3,4,[5,6]]" "[5,6]"`)
 
 		store.push(7)
-		store.ref(2).push(8)
+		store(2).push(8)
 		passTime()
 		assertBody(`"[3,4,[5,6,8],7]" "[5,6,8]"`)
 
-		assertEqual(store.get(6), undefined)
-		assertEqual(store.get(6, 'a'), undefined)
+		assertEqual(store(6).get(), undefined)
+		assertEqual(store(6, 'a').get(), undefined)
 	})
 
 	it('handles invalid indexes', () => {
 		let store = new Store(["a","b","c"])
-		for(let index in [-1, 1000000, "1", 0.5]) {
-			assertThrow('Invalid array index', () => store.set(index, "test"))
+		for(let index of [-1, 1000000, "1", 0.5]) {
+			assertThrow('Invalid array index', () => store(index).set("test"))
 		}
 
-		assertEqual(store.get("1"), "b")
-		assertThrow("Invalid array index", () => store.get('a'))
-		assertThrow("Invalid array index", () => store.get(true))
+		assertEqual(store("1").get(), "b")
+		assertThrow("Invalid array index", () => store('a').get())
+		assertThrow("Invalid array index", () => store(true).get())
 	})
 
 	it('merges', () => {
@@ -60,14 +60,14 @@ describe('Array', () => {
 			cnt1++
 			store.onEach(item => {
 				cnt2++
-				node('div', item.get())
+				$('div:'+item.get())
 			})
 		})
 
 		assertBody(`div{"1"} div{"3"}`)
 		assertEqual([cnt1, cnt2], [1,2])
 
-		store.set(1, 2)
+		store(1).set(2)
 		passTime()
 		assertBody(`div{"1"} div{"2"} div{"3"}`)
 		assertEqual([cnt1, cnt2], [1,3])
@@ -78,24 +78,24 @@ describe('Array', () => {
 		assertBody(`div{"1"} div{"two"}`)
 		assertEqual([cnt1, cnt2], [1,4])
 
-		store.set(9,'ten')
+		store(9).set('ten')
 		passTime()
 		assertBody(`div{"1"} div{"two"} div{"ten"}`)
 		assertEqual([cnt1, cnt2], [1,5])
 
-		store.set(4, 'five')
+		store(4).set('five')
 		passTime()
 		assertBody(`div{"1"} div{"two"} div{"five"} div{"ten"}`)
 		assertEqual([cnt1, cnt2], [1,6])
 
-		store.delete(1)
+		store(1).delete()
 		passTime()
 		assertBody(`div{"1"} div{"five"} div{"ten"}`)
 		assertEqual([cnt1, cnt2], [1,6])
 
-		store.delete(9)
+		store(9).delete()
 		store.push("six")
-		assertEqual(store.get(5), "six")
+		assertEqual(store(5).get(), "six")
 		passTime()
 		assertBody(`div{"1"} div{"five"} div{"six"}`)
 		assertEqual([cnt1, cnt2], [1,7])

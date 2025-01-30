@@ -46,8 +46,8 @@ function handleLocationUpdate(event?: PopStateEvent) {
 	}
 	stateRoute = state.route
 
-	if (route.peek('mode') === 'back') {
-		route.set('depth', stateRoute.depth)
+	if (route('mode').peek() === 'back') {
+		route('depth').set(stateRoute.depth)
 		// We are still in the process of searching for a page in our navigation history..
 		updateHistory()
 		return
@@ -80,45 +80,45 @@ window.addEventListener("popstate", handleLocationUpdate);
 // initiated `set` will see the canonical form (instead of doing a rerender shortly after,
 // or crashing due to non-canonical data).
 function updatePath(): void {
-	let path = route.get('path')
-	if (path == null && route.peek('p')) {
+	let path = route('path').get()
+	if (path == null && route('p').peek()) {
 		return updateP();
 	} 
 	path = ''+path
 	if (!path.startsWith('/')) path = '/'+path
-	route.set('path', path)
-	route.set('p', path.slice(1).split('/'))
+	route('path').set(path)
+	route('p').set(path.slice(1).split('/'))
 }
 immediateObserve(updatePath)
 
 function updateP(): void {
-	const p = route.get('p')
-	if (p == null && route.peek('path')) {
+	const p = route('p').get()
+	if (p == null && route('path').peek()) {
 		return updatePath()
 	}
 	if (!(p instanceof Array)) {
 		console.error(`aberdeen route: 'p' must be a non-empty array, not ${JSON.stringify(p)}`)
-		route.set('p', ['']) // This will cause a recursive call this observer.
+		route('p').set(['']) // This will cause a recursive call this observer.
 	} else if (p.length == 0) {
-		route.set('p', ['']) // This will cause a recursive call this observer.
+		route('p').set(['']) // This will cause a recursive call this observer.
 	} else {
-		route.set('path', '/' + p.join('/'))
+		route('path').set('/' + p.join('/'))
 	}
 }
 immediateObserve(updateP)
 
 immediateObserve(() => {
-	if (route.getType('search') !== 'object') route.set('search', {})
+	if (route('search').getType() !== 'object') route('search').set({})
 })
 
 immediateObserve(() => {
-	if (route.getType('state') !== 'object') route.set('state', {})
+	if (route('state').getType() !== 'object') route('state').set({})
 })
 
 immediateObserve(() => {
-	let hash = ''+(route.get('hash') || '')
+	let hash = ''+(route('hash').get() || '')
 	if (hash && !hash.startsWith('#')) hash = '#'+hash
-	route.set('hash', hash)
+	route('hash').set(hash)
 })
 
 function isSamePage(path: string, state: any): boolean {
@@ -127,19 +127,19 @@ function isSamePage(path: string, state: any): boolean {
 
 function updateHistory() {
 	// Get and delete mode without triggering anything.
-	let mode = route.get('mode')
+	let mode = route('mode').get()
 	const state = {
-		id: route.get('id'),
-		aux: route.get('aux'),
+		id: route('id').get(),
+		aux: route('aux').get(),
 		route: stateRoute,
 	}
 	
 	// Construct the URL.
-	const path = route.get('path')
+	const path = route('path').get()
 
 	// Change browser state, according to `mode`.
 	if (mode === 'back') {
-		route.set('nav', 'back')
+		route('nav').set('back')
 		if (!isSamePage(path, state) && (history.state.route?.depth||0) > 1) {
 			history.back()
 			return
@@ -149,9 +149,9 @@ function updateHistory() {
 		//setTimeout(() => history.replaceState(state, '', url), 0)
 	}
 
-	if (mode) route.delete('mode')
-	const search = new URLSearchParams(route.get('search')).toString()
-	const url = (search ? path+'?'+search : path) + route.get('hash')
+	if (mode) route('mode').delete()
+	const search = new URLSearchParams(route('search').get()).toString()
+	const url = (search ? path+'?'+search : path) + route('hash').get()
 		
 	if (mode === 'push' || (!mode && !isSamePage(path, state))) {
 		stateRoute.depth++ // stateRoute === state.route
@@ -182,13 +182,13 @@ export function persistScroll(name: string = 'main') {
 	el.addEventListener('scroll', onScroll)
 	clean(() => el.removeEventListener('scroll', onScroll))
 
-	let restore = route.peek('state', 'scroll', name)
+	let restore = route('state', 'scroll', name).peek()
 	if (restore) {
 		Object.assign(el, restore)
 	}
 
 	function onScroll() {
-		route.set('mode', 'replace')
-		route.set('state', 'scroll', name, {scrollTop: el.scrollTop, scrollLeft: el.scrollLeft})
+		route('mode').set('replace')
+		route('state', 'scroll', name).set({scrollTop: el.scrollTop, scrollLeft: el.scrollLeft})
 	}
 }

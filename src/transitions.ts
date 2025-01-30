@@ -37,10 +37,10 @@ export async function grow(el: HTMLElement) {
 	// In the next write phase, do the transitions
 	await DOM_WRITE_PHASE
 	el.style.transition = GROW_SHRINK_TRANSITION
-	for(let prop in props) el.style[prop as any] = ""
+	for(let prop in props) el.style[prop as any] = ''
 	setTimeout(() => {
 		// Disable transitions.
-		el.style.transition = ""
+		el.style.transition = ''
 	}, FADE_TIME)
 }
 

@@ -48,3 +48,10 @@ ol, ul {
 .game-info {
 	margin-left: 20px;
 }
+
+.buttons {
+	margin-top: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}

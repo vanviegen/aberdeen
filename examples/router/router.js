@@ -1,17 +1,16 @@
-// import {node, mount, Store, text, router} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm';
-import {node, mount, Store, text, observe, prop} from '../../dist/aberdeen.js';
+// import {$, mount, Store, text, router} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm';
+import {$, mount, Store, observe} from '../../dist/aberdeen.js';
 import {route} from "../../dist/route.js";
-import {grow, shrink} from "../../dist/transitions.js"
 
 // This is not something you'd normally do: when opening this example from a file
 // (instead of serving it from a well-configured backend), fake the initial path
 // as if it were `/`.
-if (route.get('p').indexOf('router') >= 0) route.set({path: '/', mode: 'replace'})
+if (route('p').get().indexOf('router') >= 0) route.set({path: '/', mode: 'replace'})
 
 // Load modules on-demand
 const modules = new Store({})
 function loadModule(name) {
-    const module = modules.get(name)
+    const module = modules(name).get()
     if (module==null) backgroundLoadModule(name)
     return module
 }
@@ -23,53 +22,52 @@ async function backgroundLoadModule(name) {
         console.error(e)
         module = false
     }
-    modules.set(name, module)
+    modules(name).set(module)
 }
 
 // Are main page component
 function drawTemplate() {
-    node('header', () => {
-        node('nav', () => {
-            node('button.no-line.logo', 'LOGO', {click: () => route.set({path: '/', mode: 'back'})})
+    $('header', () => {
+        $('nav', () => {
+            $('button.no-line.logo', 'LOGO', {click: () => route.set({path: '/', mode: 'back'})})
             // Draw the top navigation bar
             const menu = {"": 'Home', settings: 'Settings', list: 'List'}
             for(const [id, label] of Object.entries(menu)) {
-                node('button', label, {click: () => route.set({p: [id]})}, () => {
-                    prop('class', {active: route.get('p', 0) === id})
+                $('button', {text: label, click: () => route.set({p: [id]})}, () => {
+                    $({'.active': route('p', 0).get() === id})
                 })
             }
-            node('div', {style: {flex: 1}})
-            node('button.no-line', 'Modal!', {click: () => route.set('id', 'modal', 'home')})
+            $('div', {$flex: 1})
+            $('button.no-line:Modal!', {click: () => route('id', 'modal').set('home')})
         })
     })
 
-    node('main', () => {
-        let module = loadModule(route.get('p', 0))
+    $('main', () => {
+        let module = loadModule(route('p', 0).get())
         if (module) module.default()
-        else if (module===false) node('p', 'No such page!')
-        else node('p', 'Loading...')
+        else if (module===false) $('p:No such page!')
+        else $('p:Loading...')
     })
 
-    node("footer", () => {
+    $("footer", () => {
         route.dump()
     })
 
-    observe(() => {
-        let modal = route.get('id', 'modal');
+    $(() => {
+        let modal = route('id', 'modal').get();
         if (!modal) return
-        node('.modal-bg', () => {
-            node('.modal', () => {
+        $('.modal-bg', () => {
+            $('.modal', () => {
                 let module = loadModule(modal);
                 if (module) module.default()
-                else if (module===false) node('p', 'No such modal!')
-                else node('p', 'Loading...')
+                else if (module===false) $('p:No such modal!')
+                else $('p:Loading...')
             })
         }, {
             click: function(e) {if (e.target===this) route.merge({mode: 'back', id: undefined})},
             create: "transparent",
             destroy: "transparent",
         })
-        
     })
 }
 

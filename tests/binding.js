@@ -3,49 +3,49 @@ describe('Value binding', function() {
 		let store = new Store('test')
 		let inputElement;
 		mount(document.body, () => {
-			node('input', store, () => {
+			$('input', {bind: store}, () => {
 				inputElement = getParentElement()
-				prop('class', {correct: store.get().length >= 5})
+				$({".correct": store.get().length >= 5})
 			})
 		})
-		assertBody(`input{value="test"}`)
+		assertBody(`input{value->test}`)
 
 		inputElement.value = "testx"
 		inputElement.event("input")
 		passTime()
 
-		assertBody(`input{@class="correct" value="testx"}`)
+		assertBody(`input.correct{value->testx}`)
 	})
 
 	it('binds checkboxes', () => {
 		let store = new Store(true)
 		let inputElement;
 		mount(document.body, () => {
-			node('input', {type: 'checkbox'}, store, () => {
+			$('input', {type: 'checkbox', bind: store}, () => {
 				inputElement = getParentElement()
 			})
 		})
-		assertBody(`input{@type="checkbox" checked=true}`)
+		assertBody(`input{type=checkbox checked->true}`)
 
 		inputElement.checked = false
 		inputElement.event("input")
 		passTime()
 
-		assertBody(`input{@type="checkbox" checked=false}`)
+		assertBody(`input{type=checkbox checked->false}`)
 	})
 
 	it('binds radio buttons', () => {
 		let store = new Store('woman')
 		let inputElement1, inputElement2;
 		mount(document.body, () => {
-			node('input', {type: 'radio', name: 'gender', value: 'man'}, store, () => {
+			$('input', {type: 'radio', name: 'gender', value: 'man', bind: store}, () => {
 				inputElement1 = getParentElement()
 			})
-			node('input', {type: 'radio', name: 'gender', value: 'woman'}, store, () => {
+			$('input', {type: 'radio', name: 'gender', value: 'woman', bind: store}, () => {
 				inputElement2 = getParentElement()
 			})
 		})
-		assertBody(`input{@name="gender" @type="radio" checked=false value="man"} input{@name="gender" @type="radio" checked=true value="woman"}`)
+		assertBody(`input{name=gender type=radio checked->false value->man} input{name=gender type=radio checked->true value->woman}`)
 
 		inputElement1.checked = true
 		inputElement1.event("input")
@@ -59,11 +59,11 @@ describe('Value binding', function() {
 	it('reads initial value when Store is undefined', () => {
 		let store = new Store({})
 		mount(document.body, () => {
-			node('input', {value: 'a'}, store.ref('input'))
-			node('input', {type: 'checkbox', checked: true}, store.ref('checkbox'))
-			node('input', {type: 'radio', name: 'abc', value: 'x', checked: false}, store.ref('radio'))
-			node('input', {type: 'radio', name: 'abc', value: 'y', checked: true}, store.ref('radio'))
-			node('input', {type: 'radio', name: 'abc', value: 'z', checked: false}, store.ref('radio'))
+			$('input', {value: 'a', bind: store('input')})
+			$('input', {type: 'checkbox', checked: true, bind: store('checkbox')})
+			$('input', {type: 'radio', name: 'abc', value: 'x', checked: false, bind: store('radio')})
+			$('input', {type: 'radio', name: 'abc', value: 'y', checked: true, bind: store('radio')})
+			$('input', {type: 'radio', name: 'abc', value: 'z', checked: false, bind: store('radio')})
 		})
 		assertEqual(store.get(), {input: 'a', checkbox: true, radio: 'y'})
 	})
@@ -72,26 +72,26 @@ describe('Value binding', function() {
 		let store = new Store("test")
 		let toggle = new Store(true)
 		mount(document.body, () => {
-			node('input', store)
-			node('input', {type: 'checkbox'}, toggle)
+			$('input', {bind: store})
+			$('input', {type: 'checkbox', bind: toggle})
 		})
-		assertBody(`input{value="test"} input{@type="checkbox" checked=true}`)
+		assertBody(`input{value->test} input{type=checkbox checked->true}`)
 
 		store.set("changed")
 		toggle.set(false)
 		passTime()
-		assertBody(`input{value="changed"} input{@type="checkbox" checked=false}`)
+		assertBody(`input{value->changed} input{type=checkbox checked->false}`)
 	})
 
 	it('returns numbers for number/range typed inputs', () => {
 		let store = new Store("")
 		let inputElement;
 		mount(document.body, () => {
-			node('input', {type: 'number'}, store, () => {
+			$('input', {type: 'number', bind: store}, () => {
 				inputElement = getParentElement()
 			})
 		})
-		assertBody(`input{@type="number" value=""}`)
+		assertBody(`input{type=number value->""}`)
 
 		inputElement.value = "123"
 		inputElement.event("input")
@@ -102,5 +102,12 @@ describe('Value binding', function() {
 		inputElement.event("input")
 		passTime()
 		assertEqual(store.get(), null)
+	})
+
+	it('only works on Stores', () => {
+		mount(document.body, () => {
+			$('input', {bind: null}) // Does nothing
+			assertThrow("Unexpect bind", () => $('input', {bind: false}))
+		})
 	})
 })

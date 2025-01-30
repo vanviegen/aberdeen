@@ -2,7 +2,7 @@ describe('Objects and maps', () => {
     it('map fetches with a limited depth', () => {
         let store = new Store(objToMap({a: {b: {c: {d: 42}}}}))
         
-        let res = store.query({depth: 2, type: 'map'})
+        let res = store.getTyped('map', 2)
         assertEqual(res.size, 1)
         assertEqual(res.get('a').get('b').get(), objToMap({c: {d: 42}}))
     })
@@ -13,7 +13,7 @@ describe('Objects and maps', () => {
             let cnt = 0
             mount(document.body, () => {
                 cnt++
-                text(store.get('a')+store.get('a')+store.get('b'))
+                $({text: store('a').get()+store('a').get()+store('b').get()})
                 store.get()
                 store.get()
             })
@@ -35,6 +35,6 @@ describe('Objects and maps', () => {
 
 	it('handles invalid indexes', () => {
 		let store = new Store({})
-        assertThrow('Invalid object index', () => store.set(true, 1))
+        assertThrow('Invalid object index', () => store(true).set(1))
 	})
 })

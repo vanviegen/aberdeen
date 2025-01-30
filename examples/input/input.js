@@ -1,4 +1,4 @@
-import {node, Store, mount, text, observe} from '../../dist/aberdeen.js'
+import {$, Store, mount} from '../../dist/aberdeen.js'
 import {grow, shrink} from '../../dist/transitions.js'
 
 const store = new Store({
@@ -12,53 +12,53 @@ const store = new Store({
 })
 
 mount(document.body, () => {
-	node('h2', () => {
-		text((store.get('name') || "Nobody") + "'s biography")
+	$('h2', () => {
+		$({text: (store('name').get() || "Nobody") + "'s biography"})
 	})
-	node('input', store.ref('name'))
-	node('input', {type: 'number', placeholder: 'Age'}, store.ref('age'))
-	node('label', () => {
-		node('input', {type: 'checkbox'}, store.ref('active'))
-		text('Active member')
+	$('input', {bind: store('name')})
+	$('input', {type: 'number', placeholder: 'Age', bind: store('age')})
+	$('label', () => {
+		$('input', {type: 'checkbox', bind: store('active')})
+		$(':Active member')
 	})
-	observe(() => {
-		if (store.get('active')) node('input', {type: 'number', placeholder: 'Member id', create: grow, destroy: shrink}, store.ref('member_id'))
-		else store.delete('member_id')
+	$(() => {
+		if (store('active').get()) $('input', {type: 'number', placeholder: 'Member id', create: grow, destroy: shrink, bind: store('member_id')})
+		else store('member_id').delete()
 	})
-	node('select', () => {
-		node('option', {value: "m"}, "Man")
-		node('option', {value: "w"}, "Woman")
-		node('option', {value: "o"}, "Other..")
-	}, store.ref('gender'))
+	$('select', () => {
+		$('option:Man', {value: "m"})
+		$('option:Woman', {value: "w"})
+		$('option:Other', {value: "o"})
+	}, {bind: store('gender')})
 
-	observe(() => {
-		if (store.get('gender')==='o') node('input', {placeholder: 'Specify gender', create: grow, destroy: shrink}, store.ref('gender_other'))
-		else store.delete('gender_other')
+	$(() => {
+		if (store('gender').get()==='o') $('input', {placeholder: 'Specify gender', create: grow, destroy: shrink, bind: store('gender_other')})
+		else store('gender_other').delete()
 	})
 	
-	node('fieldset', () => {
+	$('fieldset', () => {
 		const vehicles = {plane: 'Plane', car: 'Car', bike: 'Bicycle', none: 'None'}
 		for(let id in vehicles) {
-			node('label', () => {
-				node('input', {type: 'radio', name: 'vehicle', value: id}, store.ref('vehicle'))
-				text(vehicles[id])
+			$('label', () => {
+				$('input', {type: 'radio', name: 'vehicle', value: id, bind: store('vehicle')})
+				$({text: vehicles[id]})
 			})
 		}
 	})
 	
-	node('textarea', {placeholder: "Biography"}, store.ref('bio'))
+	$('textarea', {placeholder: "Biography", bind: store('bio')})
 	
-	node('label', () => {
-		node('input', {type: 'color'}, store.ref('color'))
-		text('Favorite color')
+	$('label', () => {
+		$('input', {type: 'color', bind: store('color')})
+		$(':Favorite color')
 	})
 	
-	node('input', {type: 'range', min: 50, max: 230}, store.ref('height'))
+	$('input', {type: 'range', min: 50, max: 230, bind: store('height')})
 	
-	node('input', {type: 'date'}, store.ref('first_day'))
+	$('input', {type: 'date', bind: store('first_day')})
 	
-	node('pre', () => {
-		text(JSON.stringify(store.get(), undefined, 4))
+	$('pre', () => {
+		$({text: JSON.stringify(store.get(), undefined, 4)})
 	})
 })
 

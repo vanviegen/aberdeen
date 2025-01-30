@@ -5,7 +5,7 @@ describe('Clean', function() {
         let store = new Store(1)
         mount(document.body, () => {
             cnt1++
-            text(store.get())
+            $({text: store.get()})
             clean(() => {
                 cnt2++
             })

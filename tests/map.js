@@ -11,7 +11,7 @@ describe('The map() and multiMap() methods', () => {
 
             out.onEach(s => {
                 cnt2++
-                text(s.index()+"="+s.get())
+                $({text: s.index()+"="+s.get()})
             }, s => s.index())
         })
 
@@ -36,7 +36,7 @@ describe('The map() and multiMap() methods', () => {
 
             out.onEach(s => {
                 cnt2++
-                text(s.index()+'='+s.get())
+                $({text: s.index()+'='+s.get()})
             }, s => -s.get())
         })
 
@@ -44,7 +44,7 @@ describe('The map() and multiMap() methods', () => {
         assertBody(`"b=1" "a=0"`)
         assertEqual([cnt1, cnt2], [2, 2])
 
-        store.set(0, 'A')
+        store(0).set('A')
         store.push('c')
         passTime()
         assertEqual(store.peek(), ['A', 'b', 'c'])
@@ -67,10 +67,33 @@ describe('The map() and multiMap() methods', () => {
         assertEqual(out.peek(), new Map([['a',[]], [1,2], [3,4], ['c',5]]))
         assertEqual(cnt1, 5)
 
-        store.delete('b')
-        store.set('a', {})
+        store('b').delete()
+        store('a').set({})
         passTime()
         assertEqual(out.peek(), new Map([['c',5]]))
         assertEqual(cnt1, 6)
+    })
+    it('preserves the input collection type', () => {
+        let store = new Store([3, 7])
+		let mapped = store.map(x => x.get()+1)
+        
+        assertEqual(mapped.get(), [4, 8])
+
+        store.set({x: 3, y: 7})
+        passTime()
+        assertEqual(mapped.get(), {x: 4, y: 8})
+
+        store.set(new Map([['x', 3], ['y', 7]]))
+        passTime()
+        assertEqual(mapped.get(), new Map([['x', 4], ['y', 8]]))
+    })
+
+    it('derives', () => {
+        const store = new Store(21)
+        const double = store.derive(v => v*2)
+        assertEqual(double.get(), 42)
+        store.set(100)
+        passTime()
+        assertEqual(double.get(), 200)
     })
 })

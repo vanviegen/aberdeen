@@ -1,29 +1,29 @@
-describe('Props', function() {
+describe('Property', function() {
     it('Sets and unsets classes', () => {
         let cnt1 = 0, cnt2 = 0, cnt3 = 0
-        let classObj = new Store({a: false, b: true, c: undefined})
+        let classObj = new Store({".a": false, ".b": true, ".c": undefined})
         mount(document.body, () => {
             cnt1++
-            node('div', () => {
+            $('div', () => {
                 cnt2++
                 observe(() => {
                     cnt3++
-                    prop({class: classObj.get()})
+                    $(classObj.get())
                 })
             })
         })
 
         passTime()
-        assertBody(`div{@class="b"}`)
+        assertBody(`div.b`)
 
-        classObj.merge({a: true, d: true})
+        classObj.merge({".a": true, ".d": true})
         passTime()
-        assertBody(`div{@class="a b d"}`)
+        assertBody(`div.a.b.d`)
 
-        classObj.merge({a: null}) // Removed from div
-        classObj.delete('b') // Won't disappear
+        classObj.merge({".a": null}) // Removed from div
+        classObj('.b').delete() // Won't disappear
         passTime()
-        assertBody(`div{@class="b d"}`)
+        assertBody(`div.b.d`)
 
         assertEqual([cnt1,cnt2,cnt3], [1,1,3])
     })
@@ -33,9 +33,9 @@ describe('Props', function() {
         let el;
         let myFunc = ()=>{}
         mount(document.body, () => {
-            node('div', () => {
+            $('div', () => {
                 el = getParentElement()
-                if (store.get()) prop({click: myFunc})
+                if (store.get()) $({click: myFunc})
             })
         })
 
@@ -45,5 +45,31 @@ describe('Props', function() {
         store.set(false)
         passTime()
         assertEqual(el.events, {click: new Set()})
+    })
+
+    it('Styles elements', () => {
+        const colorStore = new Store('blue')
+        let count = 0
+        mount(document.body, () => {
+            count++
+            $('.', {
+                $margin: 10+'px',
+                $padding: null, // ignore
+                $border: false, // ignore as well
+                $height: undefined, // again, ignore
+                $backgroundColor: 'red',
+                $color: colorStore
+            })
+        })
+
+        passTime()
+        assertBody(`div{backgroundColor:red color:blue margin:10px}`)
+
+        colorStore.set('orange')
+        passTime()
+        assertBody(`div{backgroundColor:red color:orange margin:10px}`)
+
+        assertEqual(count, 1)
+
     })
 })

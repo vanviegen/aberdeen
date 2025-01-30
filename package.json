@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A TypeScript/JavaScript library for quickly building performant declarative user interfaces without the use of a virtual DOM nor any transpilation.",
   "type": "module",
   "main": "dist-min/aberdeen.js",

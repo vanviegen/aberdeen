@@ -8,7 +8,7 @@ The key insight is the use of many small anonymous functions, that will automati
 - It provides a flexible and simple to understand model for reactive user-interface building.
 - It allows you to express user-interfaces in plain JavaScript (or TypeScript) in an easy to read form, without (JSX-like) compilation steps.
 - It's fast, as it doesn't use a *virtual DOM* and only reruns small pieces of code in response to updated data. It also makes displaying and updating sorted lists very easy and very fast.
-- It's lightweight, at about 14kb minimized and without any run-time dependencies.
+- It's lightweight, at about 16kb minimized and without any run-time dependencies.
 - It comes with batteries included, providing modules for..
   - Client-side routing.
   - Optimistic user-interface updates (predictions) while awaiting a server response.
@@ -25,25 +25,30 @@ The key insight is the use of many small anonymous functions, that will automati
 To get a quick impression of what Aberdeen code looks like, this is all of the JavaScript for the above Tic-tac-toe demo:
 
 ```javascript
-import {node, prop, mount, Store, text} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm';
+import {$, mount, Store} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm';
 
-const store = new Store({
-	squares: [],
-	turn: 'X',
-	history: [{}],
-})
+// Observable data
+const squares = new Store([]) // eg. ['X', undefined, 'O', 'X']
+const history = new Store([[]]) // eg. [[], [undefined, undefined, undefined, X], ...]
+const historyPos = new Store(null) // set while 'time traveling' our undo history
 
-const drawSquare = (position) => {
-	node('button.square', () => {
-		let value = store.get('squares', position)
-		if (value) text(value)
-		else prop('click', () => fillSquare(position))
+// Derived data
+const winner = squares.derive(calculateWinner) // 'X', 'O' or undefined
+const player = squares.derive(sq => sq.filter(v => v).length % 2 ? "O" : "X") // 'X' or 'O'
+
+// Rendering functions
+
+function drawSquare(position) {
+	$('button.square', () => {
+		let value = squares(position).get()
+		if (value) $({text: value})
+		else $({click: () => fillSquare(position)})
 	})
 }
 
-const drawBoard = () => {
+function drawBoard() {
 	for(let y=0; y<3; y++) {
-		node('div.board-row', () => {
+		$('div.board-row', () => {
 			for(let x=0; x<3; x++) {
 				drawSquare(y*3 + x)
 			}
@@ -51,52 +56,48 @@ const drawBoard = () => {
 	}
 }
 
-const drawInfo = () => {
-	node('div', () => {
-		let winner = calculateWinner(store.get('squares'))
-		if (winner) {
-			text(`Winner: ${winner}`)
+function drawInfo() {
+	$('div', () => {
+		if (winner.get()) {
+			$({text: `Winner: ${winner.get()}!`})
 		} else {
-			text(`Next player: ${store.get('turn')}`)			
+			$({text: `Current player: ${player.get()}`})	
 		}
 	})
-	node('ol', () => {
-		store.onEach('history', item => {
-			node('li', () => {
-				node('button', () => {
-					text(item.index() ? `Go to move ${item.index()}` : `Go to game start`)
-					prop('click', () => {
-						store.set('historyPos', item.index())
-						store.set('squares', item.get())
-					})
-				})
+	$('.buttons', () => {
+		history.onEach(item => {
+			$('button', {
+				text: item.index() ? `Go to move ${item.index()}` : `Go to game start`,
+				click: () => {
+					historyPos.set(item.index())
+					squares.set(item.get())
+				},
 			})
 		})
 	})
 }
 
-const fillSquare = (position) => {
+// Helper functions
+
+function fillSquare(position) {
 	// If there's already a winner, don't allow a new square to be filled
-	if (calculateWinner(store.get('squares'))) return
+	if (winner.peek()) return
 
 	// Fill the square
-	store.set('squares', position, store.get('turn'))
+	squares(position).set(player.get())
 	
-	// Next player's turn
-	store.set('turn', store.get('turn')==='X' ? 'O' : 'X')
-	
-	if (store.get('historyPos') != null) {
+	if (historyPos.get() != null) {
 		// Truncate everything after history pos
-		store.set('history', store.get('history').slice(0,store.get('historyPos')+1))
+		history.modify(h => h.slice(0, historyPos.get()+1))
 		// Stop 'time traveling'
-		store.delete('historyPos')
+		historyPos.set(null)
 	}
 	
 	// Append the current squares-state to the history array 
-	store.push('history', store.get('squares'))
+	history.push(squares.get())
 }
 
-const calculateWinner = (squares) => {
+function calculateWinner(squares) {
 	const lines = [
 		[0, 1, 2], [3, 4, 5], [6, 7, 8], // horizontal
 		[0, 3, 6], [1, 4, 7], [2, 5, 8], // vertical
@@ -108,11 +109,13 @@ const calculateWinner = (squares) => {
 		}
 	}
 }
+
+// Fire it up!
  
 mount(document.body, () => {
-	node('div.game', () => {
-		node('div.game-board', drawBoard)
-		node('div.game-info', drawInfo)
+	$('.game', () => {
+		$('.game-board', drawBoard)
+		$('.game-info', drawInfo)
 	})
 })
 ```

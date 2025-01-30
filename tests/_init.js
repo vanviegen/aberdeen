@@ -11,6 +11,7 @@ let currentMountSeq = new Store(0)
 mocha.beforeEach(() => {
 	document.body = document.createElement('body')
 	resetCounts()
+	setErrorHandler()
 })
 
 mocha.afterEach(() => {
@@ -46,8 +47,13 @@ global.assertEqual = function(actual, expected, msg) {
 	if (!equal(actual,expected)) throw new AssertError(`equal failed${msg ? ": "+msg : ""}`, actual, expected)
 }
 
+global.assertContains = function(actual, expected, msg) {
+	actual = (''+actual)
+	if (actual.indexOf(expected) < 0) throw new AssertError(`contains failed ${msg ? ": "+msg : ""}`, actual, `something containing '${expected}'`, true)
+}
+
 global.getBody = function() {
-	return document.body.toString().replace(/^body{/,'').replace(/}$/,'')
+	return document.body.toString().replace(/^body{(.*)}$/,'$1').replace(/^body\b/,'')
 }
 
 global.assertBody = function(expected) {

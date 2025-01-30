@@ -76,6 +76,9 @@ class Node {
 	}
 }
 
+const IGNORE_OUTPUT = new Set("tag-> attrs-> events-> childNodes-> parentNode-> class=".split(" "))
+
+
 class Element extends Node {
 	constructor(tag) {
 		super();
@@ -116,7 +119,7 @@ class Element extends Node {
 		this.removeChild(oldNode);
 	}
 	setAttribute(k, v) {
-		if (v==null) delete this.attrs[k]
+		if (v==null || v==='') delete this.attrs[k]
 		else this.attrs[k] = ''+v;
 		changeCount++;
 	}
@@ -128,7 +131,7 @@ class Element extends Node {
 		changeCount++;
 	}
 	get classList() {
-		return {
+		return this._classList || (this._classList = {
 			add: name => {
 				let set = this._getClassSet();
 				set.add(name);
@@ -139,7 +142,11 @@ class Element extends Node {
 				set.delete(name);
 				this._setClassSet(set);
 			},
-		}
+			toggle: (name, force) => {
+				if (force===true || (force!==false && !this._getClassSet().has(name))) this._classList.add(name);
+				else this._classList.remove(name);
+			}
+		})
 	}
 	get parentElement() {
 		if (this.parentNode instanceof Element) return this.parentNode;
@@ -156,11 +163,6 @@ class Element extends Node {
 	get lastChild() {
 		return this.childNodes[this.childNodes.length-1];
 	}
-	set style(val) {
-		if (val !== '') throw new Error("non-empty style string cannot be emulated");
-		this._style = {};
-		changeCount++;
-	}
 	set textContent(text) {
 		this.childNodes = [new TextNode(text)];
 	}
@@ -172,10 +174,15 @@ class Element extends Node {
 			this.appendChild(n);
 		}
 	}
+	set style(val) {
+		if (val !== '') throw new Error("non-empty style string cannot be emulated");
+		this._style = {};
+		changeCount++;
+	}
 	get style() {
-		for(let k in this._style) {
-			if (this._style[k] === '') delete this._style[k];
-		}
+        for(let k in this._style) {
+            if (this._style[k] === '') delete this._style[k];
+        }
 		return this._style;
 	}
 	set className(v) {
@@ -189,22 +196,20 @@ class Element extends Node {
 		return 200;
 	}
 	toString() {
-		let props = Object.assign({}, this);
-		for(let k in this.attrs) props['@'+k] = this.attrs[k];
-		for(let k in this.style) props[':'+k] = this._style[k];
-		delete props.tag;
-		delete props.attrs;
-		delete props._style;
-		delete props.events;
-		delete props.childNodes;
-		delete props.parentNode;
-
 		let arr = [];
-		for(let k in props) arr.push(k+'='+JSON.stringify(props[k]));
-		arr.sort();
+		for(let [symbol, items] of [['=', this.attrs], ['->', this], [':', this.style]]) {
+			for(let key of Object.keys(items).toSorted()) {
+				const prefix = key + symbol
+				if (key[0] === '_' || IGNORE_OUTPUT.has(prefix)) continue
+				let value = ''+items[key]
+				if (value.indexOf(" ")>=0 || value.indexOf("}")>=0 || !value.length) value = JSON.stringify(value)
+				arr.push(prefix + value)
+			}
+		}
 		for(let child of this.childNodes) arr.push(child.toString());
 
-		return this.tag + `{${arr.join(' ')}}`;
+		const cls = this.attrs['class'] ? "."+this.attrs['class'].replace(/ /g, '.') : ''
+		return this.tag + cls + (arr.length ? `{${arr.join(' ')}}` : '')
 	}
 
 	addEventListener(name, func) {

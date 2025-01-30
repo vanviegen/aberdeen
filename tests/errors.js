@@ -1,29 +1,68 @@
+function captureOnError(message, func, showMsg=true) {
+    let lastErr
+    setErrorHandler(err => {lastErr = err; return showMsg; })
+    func()
+    setErrorHandler()
+    assert(lastErr, 'onError not called')
+    assertContains(lastErr.toString(), message)
+}
+
 describe('Error handling', () => {
+    it('works by default', () => {
+        mount(document.body, () => {
+            $('a')
+            $('b', () => {
+                noSuchFunction()
+            })
+            $('c')
+        })
+        assertBody(`a b{div.aberdeen-error{"Error"}} c`)
+    })
+
 	it('continues rendering after an error', () => {
         let error = new Store(false)
         mount(document.body, () => {
-            node('a', () => {
-                node('b')
+            $('a', () => {
+                $('b')
                 if (error.get()) {
                     throw Error('FakeError')
                 }
-                node('c')
+                $('c')
             })
-            node('d')
+            $('d')
+        })    
+        assertBody(`a{b c} d`)
+
+        captureOnError('FakeError', () => {
+            error.set(true)
+            passTime()
         })
-        passTime()
-		assertBody(`a{b{} c{}} d{}`)
-        error.set(true)
-        assertThrow('FakeError', passTime)
-        assertBody(`a{b{}} d{}`)
+
+        assertBody(`a{b div.aberdeen-error{"Error"}} d`)
+    })
+
+
+    it('can disable the default error message', () => {
+        captureOnError('FakeError', () => {
+            mount(document.body, () => {
+                $('a', () => {
+                    $('b')
+                    throw Error('FakeError')
+                })
+                $('d')
+            })
+            passTime()
+        }, false)
+
+        assertBody(`a{b} d`)
     })
 
 
     it('throws when doing DOM operations outside of mount', () => {
 		let ops = [
-			() => node('div'),
-			() => text('hi'),
-			() => prop('hi'),
+			() => $('div'),
+			() => $({placeholder: 'hi'}),
+			() => $({text: 'hi'}),
             () => getParentElement(),
 		]
 		for(let op of ops) {
@@ -41,56 +80,57 @@ describe('Error handling', () => {
 
     it('continue rendering after an error in onEach', () => {
         let store = new Store(['a','b','c'])
-        mount(document.body, () => {
-            store.onEach(item => {
-                if (item.index()%2) noSuchFunction()
-                text(item.get())
+        captureOnError('noSuchFunction', () => {
+            mount(document.body, () => {
+                store.onEach(item => {
+                    if (item.index()%2) noSuchFunction()
+                    $({text: item.get()})
+                })
             })
-        })
-        assertThrow(passTime)
+            passTime()
+        }, false)
         assertBody(`"a" "c"`)
 
         store.push('d')
         store.push('e')
-        assertThrow(passTime)
+        captureOnError('noSuchFunction', passTime, false)
         assertBody(`"a" "c" "e"`)
     })
 
     it('continue rendering after an error in onEach sort', () => {
         let store = new Store(['a','b','c'])
-        mount(document.body, () => {
-            store.onEach(item => {
-                text(item.get())
-            }, item => {
-                if (item.index()%2) noSuchFunction()
-                return -item.index()
+        captureOnError('noSuchFunction', () => {
+            mount(document.body, () => {
+                store.onEach(item => {
+                    $({text: item.get()})
+                }, item => {
+                    if (item.index()%2) noSuchFunction()
+                    return -item.index()
+                })
             })
+            passTime()
         })
-        assertThrow(passTime)
         assertBody(`"c" "a"`)
 
         store.push('d')
         store.push('e')
-        assertThrow(passTime)
+        captureOnError('noSuchFunction', passTime)
         assertBody(`"e" "c" "a"`)
     })
 
     it('throws when indexing a non-indexable type', () => {
         let store = new Store(3)
-        assertThrow('Value 3 is not a collection', () => store.ref('a'))
-        assertThrow('Value 3 is not a collection', () => store.makeRef('a'))
+        assertThrow('found 3 at index 0 instead of', () => store('a').get())
+        assertThrow('found 3 at index 0 instead of', () => store('a').set(5))
     })
 
     it('throws when onEach() is invoked wrong', () => {
         let store1 = new Store()
         let store2 = new Store()
-        assertThrow('Operation not permitted outside', () => store1.onEach(item=>{}))
         store1.set(5)
         observe(() => {
             assertThrow('neither a collection nor undefined', () => store1.onEach(item=>{}))
-            assertThrow('function as its last argument', () => store1.onEach())
-
-            store2.onEach('a', 3, true, item => {
+            store2('a', 3, true).onEach(item => {
                 assert(false, "Should not be invoked")
             })
         })
@@ -104,11 +144,11 @@ describe('Error handling', () => {
     it('breaks up long update->observe recursions', () => {
         let store = new Store({a: 0, b: 0})
         observe(() => {
-            store.set('a', store.get('b')+1)
+            store('a').set(store('b').get()+1)
         })
         observe(() => {
-            store.set('b', store.get('a')+1)
+            store('b').set(store('a').get()+1)
         })
-        assertThrow('recursive', passTime)
+        captureOnError('recursive', passTime)
     })
 })

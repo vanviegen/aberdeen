@@ -212,15 +212,6 @@ interface Observer {
  */
 
 abstract class Scope implements QueueRunner, Observer {
-	_parentElement: Element | undefined
-
-	// How deep is this scope nested in other scopes; we use this to make sure events
-	// at lower depths are handled before events at higher depths.
-	_queueOrder: number
-	
-	// The node or scope right before this scope that has the same `parentElement`
-	_precedingSibling: Node | Scope | undefined
-
 	// The last child node or scope within this scope that has the same `parentElement`
 	_lastChild: Node | Scope | undefined
 
@@ -233,13 +224,13 @@ abstract class Scope implements QueueRunner, Observer {
 	_isDead: boolean = false
 
 	constructor(
-		parentElement: Element | undefined,
-		precedingSibling: Node | Scope | undefined,
-		queueOrder: number,
+		public _parentElement: Element | undefined,
+		// The node or scope right before this scope that has the same `parentElement`
+		public _precedingSibling: Node | Scope | undefined,
+		// How deep is this scope nested in other scopes; we use this to make sure events
+		// at lower depths are handled before events at higher depths.
+		public _queueOrder: number,
 	) {
-		this._parentElement = parentElement
-		this._precedingSibling = precedingSibling
-		this._queueOrder = queueOrder
 	}
 
 	// Get a reference to the last Node preceding this Scope, or undefined if there is none
@@ -263,10 +254,9 @@ abstract class Scope implements QueueRunner, Observer {
 	}
 
 	_addNode(node: Node) {
-		if (!this._parentElement) throw new ScopeError(true)
 		let prevNode = this._findLastNode() || this._findPrecedingNode()
 
-		this._parentElement.insertBefore(node, prevNode ? prevNode.nextSibling : this._parentElement.firstChild)
+		this._parentElement!.insertBefore(node, prevNode ? prevNode.nextSibling : this._parentElement!.firstChild)
 		this._lastChild = node
 	}
 
@@ -328,17 +318,22 @@ abstract class Scope implements QueueRunner, Observer {
 }
 
 class SimpleScope extends Scope {
-	_renderer: () => void
-
 	constructor(
 		parentElement: Element | undefined,
 		precedingSibling: Node | Scope | undefined,
 		queueOrder: number,
-		renderer: () => void,
+		renderer?: () => void,
 	) {
 		super(parentElement, precedingSibling, queueOrder)
-		this._renderer = renderer
+		if (renderer) this._renderer = renderer
 	}
+
+	/* c8 ignore start */
+	_renderer() {
+		// Should be overriden by a subclass or the constructor
+		internalError(14)
+	}
+	/* c8 ignore stop */
 
 	_queueRun() {
 		/* c8 ignore next */
@@ -358,9 +353,43 @@ class SimpleScope extends Scope {
 			this._renderer()
 		} catch(e) {
 			// Throw the error async, so the rest of the rendering can continue
-			handleError(e)
+			handleError(e, true)
 		}
 		currentScope = savedScope
+	}
+
+	_install() {
+		if (showCreateTransitions) {
+			showCreateTransitions = false
+			this._update()
+			showCreateTransitions = true
+		} else {
+			this._update()
+		}
+		// Add it to our list of cleaners. Even if `childScope` currently has
+		// no cleaners, it may get them in a future refresh.
+		currentScope!._cleaners.push(this)
+	}
+}
+
+/**
+ * This could have been done with a SimpleScope, but then we'd have to draw along an instance of
+ * that as well as a renderer function that closes over quite a few variables, which probably
+ * wouldn't be great for the performance of this common feature.
+ */
+class SetArgScope extends SimpleScope {
+	constructor(
+		parentElement: Element | undefined,
+		precedingSibling: Node | Scope | undefined,
+		queueOrder: number,
+		private _key: string,
+		private _value: Store,
+	) {
+		super(parentElement, precedingSibling, queueOrder)
+	}
+
+	_renderer() {
+		applyArg(this._parentElement as Element, this._key, this._value.get())
 	}
 }
 
@@ -647,7 +676,7 @@ class OnEachItemScope extends Scope {
 		try {
 			sortKey = this._parent._makeSortKey(itemStore)
 		} catch(e) {
-			handleError(e)
+			handleError(e, false)
 		}
 
 		let oldSortStr: string = this._sortStr
@@ -665,7 +694,7 @@ class OnEachItemScope extends Scope {
 			try {
 				this._parent._renderer(itemStore)
 			} catch(e) {
-				handleError(e)
+				handleError(e, true)
 			}
 		}
 
@@ -676,7 +705,7 @@ class OnEachItemScope extends Scope {
 
 /**
  * This global is set during the execution of a `Scope.render`. It is used by
- * functions like `node`, `text` and `clean`.
+ * functions like `$` and `clean`.
  */
 let currentScope: Scope | undefined
 
@@ -954,56 +983,98 @@ class ObsMap extends ObsCollection {
 
 
 
-/**
- * A data store that automatically subscribes the current scope to updates
+ const DETACHED_KEY: any = {}
+
+ /*
+ * A data store that automatically subscribes the current Scope to updates
  * whenever data is read from it.
  *
  * Supported data types are: `string`, `number`, `boolean`, `undefined`, `null`,
  * `Array`, `object` and `Map`. The latter three will always have `Store` objects as
  * values, creating a tree of `Store`-objects.
  */
+ 
+export interface Store {
+	/**
+	 * Return a `Store` deeper within the tree by resolving the given `path`,
+	 * subscribing to every level.
+	 * In case `undefined` is encountered while resolving the path, a newly
+	 * created `Store` containing `undefined` is returned. In that case, the
+	 * `Store`'s [[`isDetached`]] method will return `true`.
+	 * In case something other than a collection is encountered, an error is thrown.
+	 */
+	(...path: any[]): Store
+}
 
 export class Store {
 	/** @internal */
+	// @ts-ignore
 	private _collection: ObsCollection
 	/** @internal */
 	private _idx: any
+	/** @internal */
+	private _virtual: string[] | undefined
 
 	/**
-	 * Create a new store with the given `value` as its value. Defaults to `undefined` if no value is given.
-	 * When the value is a plain JavaScript object, an `Array` or a `Map`, it will be stored as a tree of
-	 * `Store`s. (Calling {@link Store.get} on the store will recreate the original data strucure, though.)
-	 *
-	 * @example
-	 * ```
-	 * let emptyStore = new Store()
-	 * let numStore = new Store(42)
-	 * let objStore = new Store({x: {alice: 1, bob: 2}, y: [9,7,5,3,1]})
-	 * ```
-	*/
+	 * Create a new `Store` with `undefined` as its initial value.
+	 */
 	constructor()
+	/**
+	 * Create a new `Store`.
+	 * @param value The initial value. Plain objects, arrays and `Map`s, are converted
+	 * into a tree of nested `Store`s. When another `Store` is included somewhere in that
+	 * input tree, a reference is made.
+	 */
 	constructor(value: any)
+	
 	/** @internal */
 	constructor(collection: ObsCollection, index: any)
 
+	/** @internal */
 	constructor(value: any = undefined, index: any = undefined) {
+		/**
+		 * Create and return a new `Store` that represents the subtree at `path` of
+		 * the current `Store`.
+		 * 
+		 * The `path` is only actually resolved when this new `Store` is first used,
+		 * and how this is done depends on whether a read or a write operation is 
+		 * performed. Read operations will just use an `undefined` value when a
+		 * subtree that we're diving into does not exist. Also, they'll subscribe
+		 * to changes at each level of the tree indexed by `path`.
+		 * 
+		 * Write operations will create any missing subtrees as objects. They don't
+		 * subscribe to changes (as they are the ones causing the changes). 
+		 * 
+		 * Both read and write operations will throw an error if, while resolving
+		 * `path`, they encounters a non-collection data type (such as a number)
+		 */
+		const ref: Store = function(...path: any): Store {
+			const result = new Store(ref._collection, ref._idx)
+			if (path.length || ref._virtual) {
+				result._virtual = ref._virtual ? ref._virtual.concat(path) : path
+			}
+			return result
+		} as Store
+
+		Object.setPrototypeOf(ref, Store.prototype)
 		if (index===undefined) {
-			this._collection = new ObsArray()
-			this._idx = 0
+			ref._collection = new ObsArray()
+			ref._idx = 0
 			if (value!==undefined) {
-				this._collection.rawSet(0, valueToData(value))
+				ref._collection.rawSet(0, valueToData(value))
 			}
 		} else {
 			if (!(value instanceof ObsCollection)) {
 				throw new Error("1st parameter should be an ObsCollection if the 2nd is also given")
 			}
-			this._collection = value
-			this._idx = index
+			ref._collection = value
+			ref._idx = index
 		}
+		// @ts-ignore
+		return ref
 	}
 
 	/**
-	 *
 	 * @returns The index for this Store within its parent collection. This will be a `number`
 	 * when the parent collection is an array, a `string` when it's an object, or any data type
 	 * when it's a `Map`.
@@ -1012,8 +1083,8 @@ export class Store {
 	 * ```
 	 * let store = new Store({x: 123})
 	 * let subStore = store.ref('x')
-	 * assert(subStore.get() === 123)
-	 * assert(subStore.index() === 'x') // <----
+	 * subStore.get() // 123
+	 * subStore.index() // 'x'
 	 * ```
 	 */
 	index() {
@@ -1025,148 +1096,125 @@ export class Store {
 		this._collection._removeObserver(this._idx, scope)
 	}
 
-
 	/**
-	 * @returns Resolves `path` and then retrieves the value that is there, subscribing
-	 * to all read `Store` values. If `path` does not exist, `undefined` is returned.
-	 * @param path - Any path terms to resolve before retrieving the value.
-	 * @example
-	 * ```
-	 * let store = new Store({a: {b: {c: {d: 42}}}})
-	 * assert('a' in store.get())
-	 * assert(store.get('a', 'b') === {c: {d: 42}})
-	 * ```
+	 * Retrieve the value for store, subscribing the observe scope to changes.
+	 *
+	 * @param depth Limit the depth of the retrieved data structure to this positive integer.
+     *    When `depth` is `1`, only a single level of the value at `path` is unpacked. This
+     *    makes no difference for primitive values (like strings), but for objects, maps and
+     *    arrays, it means that each *value* in the resulting data structure will be a
+     *    reference to the `Store` for that value.
+     *
+	 * @returns The resulting value (or `undefined` if the `Store` does not exist). 
 	 */
-	get(...path: any[]) : any {
-		return this.query({path})
+	get(depth: number = 0): any {
+		let value = this._observe()
+		return value instanceof ObsCollection ? value._getRecursive(depth-1) : value
 	}
 
-	/**
-	 * Like {@link Store.get}, but doesn't subscribe to changes.
+	/** 
+	 * Exactly like {@link Store.get}, except that when executed from an observe scope,
+	 * we will not subscribe to changes in the data retrieved data.
 	 */
-	peek(...path: any[]): any {
-		return this.query({path, peek: true})
+	peek(depth: number = 0): any {
+
+		let savedScope = currentScope
+		currentScope = undefined
+		let result = this.get(depth)
+		currentScope = savedScope
+		return result
+	}
+	
+
+	/**
+	 * Like {@link Store.get}, but with return type checking.
+	 * 
+	 * @param expectType A string specifying what type the.get is expected to return. Options are:
+	 *    "undefined", "null", "boolean", "number", "string", "function", "array", "map"
+	 *    and "object". If the store holds a different type of value, a `TypeError`
+	 *    exception is thrown.
+	 * @returns 
+	 */
+	getTyped(expectType: String, depth: number = 0): any {
+		let value = this._observe()
+		let type = (value instanceof ObsCollection) ? value._getType() : (value===null ? "null" : typeof value)
+		if (type !== expectType) throw new TypeError(`Expecting ${expectType} but got ${type}`)
+		return value instanceof ObsCollection ? value._getRecursive(depth-1) : value
 	}
 
 	/**
 	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `number`.
 	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
-	getNumber(...path: any[]): number { return <number>this.query({path, type: 'number'}) }
+	getNumber(): number { return <number>this.getTyped('number') }
 	/**
 	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `string`.
 	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
-	getString(...path: any[]): string { return <string>this.query({path, type: 'string'}) }
+	getString(): string { return <string>this.getTyped('string') }
 	/**
 	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `boolean`.
 	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
-	getBoolean(...path: any[]): boolean { return <boolean>this.query({path, type: 'boolean'}) }
+	getBoolean(): boolean { return <boolean>this.getTyped('boolean') }
 	/**
 	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `function`.
 	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
-	getFunction(...path: any[]): (Function) { return <Function>this.query({path, type: 'function'}) }
+	getFunction(): (Function) { return <Function>this.getTyped('function') }
 	/**
 	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `array`.
 	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
-	getArray(...path: any[]): any[] { return <any[]>this.query({path, type: 'array'}) }
+	getArray(depth: number = 0): any[] { return <any[]>this.getTyped('array', depth) }
 	/**
 	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `object`.
 	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
-	getObject(...path: any[]): object { return <object>this.query({path, type: 'object'}) }
+	getObject(depth: number = 0): object { return <object>this.getTyped('object', depth) }
 	/**
 	 * @returns Like {@link Store.get}, but throws a `TypeError` if the resulting value is not of type `map`.
 	 * Using this instead of just {@link Store.get} is especially useful from within TypeScript.
 	 */
-	getMap(...path: any[]): Map<any,any> { return <Map<any,any>>this.query({path, type: 'map'}) }
+	getMap(depth: number = 0): Map<any,any> { return <Map<any,any>>this.getTyped('map', depth) }
+
 
 	/**
-	 * Like {@link Store.get}, but the first parameter is the default value (returned when the Store
+	 * Like {@link Store.get}, but with a default value (returned when the Store
 	 * contains `undefined`). This default value is also used to determine the expected type,
 	 * and to throw otherwise.
 	 *
 	 * @example
 	 * ```
-	 * let store = {x: 42}
-	 * assert(getOr(99, 'x') == 42)
-	 * assert(getOr(99, 'y') == 99)
-	 * getOr('hello', x') # throws TypeError (because 42 is not a string)
+	 * let store = new Store({x: 42})
+	 * store('x').getOr(99) // 42
+	 * store('y').getOr(99) // 99
+	 * store('x').getOr('hello') // throws TypeError (because 42 is not a string)
 	 * ```
 	 */
-	getOr<T>(defaultValue: T, ...path: any[]): T {
-		let type: string = typeof defaultValue
-		if (type==='object') {
-			if (defaultValue instanceof Map) type = 'map'
-			else if (defaultValue instanceof Array) type = 'array'
-		}
-		return this.query({type, defaultValue, path})
-	}
+	getOr<T>(defaultValue: T): T {
+		let value = this._observe()
+		if (value===undefined) return defaultValue
 
-	/** Retrieve a value, subscribing to all read `Store` values. This is a more flexible
-	 * form of the {@link Store.get} and {@link Store.peek} methods.
-	 *
-	 * @returns The resulting value, or `undefined` if the `path` does not exist.
-	 */
-	query(opts: {
-		/**  The value for this path should be retrieved. Defaults to `[]`, meaning the entire `Store`. */
-		path?: any[],
-		/** A string specifying what type the query is expected to return. Options are:
-		 *  "undefined", "null", "boolean", "number", "string", "function", "array", "map"
-		 *  and "object". If the store holds a different type of value, a `TypeError`
-		 *  exception is thrown. By default (when `type` is `undefined`) no type checking
-		 *  is done.
-		 */
-		type?: string,
-		/** Limit the depth of the retrieved data structure to this positive integer.
-		*  When `depth` is `1`, only a single level of the value at `path` is unpacked. This
-		*  makes no difference for primitive values (like strings), but for objects, maps and
-		*  arrays, it means that each *value* in the resulting data structure will be a
-		*  reference to the `Store` for that value.
-		*/
-		depth?: number,
-		/** Return this value when the `path` does not exist. Defaults to `undefined`. */
-		defaultValue?: any,
-		/** When peek is `undefined` or `false`, the current scope will automatically be
-		 * subscribed to changes of any parts of the store being read. When `true`, no
-		 * subscribers will be performed.
-		 */
-		peek?: boolean
-	}): any {
-		if (opts.peek && currentScope) {
-			let savedScope = currentScope
-			currentScope = undefined
-			let result = this.query(opts)
-			currentScope = savedScope
-			return result
+		let expectType: string = typeof defaultValue
+		if (expectType==='object') {
+			if (defaultValue instanceof Map) expectType = 'map'
+			else if (defaultValue instanceof Array) expectType = 'array'
+			else if (defaultValue === null) expectType = 'null'
 		}
-		let store = opts.path && opts.path.length ? this.ref(...opts.path) : this
-		let value = store._observe()
-
-		if (opts.type && (value!==undefined || opts.defaultValue===undefined)) {
-			let type = (value instanceof ObsCollection) ? value._getType() : (value===null ? "null" : typeof value)
-			if (type !== opts.type) throw new TypeError(`Expecting ${opts.type} but got ${type}`)
-		}
-		if (value instanceof ObsCollection) {
-			return value._getRecursive(opts.depth==null ? -1 : opts.depth-1)
-		}
-		return value===undefined ? opts.defaultValue : value
+		let type = (value instanceof ObsCollection) ? value._getType() : (value===null ? "null" : typeof value)
+		if (type !== expectType) throw new TypeError(`Expecting ${expectType} but got ${type}`)
+		return (value instanceof ObsCollection ? value._getRecursive(-1) : value) as T
 	}
 
 	/**
-	 * Checks if the specified collection is empty, and subscribes the current scope to changes of the emptiness of this collection.
+	 * Checks if the collection held in `Store` is empty, and subscribes the current scope to changes of the emptiness of this collection.
 	 *
-	 * @param path Any path terms to resolve before retrieving the value.
-	 * @returns When the specified collection is not empty `true` is returned. If it is empty or if the value is undefined, `false` is returned.
+	 * @returns When the collection is not empty `true` is returned. If it is empty or if the value is undefined, `false` is returned.
 	 * @throws When the value is not a collection and not undefined, an Error will be thrown.
 	 */
-	isEmpty(...path: any[]): boolean {
-		let store = this.ref(...path)
-		
-		let value = store._observe()
+	isEmpty(): boolean {
+		let value = this._observe()
 		if (value instanceof ObsCollection) {
 			if (currentScope) {
 				let observer = new IsEmptyObserver(currentScope, value, false)
@@ -1182,16 +1230,13 @@ export class Store {
 	}
 
 	/**
-	 * Returns the number of items in the specified collection, and subscribes the current scope to changes in this count.
+	 * Returns the number of items in the collection held in Store, and subscribes the current scope to changes in this count.
 	 *
-	 * @param path Any path terms to resolve before retrieving the value.
 	 * @returns The number of items contained in the collection, or 0 if the value is undefined.
 	 * @throws When the value is not a collection and not undefined, an Error will be thrown.
 	 */
-	count(...path: any[]): number {
-		let store = this.ref(...path)
-		
-		let value = store._observe()
+	count(): number {
+		let value = this._observe()
 		if (value instanceof ObsCollection) {
 			if (currentScope) {
 				let observer = new IsEmptyObserver(currentScope, value, true)
@@ -1207,23 +1252,40 @@ export class Store {
 	}
 
 	/**
-	 * Returns a strings describing the type of the store value, subscribing to changes of this type.
+	 * Returns a strings describing the type of the `Store` value, subscribing to changes of this type.
 	 * Note: this currently also subscribes to changes of primitive values, so changing a value from 3 to 4
 	 * would cause the scope to be rerun. This is not great, and may change in the future. This caveat does
 	 * not apply to changes made *inside* an object, `Array` or `Map`.
 	 *
-	 * @param path Any path terms to resolve before retrieving the value.
 	 * @returns Possible options: "undefined", "null", "boolean", "number", "string", "function", "array", "map" or "object".
 	 */
-	getType(...path: any[]): string {
-		let store = this.ref(...path)
-		let value = store._observe()
+	getType(): string {
+		let value = this._observe()
 		return (value instanceof ObsCollection) ? value._getType() : (value===null ? "null" : typeof value)
 	}
 
 	/**
-	 * Sets the value to the last given argument. Any earlier argument are a Store-path that is first
-	 * resolved/created using {@link Store.makeRef}.
+	 * Returns a new `Store` that will always hold either the value of `whenTrue` or the value
+	 * of `whenFalse` depending on whether the original `Store` is truthy or not.
+	 * 
+	 * @param whenTrue The value set to the return-`Store` while `this` is truthy. This can be
+	 *     any type of value. If it's a `Store`, the return-`Store` will reference the same 
+	 *     data (so *no* deep copy will be made).
+	 * @param whenFalse Like `whenTrue`, but for falsy values (false, undefined, null, 0, "").
+	 * @returns A store holding the result value. The value will keep getting updated while
+	 * the observe context from which `if()` was called remains active.
+	 */
+	if(whenTrue: any[], whenFalse?: any[]): Store {
+		const result = new Store()
+		observe(() => {
+			const value = this.get() ? whenTrue : whenFalse
+			result.set(value)
+		})
+		return result
+	}
+
+	/**
+	 * Sets the `Store` value to the given argument.
 	 *
 	 * When a `Store` is passed in as the value, its value will be copied (subscribing to changes). In
 	 * case the value is an object, an `Array` or a `Map`, a *reference* to that data structure will
@@ -1233,69 +1295,110 @@ export class Store {
 	 *
 	 * If you intent to make a copy instead of a reference, call {@link Store.get} on the origin `Store`.
 	 *
-	 *
+	 * @returns The `Store` itself, for chaining other methods.
+     *
 	 * @example
 	 * ```
 	 * let store = new Store() // Value is `undefined`
 	 *
-	 * store.set('x', 6) // Causes the store to become an object
-	 * assert(store.get() == {x: 6})
+	 * store.set(6)
+	 * store.get() // 6
 	 *
-	 * store.set('a', 'b', 'c', 'd') // Create parent path as objects
-	 * assert(store.get() == {x: 6, a: {b: {c: 'd'}}})
+	 * store.set({}) // Change  value to an empty object
+	 * store('a', 'b', 'c').set('d') // Create parent path as objects
+	 * store.get() // {x: 6, a: {b: {c: 'd'}}}
 	 *
 	 * store.set(42) // Overwrites all of the above
-	 * assert(store.get() == 42)
+	 * store.get() // 42
 	 *
-	 * store.set('x', 6) // Throw Error (42 is not a collection)
+	 * store('x').set(6) // Throw Error (42 is not a collection)
 	 * ```
 	 */
-	set(...pathAndValue: any[]): void {
-		let newValue = pathAndValue.pop()
-		let store = this.makeRef(...pathAndValue)
-		store._collection._setIndex(store._idx, newValue, true)
+	set(newValue: any): Store {
+		this._materialize(true)
+		this._collection._setIndex(this._idx, newValue, true)
 		runImmediateQueue()
+		return this
+	}
+
+	/** @internal */
+	_materialize(forWriting: boolean): boolean {
+		if (!this._virtual) return true
+		let collection = this._collection
+		let idx = this._idx
+		for(let i=0; i<this._virtual.length; i++) {
+			if (!forWriting && currentScope) {
+				if (collection._addObserver(idx, currentScope)) {
+					currentScope._cleaners.push(this)
+				}
+			}
+			let value = collection.rawGet(idx)
+			if (!(value instanceof ObsCollection)) {
+				// Throw an error if trying to index a primitive type
+				if (value!==undefined) throw new Error(`While resolving ${JSON.stringify(this._virtual)}, found ${JSON.stringify(value)} at index ${i} instead of a collection.`)
+				// For reads, we'll just give up. We might reactively get another shot at this.
+				if (!forWriting) return false
+				// For writes, create a new collection.
+				value = new ObsObject()
+				collection.rawSet(idx, value)
+				collection.emitChange(idx, value, undefined)	
+			}
+			collection = value
+			const prop = this._virtual[i]
+			idx = collection._normalizeIndex(prop)
+		}
+		this._collection = collection
+		this._idx = idx
+		delete this._virtual
+		return true
 	}
 
 	/**
 	 * Sets the `Store` to the given `mergeValue`, but without deleting any pre-existing
 	 * items when a collection overwrites a similarly typed collection. This results in
 	 * a deep merge.
+     *
+ 	 * @returns The `Store` itself, for chaining other methods.
 	 *
 	 * @example
 	 * ```
 	 * let store = new Store({a: {x: 1}})
 	 * store.merge({a: {y: 2}, b: 3})
-	 * assert(store.get() == {a: {x: 1, y: 2}, b: 3})
+	 * store.get() // {a: {x: 1, y: 2}, b: 3}
 	 * ```
 	 */
-	merge(...pathAndValue: any): void {
-		let mergeValue = pathAndValue.pop()
-		let store = this.makeRef(...pathAndValue)
-		store._collection._setIndex(store._idx, mergeValue, false)
+	merge(mergeValue: any): Store {
+		this._materialize(true)
+		this._collection._setIndex(this._idx, mergeValue, false)
 		runImmediateQueue()
+		return this
 	}
 
 	/**
 	 * Sets the value for the store to `undefined`, which causes it to be omitted from the map (or array, if it's at the end)
+     *
+ 	 * @returns The `Store` itself, for chaining other methods.
 	 *
 	 * @example
 	 * ```
 	 * let store = new Store({a: 1, b: 2})
-	 * store.delete('a')
-	 * assert(store.get() == {b: 2})
+	 * store('a').delete()
+	 * store.get() // {b: 2}
 	 *
 	 * store = new Store(['a','b','c'])
-	 * store.delete(1)
-	 * assert(store.get() == ['a', undefined, 'c'])
-	 * store.delete(2)
-	 * assert(store.get() == ['a'])
+	 * store(1).delete()
+	 * store.get() // ['a', undefined, 'c']
+	 * store(2).delete()
+	 * store.get() // ['a']
+	 * store.delete()
+	 * store.get() // undefined
 	 * ```
 	 */
-	delete(...path: any) {
-		let store = this.makeRef(...path)
-		store._collection._setIndex(store._idx, undefined, true)
+	delete(): Store {
+		this._materialize(true)
+		this._collection._setIndex(this._idx, undefined, true)
 		runImmediateQueue()
+		return this
 	}
 
 	/**
@@ -1303,28 +1406,30 @@ export class Store {
 	 * If that store path is `undefined`, an Array is created first.
 	 * The last argument is the value to be added, any earlier arguments indicate the path.
 	 *
+	 * @returns The index at which the item was appended.
+	 * @throws TypeError when the store contains a primitive data type.
+	 * 
 	 * @example
 	 * ```
 	 * let store = new Store()
 	 * store.push(3) // Creates the array
 	 * store.push(6)
-	 * assert(store.get() == [3,6])
+	 * store.get() // [3,6]
 	 *
 	 * store = new Store({myArray: [1,2]})
-	 * store.push('myArray', 3)
-	 * assert(store.get() == {myArray: [1,2,3]})
+	 * store('myArray').push(3)
+	 * store.get() // {myArray: [1,2,3]}
 	 * ```
 	 */
-	push(...pathAndValue: any[]): number {
-		let newValue = pathAndValue.pop()
-		let store = this.makeRef(...pathAndValue)
+	push(newValue: any): number {
+		this._materialize(true)
 
-		let obsArray = store._collection.rawGet(store._idx)
+		let obsArray = this._collection.rawGet(this._idx)
 		if (obsArray===undefined) {
 			obsArray = new ObsArray()
-			store._collection._setIndex(store._idx, obsArray, true)
+			this._collection._setIndex(this._idx, obsArray, true)
 		} else if (!(obsArray instanceof ObsArray)) {
-			throw new Error(`push() is only allowed for an array or undefined (which would become an array)`)
+			throw new TypeError(`push() is only allowed for an array or undefined (which would become an array)`)
 		}
 
 		let newData = valueToData(newValue)
@@ -1339,74 +1444,16 @@ export class Store {
 	 * {@link Store.peek} the current value, pass it through `func`, and {@link Store.set} the resulting
 	 * value.
 	 * @param func The function transforming the value.
+ 	 * @returns The `Store` itself, for chaining other methods.
 	 */
-	modify(func: (value: any) => any): void {
-		this.set(func(this.query({peek: true})))
-	}
-
-	/**
-	 * Return a `Store` deeper within the tree by resolving the given `path`,
-	 * subscribing to every level.
-	 * In case `undefined` is encountered while resolving the path, a newly
-	 * created `Store` containing `undefined` is returned. In that case, the
-	 * `Store`'s {@link Store.isDetached} method will return `true`.
-	 * In case something other than a collection is encountered, an error is thrown.
-	 */
-	ref(...path: any[]): Store {
-		let store: Store = this
-
-		for(let i=0; i<path.length; i++) {
-			let value = store._observe()
-			if (value instanceof ObsCollection) {
-				store = new Store(value, value._normalizeIndex(path[i]))
-			} else {
-				if (value!==undefined) throw new Error(`Value ${JSON.stringify(value)} is not a collection (nor undefined) in step ${i} of $(${JSON.stringify(path)})`)
-				return new DetachedStore()
-			}
-		}
-
-		return store
-	}
-
-	/**
-	 * Similar to `ref()`, but instead of returning `undefined`, new objects are created when
-	 * a path does not exist yet. An error is still thrown when the path tries to index an invalid
-	 * type.
-	 * Unlike `ref`, `makeRef` does *not* subscribe to the path levels, as it is intended to be
-	 * a write-only operation.
-	 *
-	 * @example
-	 * ```
-	 * let store = new Store() // Value is `undefined`
-	 *
-	 * let ref = store.makeRef('a', 'b', 'c')
-	 * assert(store.get() == {a: {b: {}}}
-	 *
-	 * ref.set(42)
-	 * assert(store.get() == {a: {b: {c: 42}}}
-	 *
-	 * ref.makeRef('d') // Throw Error (42 is not a collection)
-	 * ```
-	 */
-	makeRef(...path: any[]): Store {
-		let store: Store = this
-
-		for(let i=0; i<path.length; i++) {
-			let value = store._collection.rawGet(store._idx)
-			if (!(value instanceof ObsCollection)) {
-				if (value!==undefined) throw new Error(`Value ${JSON.stringify(value)} is not a collection (nor undefined) in step ${i} of $(${JSON.stringify(path)})`)
-				value = new ObsObject()
-				store._collection.rawSet(store._idx, value)
-				store._collection.emitChange(store._idx, value, undefined)
-			}
-			store = new Store(value, value._normalizeIndex(path[i]))
-		}
-		runImmediateQueue()
-		return store	
+	modify(func: (value: any) => any): Store {
+		this.set(func(this.peek()))
+		return this
 	}
 
 	/** @internal */
 	_observe() {
+		if (!this._materialize(false)) return undefined
 		if (currentScope) {
 			if (this._collection._addObserver(this._idx, currentScope)) {
 				currentScope._cleaners.push(this)
@@ -1419,25 +1466,19 @@ export class Store {
 	 * Iterate the specified collection (Array, Map or object), running the given code block for each item.
 	 * When items are added to the collection at some later point, the code block will be ran for them as well.
 	 * When an item is removed, the {@link Store.clean} handlers left by its code block are executed.
-	 *
-	 *
-	 *
-	 * @param pathAndFuncs
+	 * 
+	 * @param renderer The function to be called for each item. It receives the item's `Store` object as its only argument.
+	 * @param makeSortKey An optional function that, given an items `Store` object, returns a value to be sorted on.
+	 *   This value can be a number, a string, or an array containing a combination of both. When undefined is returned,
+	 *   the item is *not* rendered. If `makeSortKey` is not specified, the output will be sorted by `index()`.
 	 */
-	onEach(...pathAndFuncs: any): void {
-		let makeSortKey = defaultMakeSortKey
-		let renderer = pathAndFuncs.pop()
-		if (typeof pathAndFuncs[pathAndFuncs.length-1]==='function' && (typeof renderer==='function' || renderer==null)) {
-			if (renderer!=null) makeSortKey = renderer
-			renderer = pathAndFuncs.pop()
+	onEach(renderer: (store: Store) => void, makeSortKey: (store: Store) => any = defaultMakeSortKey): void {
+		if (!currentScope) { // Do this in a new top-level scope
+			_mount(undefined, () => this.onEach(renderer, makeSortKey), SimpleScope)
+			return
 		}
-		if (typeof renderer !== 'function') throw new Error(`onEach() expects a render function as its last argument but got ${JSON.stringify(renderer)}`)
 
-		if (!currentScope) throw new ScopeError(false)
-
-		let store = this.ref(...pathAndFuncs)
-
-		let val = store._observe()
+		let val = this._observe()
 		if (val instanceof ObsCollection) {
 			// Subscribe to changes using the specialized OnEachScope
 			let onEachScope = new OnEachScope(currentScope._parentElement, currentScope._lastChild || currentScope._precedingSibling, currentScope._queueOrder+1, val, renderer, makeSortKey)
@@ -1453,31 +1494,61 @@ export class Store {
 	}
 
 	/**
+	 * Derive a new `Store` from this `Store`, by reactively passing its value
+	 * through the specified function.
+	 * @param func Your function. It should accept a the input store's value, and return
+	 *   a result to be reactively set to the output store.
+	 * @returns The output `Store`.
+	 * @example
+	 * ```javascript
+	 * const store = new Store(21)
+	 * const double = store.derive(v => v*2)
+	 * double.get() // 42
+	 * 
+	 * store.set(100)
+	 * runQueue() // Or after a setTimeout 0, due to batching
+	 * double.get() // 200
+	 * ```
+	 */
+	derive(func: (value: any) => any): Store {
+		let out = new Store()
+		observe(() => {
+			out.set(func(this.get()))
+		})
+		return out
+	}
+
+	/**
 	 * Applies a filter/map function on each item within the `Store`'s collection,
 	 * and reactively manages the returned `Map` `Store` to hold any results.
 	 *
 	 * @param func - Function that transform the given store into an output value or
 	 * `undefined` in case this value should be skipped:
 	 *
-	 * @returns - A map `Store` with the values returned by `func` and the corresponding
-	 * keys from the original map, array or object `Store`.
+	 * @returns - A array/map/object `Store` with the values returned by `func` and the
+	 * corresponding keys from the original map, array or object `Store`.
 	 *
 	 * When items disappear from the `Store` or are changed in a way that `func` depends
 	 * upon, the resulting items are removed from the output `Store` as well. When multiple
 	 * input items produce the same output keys, this may lead to unexpected results.
 	 */
 	map(func: (store: Store) => any): Store {
-		let out = new Store(new Map())
-		this.onEach((item: Store) => {
-			let value = func(item)
-			if (value !== undefined) {
-				let key = item.index()
-				out.set(key, value)
-				clean(() => {
-					out.delete(key)
-				})
-			}
-		})
+		let out = new Store()
+		observe(() => {
+			let t = this.getType()
+			out.set(t==='array' ? [] : (t==='object' ? {} : new Map()))
+			this.onEach((item: Store) => {
+				let value = func(item)
+				if (value !== undefined) {
+					let key = item.index()
+					const ref = out(key)
+					ref.set(value)
+					clean(() => {
+						ref.delete()
+					})
+				}
+			})
+		})			
 		return out
 	}
 
@@ -1501,24 +1572,26 @@ export class Store {
 		let out = new Store(new Map())
 		this.onEach((item: Store) => {
 			let result = func(item)
-			let keys: Array<any>
+			let refs: Array<Store> = []
 			if (result.constructor === Object) {
 				for(let key in result) {
-					out.set(key, result[key])
+					const ref = out(key)
+					ref.set(result[key])
+					refs.push(ref)
 				}
-				keys = Object.keys(result)
 			} else if (result instanceof Map) {
 				result.forEach((value: any, key: any) => {
-					out.set(key, value)
+					const ref = out(key)
+					ref.set(value)
+					refs.push(ref)
 				})
-				keys = [...result.keys()]
 			} else {
 				return
 			}
-			if (keys.length) {
+			if (refs.length) {
 				clean(() => {
-					for(let key of keys) {
-						out.delete(key)
+					for(let ref of refs) {
+						ref.delete()
 					}
 				})
 			}
@@ -1527,36 +1600,26 @@ export class Store {
 	}
 
 	/**
-	 * @returns Returns `true` when the `Store` was created by {@link Store.ref}ing a path that
-	 * does not exist.
-	 */
-	isDetached() { return false }
-
-	/**
 	* Dump a live view of the `Store` tree as HTML text, `ul` and `li` nodes at
 	* the current mount position. Meant for debugging purposes.
+ 	* @returns The `Store` itself, for chaining other methods.
 	*/
-	dump() {
-	  let type = this.getType()
-	  if (type === 'array' || type === 'object' || type === 'map') {
-	    text('<'+type+'>')
-	    node('ul', () => {
-	      this.onEach((sub: Store) => {
-	        node('li', () => {
-	          text(JSON.stringify(sub.index())+': ')
-	          sub.dump()
-	        })
-	      })
-	    })
-	  }
-	  else {
-	    text(JSON.stringify(this.get()))
-	  }
+	dump(): Store {
+		let type = this.getType()
+		if (type === 'array' || type === 'object' || type === 'map') {
+			$({text: `<${type}>`})
+			$('ul', () => {
+				this.onEach((sub: Store) => {
+					$('li:'+JSON.stringify(sub.index())+": ", () => {
+						sub.dump()
+					})
+				})
+			})
+		} else {
+			$({text: JSON.stringify(this.get())})
+		}
+		return this
 	}
-}
-
-class DetachedStore extends Store {
-	isDetached() { return true }
 }
 
 
@@ -1569,92 +1632,23 @@ function destroyWithClass(element: Element, cls: string) {
 }
 
 
-/**
- * Create a new DOM element, and insert it into the DOM at the position held by the current scope.
- * @param tag - The tag of the element to be created and optionally dot-separated class names. For example: `h1` or `p.intro.has_avatar`.
- * @param rest - The other arguments are flexible and interpreted based on their types:
- *   - `string`: Used as textContent for the element.
- *   - `object`: Used as attributes, properties or event listeners for the element. See {@link Store.prop} on how the distinction is made and to read about a couple of special keys.
- *   - `function`: The render function used to draw the scope of the element. This function gets its own `Scope`, so that if any `Store` it reads changes, it will redraw by itself.
- *   - `Store`: Presuming `tag` is `"input"`, `"textarea"` or `"select"`, create a two-way binding between this `Store` value and the input element. The initial value of the input will be set to the initial value of the `Store`, or the other way around if the `Store` holds `undefined`. After that, the `Store` will be updated when the input changes and vice versa.
- * @example
- * node('aside.editorial', 'Yada yada yada....', () => {
- *	 node('a', {href: '/bio'}, () => {
- *		 node('img.author', {src: '/me.jpg', alt: 'The author'})
- *	 })
- * })
- */
-export function node(tag: string|Element = "", ...rest: any[]) {
-	if (!currentScope) throw new ScopeError(true)
-
-	let el
-	if (tag instanceof Element) {
-		el = tag
+function addLeafNode(deepEl: Element, node: Node) {
+	if (deepEl === (currentScope as Scope)._parentElement) {
+		currentScope!._addNode(node)
 	} else {
-		let pos = tag.indexOf('.')
-		let classes
-		if (pos>=0) {
-			classes = tag.substr(pos+1)
-			tag = tag.substr(0, pos)
-		}
-		el = document.createElement(tag || 'div')
-		if (classes) {
-			// @ts-ignore (replaceAll is polyfilled)
-			el.className = classes.replaceAll('.', ' ')
-		}
-	}
-
-	currentScope._addNode(el)
-
-	for(let item of rest) {
-		let type = typeof item
-		if (type === 'function') {
-			let scope = new SimpleScope(el, undefined, currentScope._queueOrder+1, item)
-			if (showCreateTransitions) {
-				showCreateTransitions = false
-				scope._update()
-				showCreateTransitions = true
-			} else {
-				scope._update()
-			}
-
-			// Add it to our list of cleaners. Even if `scope` currently has
-			// no cleaners, it may get them in a future refresh.
-			currentScope._cleaners.push(scope)
-		} else if (type === 'string' || type === 'number') {
-			el.textContent = item
-		} else if (type === 'object' && item && item.constructor === Object) {
-			for(let k in item) {
-				applyProp(el, k, item[k])
-			}
-		} else if (item instanceof Store) {
-			bindInput(<HTMLInputElement>el, item)
-		} else if (item != null) {
-			throw new Error(`Unexpected argument ${JSON.stringify(item)}`)
-		}
+		deepEl.appendChild(node)
 	}
 }
 
 
-
-/**
- * Convert an HTML string to one or more DOM elements, and add them to the current DOM scope.
- * @param html - The HTML string. For example `"<section><h2>Test</h2><p>Info..</p></section>"`.
- */
-export function html(html: string) {
-	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
-	let tmpParent = document.createElement(currentScope._parentElement.tagName)
-	tmpParent.innerHTML = ''+html
-	while(tmpParent.firstChild) {
-		currentScope._addNode(tmpParent.firstChild)
-	}
-}
-
-function bindInput(el: HTMLInputElement, store: Store) {
+function applyBinding(_el: Element, _key: string, store: Store) {
+	if (store==null) return
+	if (!(store instanceof Store)) throw new Error(`Unexpect bind-argument: ${JSON.parse(store)}`)
+		const el = _el as HTMLInputElement
 	let onStoreChange: (value: any) => void
 	let onInputChange: () => void
 	let type = el.getAttribute('type')
-	let value = store.query({peek: true})
+	let value = store.peek()
 	if (type === 'checkbox') {
 		if (value === undefined) store.set(el.checked)
 		onStoreChange = value => el.checked = value
@@ -1679,98 +1673,254 @@ function bindInput(el: HTMLInputElement, store: Store) {
 	clean(() => {
 		el.removeEventListener('input', onInputChange)
 	})
-
-}
-
-/**
- * Add a text node at the current Scope position.
- */
-export function text(text: string) {
-	if (!currentScope) throw new ScopeError(true)
-	if (text==null) return
-	currentScope._addNode(document.createTextNode(text))
 }
 
 
+const SPECIAL_PROPS: {[key: string]: (el: Element, value: any) => void} = {
+	create: function(el: Element, value: any) {
+		if (!showCreateTransitions) return
+		if (typeof value === 'function') {
+			value(el)
+		} else {
+			el.classList.add(value);
+			(async function(){
+				await DOM_READ_PHASE;
+				(el as HTMLElement).offsetHeight;
+				await DOM_WRITE_PHASE;
+				el.classList.remove(value)
+			})()
+		}
+	},
+	destroy: function(deepEl: Element, value: any) {
+		onDestroyMap.set(deepEl, value)
+	},
+	html: function(deepEl: Element, value: any) {
+		if (!value) return
+		let tmpParent = document.createElement(deepEl.tagName)
+		tmpParent.innerHTML = ''+value
+		while(tmpParent.firstChild) addLeafNode(deepEl, tmpParent.firstChild)
+	},
+	text: function(deepEl: Element, value: any) {
+		if (value!=null) addLeafNode(deepEl, document.createTextNode(value))
+	},
+	element: function(deepEl: Element, value: any) {
+		if (value==null) return
+		if (!(value instanceof Node)) throw new Error(`Unexpect element-argument: ${JSON.parse(value)}`)
+		addLeafNode(deepEl, value)
+	},
+}
+
+
+
 /**
- * Set properties and attributes for the containing DOM element. Doing it this way
- * as opposed to setting them directly from node() allows changing them later on
- * without recreating the element itself. Also, code can be more readable this way.
- * Note that when a nested `observe()` is used, properties set this way do NOT
- * automatically revert to their previous values.
- *
- * Here's how properties are handled:
- * - If `name` is `"create"`, `value` should be either a function that gets
- *   called with the element as its only argument immediately after creation,
- *   or a string being the name of a CSS class that gets added immediately
- *   after element creation, and removed shortly afterwards. This allows for
- *   reveal animations. However, this is intentionally *not* done
- *   for elements that are created as part of a larger (re)draw, to prevent
- *   all elements from individually animating on page creation.
- * - If `name` is `"destroy"`, `value` should be a function that gets called
- *   with the element as its only argument, *instead of* the element being
- *   removed from the DOM (which the function will presumably need to do
- *   eventually). This can be used for a conceal animation.
- *   As a convenience, it's also possible to provide a string instead of
- *   a function, which will be added to the element as a CSS class, allowing
- *   for simple transitions. In this case, the DOM element in removed 2 seconds
- *   later (currently not configurable).
- *   Similar to `"create"` (and in this case doing anything else would make little
- *   sense), this only happens when the element being is the top-level element
- *   being removed from the DOM.
- * - If `value` is a function, it is registered as an event handler for the
- *   `name` event.
- * - If `name` is `"class"` or `"className"` and the `value` is an
- *   object, all keys of the object are either added or removed from `classList`,
- *   depending on whether `value` is true-like or false-like.
- * - If `value` is a boolean *or* `name` is `"value"`, `"className"` or
- *   `"selectedIndex"`, it is set as a DOM element *property*.
- * - If `name` is `"text"`, the `value` is set as the element's `textContent`.
- * - If `name` is `"style"` and `value` is an object, each of its
- *   key/value pairs are assigned to the element's `.style`.
- * - In other cases, the `value` is set as the `name` HTML *attribute*.
- *
- * @example
+ * Modifies the *parent* DOM element in the current reactive scope, or adds
+ * new DOM elements to it.
+ * 
+ * @param args - Arguments that define how to modify/create elements.
+ * 
+ * ### String arguments
+ * Create new elements with optional classes and text content:
+ * ```js
+ * $('div.myClass')              // <div class="myClass"></div>
+ * $('span.c1.c2:Hello')         // <span class="c1 c2">Hello</span>
+ * $('p:Some text')              // <p>Some text</p>
+ * $('.my-thing')                // <div class="my-thing"></div>
+ * $('div', 'span', 'p.cls')     // <div><span<p class="cls"></p></span></div>
+ * $(':Just some text!')		 // Just some text! (No new element, just a text node)
  * ```
- * node('input', () => {
- *	   prop('type', 'password')
- *	   prop('readOnly', true)
- *	   prop('class', 'my-class')
- *	   prop('class', {
- *	   		'my-disabled-class': false,
- *	   		'my-enabled-class': true,
- *	   })
- *	   prop({
- *	   		class: 'my-class',
- *	   		text: 'Here is something to read...',
- *	   		style: {
- *	   			backgroundColor: 'red',
- *	   			fontWeight: 'bold',
- *	   		},
- *	   		create: aberdeen.fadeIn,
- *	   		destroy: 'my-fade-out-class',
- *	   		click: myClickHandler,
- *	   })
+ * 
+ * ### Object arguments
+ * Set properties, attributes, events and special features:
+ * ```js
+ * // Classes (dot prefix)
+ * $('div', {'.active': true})           // Add class
+ * $('div', {'.hidden': false})          // Remove (or don't add) class
+ * $('div', {'.selected': myStore})      // Reactively add/remove class
+ * 
+ * // Styles (dollar prefixed and camel-cased CSS properties)
+ * $('div', {$color: 'red'})             // style.color = 'red'
+ * $('div', {$marginTop: '10px'})        // style.marginTop = '10px'
+ * $('div', {$color: myColorStore})      // Reactively change color
+ * 
+ * // Events (function values)
+ * $('button', {click: () => alert()})   // Add click handler
+ * 
+ * // Properties (boolean values, `selectedIndex`, `value`)
+ * $('input', {disabled: true})          // el.disabled = true
+ * $('input', {value: 'test'})           // el.value = 'test'
+ * $('select', {selectedIndex: 2})       // el.selectedIndex = 2
+ * 
+ * // Transitions
+ * $('div', {create: 'fade-in'})         // Add class on create
+ * $('div', {create: el => {...}})       // Run function on create
+ * $('div', {destroy: 'fade-out'})       // Add class before remove
+ * $('div', {destroy: el => {...}})      // Run function before remove
+ * 
+ * // Content
+ * $('div', {html: '<b>Bold</b>'})       // Set innerHTML
+ * $('div', {text: 'Plain text'})        // Add text node
+ * const myElement = document.createElement('video')
+ * $('div', {element: myElement})        // Add existing DOM element
+ *
+ * // Regular attributes (everything else)
+ * $('div', {title: 'Info'})             // el.setAttribute('title', 'info')
+ * ```
+ * 
+ * When a `Store` is passed as a value, a seperate observe-scope will
+ * be created for it, such that when the `Store` changes, only *that*
+ * UI property will need to be updated.
+ * So in the following example, when `colorStore` changes, only the
+ * `color` CSS property will be updated.
+ * ```js
+ * $('div', {
+ *   '.active': activeStore,             // Reactive class
+ *   $color: colorStore,                 // Reactive style
+ *   text: textStore                     // Reactive text
  * })
  * ```
+ * 
+ * ### Two-way input binding
+ * Set the initial value of an <input> <textarea> or <select> to that
+ * of a `Store`, and then start reflecting user changes to the former
+ * in the latter.
+ * ```js
+ * $('input', {bind: myStore})           // Binds input.value
+ * ```
+ * This is a special case, as changes to the `Store` will *not* be
+ * reflected in the UI. 
+ * 
+ * ### Function arguments
+ * Create child scopes that re-run on observed `Store` changes:
+ * ```js 
+ * $('div', () => {
+ *   $(myStore.get() ? 'span' : 'p')     // Reactive element type
+ * })
+ * ```
+ * When *only* a function is given, `$` behaves exactly like {@link Store.observe},
+ * except that it will only work when we're inside a `mount`.
+ * 
+ * @throws {ScopeError} If called outside an observable scope.
+ * @throws {Error} If invalid arguments are provided.
  */
-export function prop(name: string, value: any): void
-export function prop(props: object): void
 
-export function prop(name: any, value: any = undefined) {
+export function $(...args: (string | (() => void) | false | null | undefined | {[key: string]: any})[]) {
 	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true)
-	if (typeof name === 'object') {
-		for(let k in name) {
-			applyProp(currentScope._parentElement, k, name[k])
+
+	let deepEl = currentScope._parentElement
+
+	for(let arg of args) {
+		if (arg == null || arg === false) continue
+		if (typeof arg === 'string') {
+			let text, classes
+			const textPos = arg.indexOf(':')
+			if (textPos >= 0) {
+				text = arg.substring(textPos+1)
+				if (textPos === 0) { // Just a string to add as text, no new node
+					addLeafNode(deepEl, document.createTextNode(text))
+					continue
+				}
+				arg = arg.substring(0,textPos)
+			}
+			const classPos = arg.indexOf('.')
+			if (classPos >= 0) {
+				classes = arg.substring(classPos+1).replaceAll('.', ' ')
+				arg = arg.substring(0, classPos)
+			}
+			if (arg.indexOf(' ') >= 0) throw new Error(`Tag '${arg}' cannot contain space`)
+			const el = document.createElement(arg || 'div')
+			if (classes) el.className = classes
+			if (text) el.textContent = text
+			addLeafNode(deepEl, el)
+			deepEl = el
 		}
-	} else {
-		applyProp(currentScope._parentElement, name, value)
+		else if (typeof arg === 'object') {
+			if (arg.constructor !== Object) throw new Error(`Unexpected argument: ${arg}`)
+			for(const key in arg) {
+				const val = arg[key]
+				if (key === 'bind') { // Special case, as for this prop we *don't* want to resolve the Store to a value first.
+					applyBinding(deepEl, key, val)
+				} else if (val instanceof Store) {
+					let childScope = new SetArgScope(deepEl, deepEl.lastChild as Node, currentScope!._queueOrder+1, key, val)
+					childScope._install()
+				} else {
+					applyArg(deepEl, key, val)
+				}
+			}
+		} else if (typeof arg === 'function') {
+			if (deepEl === currentScope._parentElement) { // do what observe does
+				_mount(undefined, args[0] as any, SimpleScope)
+			} else { // new scope for a new node without any scope attached yet
+				let childScope = new SimpleScope(deepEl, deepEl.lastChild as Node, currentScope._queueOrder+1, arg)
+				childScope._install()
+			}
+		} else {
+			throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`)
+		}
 	}
 }
 
 
+function applyArg(deepEl: Element, key: string, value: any) {
+	if (key[0] === '.') { // CSS class(es)
+		const classes = key.substring(1).split('.')
+		if (value) deepEl.classList.add(...classes)
+		else deepEl.classList.remove(...classes)
+	} else if (key[0] === '$') { // Style
+		const name = key.substring(1);
+		if (value==null || value===false) (deepEl as any).style[name] = ''
+		else (deepEl as any).style[name] = ''+value
+	} else if (key in SPECIAL_PROPS) { // Special property
+		SPECIAL_PROPS[key](deepEl, value)
+	} else if (typeof value === 'function') { // Event listener
+		deepEl.addEventListener(key, value)
+		clean(() => deepEl.removeEventListener(key, value))
+	} else if (value===true || value===false || key==='value' || key==='selectedIndex') { // DOM property
+		(deepEl as any)[key] = value
+	} else { // HTML attribute
+		deepEl.setAttribute(key, value)
+	}
+}
+				
+function defaultOnError(error: Error) {
+	console.error('Error while in Aberdeen render:', error)
+	return true
+}
+let onError: (error: Error) => boolean | undefined = defaultOnError
+
 /**
- * Return the browser Element that `node()`s would be rendered to at this point.
+ * Set a custome error handling function, thast is called when an error occurs during rendering
+ * while in a reactive scope. The default implementation logs the error to the console, and then
+ * just returns `true`, which causes an 'Error' message to be displayed in the UI. When this function
+ * returns `false`, the error is suppressed. This mechanism exists because rendering errors can occur
+ * at any time, not just synchronous when making a call to Aberdeen, thus normal exception handling
+ * is not always possible. 
+ * 
+ * @param handler The handler function, getting an `Error` as its argument, and returning `false`
+ *    if it does *not* want an error message to be added to the DOM.
+ *    When `handler is `undefined`, the default error handling will be reinstated.
+ * 
+ * @example
+ * ```javascript
+ * // 
+ * setErrorHandler(error => {
+ *    // Tell our developers about the problem.
+ * 	  fancyErrorLogger(error)
+ *    // Add custom error message to the DOM.
+ *    try {
+ *        $('.error:Sorry, something went wrong!')
+ *    } catch() {} // In case there is no parent element.
+ *    // Don't add default error message to the DOM.
+ * 	  return false
+ * })
+ * ```
+ */
+export function setErrorHandler(handler?: (error: Error) => boolean | undefined) {
+	onError = handler || defaultOnError
+}
+
+
+/**
+ * Return the browser Element that nodes would be rendered to at this point.
  * NOTE: Manually changing the DOM is not recommended in most cases. There is
  * usually a better, declarative way. Although there are no hard guarantees on
  * how your changes interact with Aberdeen, in most cases results will not be
@@ -1834,10 +1984,10 @@ export function immediateObserve(func: () => void): number | undefined {
 
 
 /**
- * Like {@link Store.observe}, but allow the function to create DOM elements using {@link Store.node}.
+ * Reactively run the function, adding any DOM-elements created using {@link $} to the given parent element.
 
  * @param func - The function to be (repeatedly) executed, possibly adding DOM elements to `parentElement`.
- * @param parentElement - A DOM element that will be used as the parent element for calls to `node`.
+ * @param parentElement - A DOM element that will be used as the parent element for calls to `$`.
  * @returns The mount id (usable for `unmount`) if this is a top-level mount.
  *
  * @example
@@ -1846,7 +1996,7 @@ export function immediateObserve(func: () => void): number | undefined {
  * setInterval(() => store.modify(v => v+1), 1000)
  *
  * mount(document.body, () => {
- * 	   node('h2', `${store.get()} seconds have passed`)
+ * 	   $(`h2:${store.get()} seconds have passed`)
  * })
  * ```
  *
@@ -1856,30 +2006,37 @@ export function immediateObserve(func: () => void): number | undefined {
  * let colors = new Store(new Map())
  *
  * mount(document.body, () => {
- * 	// This function will never rerun (as it does not read any `Store`s)
- * 	node('button', '<<', {click: () => selected.modify(n => n-1)})
- * 	node('button', '>>', {click: () => selected.modify(n => n+1)})
- * 	
- * 	observe(() => {
- * 		// This will rerun whenever `selected` changes, recreating the <h2> and <input>.
- * 		node('h2', '#'+selected.get())
- * 		node('input', {type: 'color', value: '#ffffff'}, colors.ref(selected.get()))
- * 	})
- * 	
- * 	observe(() => {
- * 		// This function will rerun when `selected` or the selected color changes.
- * 		// It will change the <body> background-color.
- * 		prop({style: {backgroundColor: colors.get(selected.get()) || 'white'}})
- * 	})
+ *   // This function will never rerun (as it does not read any `Store`s)
+ *   $('button:<<', {click: () => selected.modify(n => n-1)})
+ *   $('button:>>', {click: () => selected.modify(n => n+1)})
+ *
+ *   observe(() => {
+ *     // This will rerun whenever `selected` changes, recreating the <h2> and <input>.
+ *     $('h2', {text: '#' + selected.get()})
+ *     $('input', {type: 'color', value: '#ffffff' bind: colors(selected.get())})
+ *   })
+ *
+ *   observe(() => {
+ *     // This function will rerun when `selected` or the selected color changes.
+ *     // It will change the <body> background-color.
+ *     $({$backgroundColor: colors.get(selected.get()) || 'white'})
+ *   })
  * })
  * ```
 */
 export function mount(parentElement: Element, func: () => void) {
+	for(let scope of topScopes.values()) {
+		if (parentElement === scope._parentElement) {
+			throw new Error("Only a single mount per parent element")
+		}
+	}
+
 	return _mount(parentElement, func, SimpleScope)
 }
 
 let maxTopScopeId = 0
 const topScopes: Map<number, SimpleScope> = new Map()
+
 function _mount(parentElement: Element | undefined, func: () => void, MountScope: typeof SimpleScope): number | undefined {
 	let scope
 	if (parentElement || !currentScope) {
@@ -1914,6 +2071,7 @@ export function unmount(id?: number) {
 	} else {
 		let scope = topScopes.get(id)
 		if (!scope) throw new Error("No such mount "+id)
+		topScopes.delete(id)
 		scope._remove()
 	}
 }
@@ -1948,61 +2106,20 @@ export function peek<T>(func: () => T): T {
 	} finally {
 		currentScope = savedScope
 	}
-}
-
+}	
 
 /*
  * Helper functions
  */
 
-function applyProp(el: Element, prop: any, value: any) {
-	if (prop==='create') {
-		if (showCreateTransitions) {
-			if (typeof value === 'function') {
-				value(el)
-			} else {
-				el.classList.add(value);
-				// Force browser layout, so we can trigger any transitions afterwards
-				(el as HTMLElement).offsetHeight;
-				el.classList.remove(value)
-			}
-		}
-	} else if (prop==='destroy') {
-		onDestroyMap.set(el, value)
-	} else if (typeof value === 'function') {
-		// Set an event listener; remove it again on clean.
-		el.addEventListener(prop, value)
-		clean(() => el.removeEventListener(prop, value))
-	} else if (prop==='value' || prop==='className' || prop==='selectedIndex' || value===true || value===false) {
-		// All boolean values and a few specific keys should be set as a property
-		(el as any)[prop] = value
-	} else if (prop==='text') {
-		// `text` is set as textContent
-		el.textContent = value
-	} else if ((prop==='class' || prop==='className') && typeof value === 'object') {
-		// Allow setting classes using an object where the keys are the names and
-		// the values are booleans stating whether to set or remove.
-		for(let name in value) {
-			if (value[name]) el.classList.add(name)
-			else el.classList.remove(name)
-		}
-	} else if (prop==='style' && typeof value === 'object') {
-		// `style` can receive an object
-		Object.assign((<HTMLElement>el).style, value)
-	} else {
-		// Everything else is an HTML attribute
-		el.setAttribute(prop, value)
-	}
-}
-
 function valueToData(value: any) {
-	if (typeof value !== "object" || !value) {
-		// Simple data types
-		return value
-	} else if (value instanceof Store) {
+	if (value instanceof Store) {
 		// When a Store is passed pointing at a collection, a reference
 		// is made to that collection.
 		return value._observe()
+	} else if (typeof value !== "object" || !value) {
+		// Simple data types
+		return value
 	} else if (value instanceof Map) {
 		let result = new ObsMap()
 		value.forEach((v,k) => {
@@ -2038,14 +2155,15 @@ function defaultMakeSortKey(store: Store) {
 
 /* c8 ignore start */
 function internalError(code: number) {
-	let error = new Error("Aberdeen internal error "+code)
-	setTimeout(() => { throw error }, 0)
+	throw new Error("Aberdeen internal error "+code)
 }
 /* c8 ignore end */
 
-function handleError(e: any) {
-	// Throw the error async, so the rest of the rendering can continue
-	setTimeout(() => {throw e}, 0)
+function handleError(e: any, showMessage: boolean) {
+	try {
+		if (onError(e) === false) showMessage = false
+	} catch {}
+	if (showMessage && currentScope?._parentElement) $('.aberdeen-error:Error')
 }
 
 class ScopeError extends Error {
@@ -2068,3 +2186,8 @@ export function withEmitHandler(handler: (this: ObsCollection, index: any, newDa
 // @ts-ignore
 // c8 ignore next
 if (!String.prototype.replaceAll) String.prototype.replaceAll = function(from, to) { return this.split(from).join(to) }
+declare global {
+	interface String {
+		replaceAll(from: string, to: string): string;
+	}
+}

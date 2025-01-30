@@ -3,11 +3,11 @@ describe('Scope', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
-			node('a', () => {
+			$('a', () => {
 				cnt1++
-				node('span', () => {
+				$('span', () => {
 					cnt2++
-					text(store.get())
+					$(":" + store.get())
 				})
 			})
 		})
@@ -26,18 +26,18 @@ describe('Scope', () => {
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
 			cnt1++
-			node('a', () => {
+			$('a', () => {
 				cnt2++
-				if (store.get()) node('i')
+				if (store.get()) $('i')
 			})
 		})
 
-		assertBody(`a{}`)
+		assertBody(`a`)
 
 		for(let val in [true,false,true,false]) {
 			store.set(val)
 			passTime()
-			assertBody(val ? `a{i{}}` : `a{}`)
+			assertBody(val ? `a{i}` : `a`)
 		}
 		assertEqual(cnt1,1)
 		assertEqual(cnt2,5)
@@ -49,19 +49,19 @@ describe('Scope', () => {
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
 			cnt1++
-			node('a')
+			$('a')
 			observe(() => {
 				cnt2++
-				if (store.get()) node('i')
+				if (store.get()) $('i')
 			})
 		})
 
-		assertBody(`a{}`)
+		assertBody(`a`)
 
 		for(let val of [true,false,true,false]) {
 			store.set(val)
 			passTime()
-			assertBody(val ? `a{} i{}` : `a{}`)
+			assertBody(val ? `a i` : `a`)
 		}
 		assertEqual(cnt1,1)
 		assertEqual(cnt2,5)
@@ -74,25 +74,25 @@ describe('Scope', () => {
 		let cnt0 = 0, cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
 			cnt0++
-			node('i')
+			$('i')
 			observe(() => {
 				cnt1++
-				store1.get() && node('a')
+				store1.get() && $('a')
 			})
 			observe(() => {
 				cnt2++
-				store2.get() && node('b')
+				store2.get() && $('b')
 			})
-			node('p')
+			$('p')
 		})
 
-		assertBody(`i{} p{}`)
+		assertBody(`i p`)
 
 		for(let [val1,val2] of [[false,true],[false,false],[true,false],[true,true],[false,false],[true,true]]) {
 			store1.set(val1)
 			store2.set(val2)
 			passTime()
-			assertBody(`i{} ${val1?'a{} ':''}${val2?'b{} ':''}p{}`)
+			assertBody(`i ${val1?'a ':''}${val2?'b ':''}p`)
 		}
 		assertEqual(cnt0,1)
 		assertEqual(cnt1,4)
@@ -101,14 +101,26 @@ describe('Scope', () => {
 
 	it('insert at right position with an empty parent scope', () => {
 		mount(document.body, () => {
-			node('a')
+			$('a')
 			observe(() => {
 				observe(() => {
-					node('b')
+					$('b')
 				})
 			})
 		})
-		assertBody(`a{} b{}`)
+		assertBody(`a b`)
+	})
+
+	it('can use $ like observe', () => {
+		mount(document.body, () => {
+			$('a')
+			$(() => {
+				$(() => {
+					$('b')
+				})
+			})
+		})
+		assertBody(`a b`)
 	})
 
 	it('refrains from rerendering dead scopes', () => {
@@ -136,28 +148,29 @@ describe('Scope', () => {
 	})
 
 	it('inserts higher priority updates', () => {
-		let store = new Store({})
+		let parent = new Store()
+		let children = new Store()
 		let pcnt = 0, ccnt = 0
 		mount(document.body, () => {
 			pcnt++
-			if (store.get('parent')) return
+			if (parent.get()) return
 			
-			node('a', () => {
+			$('a', () => {
 				ccnt++
-				if (store.get('children')) {
-					store.merge({parent: true})
+				if (children.get()) {
+					parent.set(true)
 				}
 			})
-			node('b', () => {
+			$('b', () => {
 				ccnt++
-				if (store.get('children')) {
-					store.merge({parent: true})
+				if (children.get()) {
+					parent.set(true)
 				}
 			})
 		})
-		assertBody(`a{} b{}`)
+		assertBody(`a b`)
 
-		store.set({children: true})
+		children.set(true)
 		passTime()
 		assertBody(``)
 		assertEqual(pcnt, 2)
@@ -168,12 +181,12 @@ describe('Scope', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
-			node('a', () => {
+			$('a', () => {
 				cnt1++
-				node('span', () => {
+				$('span', () => {
 					cnt2++
-					text(peek(() => store.get()))
-					text(store.peek())
+					$(":" + peek(() => store.get()))
+					$(":" + store.peek())
 				})
 			})
 		})
@@ -190,16 +203,16 @@ describe('Scope', () => {
 
 		mount(document.body, () => {
 			for(let i=0; i<4; i++) {
-				node('p', () => {
-					text(values.get(i))
+				$('p', () => {
+					$({text: values(i).get()})
 				})
 			}
 		})
-		assertBody(`p{} p{} p{} p{}`)
+		assertBody(`p p p p`)
 
 		values.set({1:'x', 3:'x'})
 		passTime()
-		assertBody(`p{} p{"x"} p{} p{"x"}`)
+		assertBody(`p p{"x"} p p{"x"}`)
 	})
 
 	it('allows modifying stores from within scopes', () => {
@@ -212,16 +225,16 @@ describe('Scope', () => {
 			store.onEach(item => {
 				let key = item.get()
 				let value = item.index()
-				inverse.set(key, value)
+				inverse(key).set(value)
 				cnt1++
 				clean(() => {
-					inverse.delete(key)
+					inverse(key).delete()
 					cnt2++
 				})
 			})
 
 			inverse.onEach(item => {
-				text(item.index()+"="+item.get())
+				$(":" + item.index()+"="+item.get())
 				cnt3++
 			})
 		})
@@ -230,27 +243,27 @@ describe('Scope', () => {
 		assertBody(``)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,0,0,0])
 		
-		store.set(1, 'b')
+		store(1).set('b')
 		passTime()
 		assertBody(`"b=1"`)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,1,0,1])
 
-		store.set(2, 'a')
+		store(2).set('a')
 		passTime()
 		assertBody(`"a=2" "b=1"`)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,2,0,2])
 
-		store.set(3, 'c')
+		store(3).set('c')
 		passTime()
 		assertBody(`"a=2" "b=1" "c=3"`)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,3,0,3])
 
-		store.set(3, 'd')
+		store(3).set('d')
 		passTime()
 		assertBody(`"a=2" "b=1" "d=3"`)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,1,4])
 
-		store.delete(1)
+		store(1).delete()
 		passTime()
 		assertBody(`"a=2" "d=3"`)
 		assertEqual([cnt0,cnt1,cnt2,cnt3], [1,4,2,4])

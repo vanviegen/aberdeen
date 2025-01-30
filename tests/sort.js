@@ -12,19 +12,19 @@ describe('Sort', () => {
 
 		mount(document.body, () => {
 			store.onEach(item => {
-				node(item.index())
+				$(item.index())
 			}, sort.get())
 		})
 
-		assertBody(`a{} b{} c{} d{} e{}`)
+		assertBody(`a b c d e`)
 
-		sort.set(item => item.get('z'))
+		sort.set(item => item('z').get())
 		passTime()
-		assertBody(`a{} c{} b{} e{} d{}`)
+		assertBody(`a c b e d`)
 
-		sort.set(item => [item.get('x'), item.get('y'), item.index()] )
+		sort.set(item => [item('x').get(), item('y').get(), item.index()] )
 		passTime()
-		assertBody(`e{} c{} d{} b{} a{}`)
+		assertBody(`e c d b a`)
 	})
 
 	it('changes position when sort key changes', () => {
@@ -40,22 +40,22 @@ describe('Sort', () => {
 			p++
 			store.onEach(item => {
 				c++
-				node(item.index())
+				$(item.index())
 			}, item => item.getNumber())
 		})
-		assertBody(`e{} d{} c{} b{} a{}`)
+		assertBody(`e d c b a`)
 		assertEqual(p, 1)
 		assertEqual(c, 5)
 
-		store.set('c', -20)
+		store('c').set(-20)
 		passTime()
-		assertBody(`c{} e{} d{} b{} a{}`)
+		assertBody(`c e d b a`)
 		assertEqual(p, 1)
 		assertEqual(c, 6)
 
-		store.set('e', 4)
+		store('e').set(4)
 		passTime()
-		assertBody(`c{} d{} b{} e{} a{}`)
+		assertBody(`c d b e a`)
 		assertEqual(p, 1)
 		assertEqual(c, 7)
 	})
@@ -67,16 +67,16 @@ describe('Sort', () => {
 			p++
 			store.onEach(item => {
 				c++
-				node(item.index())
+				$(item.index())
 			}, item => item.getBoolean() ? item.index() : null)
 		})
-		assertBody(`a{} c{}`)
+		assertBody(`a c`)
 		assertEqual(p, 1)
 		assertEqual(c, 2)
 
 		store.merge({a: false, d: true})
 		passTime()
-		assertBody(`c{} d{}`)
+		assertBody(`c d`)
 		assertEqual(p, 1)
 		assertEqual(c, 3)
 	})
@@ -94,7 +94,7 @@ describe('Sort', () => {
 			undefined: undefined
 		}
 		let store = new Store()
-		assertEqual(store.getType('a','b'), 'undefined')
+		assertEqual(store('a').getType('b'), 'undefined')
 		for(let typeName in types) {
 			let typeValue = types[typeName]
 			store.set(typeValue)

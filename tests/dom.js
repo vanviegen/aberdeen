@@ -1,42 +1,48 @@
 describe('DOM creator', function() {
 	it('adds nodes', () => {
 		mount(document.body, () => {
-			node('p')
+			$('p')
 		})
 		passTime();
-		assertBody(`p{}`)
+		assertBody(`p`)
+	});
+
+	it('refuses tags containing spaces', () => {
+		mount(document.body, () => {
+			assertThrow('cannot contain space', $('a b'))
+		})
 	});
 
 	it('adds classes', () => {
 		mount(document.body, () => {
-			node('p.a.b')
+			$('p.a.b')
 		})
 		passTime();
-		assertBody(`p{@class="a b"}`)
+		assertBody(`p.a.b`)
 	});
 
 	it('sets attributes', () => {
 		mount(document.body, () => {
-			node('div', {class: 'C', text: "T"}, {id: 'I', index: 1})
+			$('div', {class: 'C', text: "T"}, {id: 'I', index: 1})
 		})
 		passTime();
-		assertBody(`div{@class="C" @id="I" @index="1" "T"}`)
+		assertBody(`div.C{id=I index=1 "T"}`)
 	});
 
 	it('sets properties', () => {
 		mount(document.body, () => {
-			node('p', {className: 'C', value: 3})
+			$('p.C', {class: 'C', value: 3})
 		})
 		passTime();
-		assertBody(`p{@class="C" value=3}`)
+		assertBody(`p.C{value->3}`)
 	});
 
 	it('nests elements', () => {
 		mount(document.body, () => {
-			node('p', () => {
-				node('a', () => {
-					node('i', () => {
-						text('contents')
+			$('p', () => {
+				$('a', () => {
+					$('i', () => {
+						$({text: 'contents'})
 					})
 				})
 			})
@@ -47,37 +53,37 @@ describe('DOM creator', function() {
 
 	it('sets properties from the inner scope', () => {
 		mount(document.body, () => {
-			node('a', () => {
-				prop('href', '/')
-				prop({
+			$('a', () => {
+				$({
+					href: '/',
 					target: '_blank',
 					disabled: true,
 				})
 			})
 		})
 		passTime();
-		assertBody(`a{@href="/" @target="_blank" disabled=true}`)
+		assertBody(`a{href=/ target=_blank disabled->true}`)
 	});
 
 	it('sets style objects', () => {
 		mount(document.body, () => {
-			node('a', {style: 'color: red;'})
-			node('b', {style: {color: 'green'}})
-			node('c', () => {
-				prop({style: {color: 'orange'}})
+			$('a', {style: 'color: red;'})
+			$('b', {$color: 'green'})
+			$('c', () => {
+				$({$color: 'orange'})
 			})
-			node('d', () => {
-				prop('style', {color: 'purple'})
+			$('d', () => {
+				$({$color: 'purple'})
 			})
-			node('e', () => {
-				prop('style', 'color: magento;')
+			$('e', () => {
+				$({style: 'color: magento;'})
 			})
-			node('f', () => {
-				prop({style: 'color: cyan;'})
+			$('f', () => {
+				$({style: 'color: cyan;'})
 			})
 
 		})
-		assertBody(`a{@style="color: red;"} b{:color="green"} c{:color="orange"} d{:color="purple"} e{@style="color: magento;"} f{@style="color: cyan;"}`)
+		assertBody(`a{style="color: red;"} b{color:green} c{color:orange} d{color:purple} e{style="color: magento;"} f{style="color: cyan;"}`)
 	})
 
 	it('unmounts', () => {
@@ -85,7 +91,7 @@ describe('DOM creator', function() {
 		let cnt = 0
 		mount(document.body, () => {
 			cnt++
-			node('p', store.get())
+			$('p:' + store.get())
 		})
 		assertBody(`p{"Hej world"}`)
 
@@ -95,9 +101,16 @@ describe('DOM creator', function() {
 		store.set('Updated')
 		passTime()
 		assertEqual(cnt, 1)
+
+		assertThrow("No such mount", () => unmount(123))
 	})
 
-	it('creates text nodes', () => {
+	it('only allows a single mount point per parent', () => {
+		mount(document.body, () => {})
+		assertThrow('single mount', () => mount(document.body, () => {}))
+	})
+
+	it('creates text $s', () => {
 		let index = new Store(0)
 		let cases = [
 			['test', `"test"`],
@@ -108,7 +121,7 @@ describe('DOM creator', function() {
 			[false, `"false"`],
 		]
 		mount(document.body, () => {
-			text(cases[index.get()][0])
+			$({text: cases[index.get()][0]})
 		})
 
 		while(true) {
@@ -125,18 +138,20 @@ describe('DOM creator', function() {
 		mount(document.body, () => {
 			let el = document.createElement('video')
 			el.classList.add("test")
-			node(el)
+			$({element: el})
+			$({element: null}) // should be ignored
+			assertThrow('Unexpected element', () => $({element: false}))
 		})
-		assertBody(`video{@class="test"}`)
+		assertBody(`video.test div.aberdeen-error{"Error"}`)
 	})
 
 	it('handles nontypical options well', () => {
 		let cases = [
-			[`div{}`, () => node("")],
-			[`div{}`, () => node(".")],
-			[`div{@class="a b c"}`, () => node(".a.b.c")],
-			[`div{"1234"}`, () => node(undefined, 1234)],
-			[`_!@#*{"replacement"}`, () => node("_!@#*", null, undefined, {}, "original", 1234, "replacement")],
+			[`div`, () => $("")],
+			[`div`, () => $(".")],
+			[`div.a.b.c`, () => $(".a.b.c")],
+			[`"1234"`, () => $(undefined, {text:1234})],
+			[`_!@#*{"first" "1234" "last"}`, () => $("_!@#*", null, undefined, {}, {text: "first"}, {text: 1234}, {text: "last"})],
 		]
 		for(let c of cases) {
 			mount(document.body, () => {
@@ -146,9 +161,9 @@ describe('DOM creator', function() {
 			unmount()
 		}
 		mount(document.body, () => {
-			assertThrow("Unexpected argument", () => node("span", []))
-			assertThrow("Unexpected argument", () => node("span", new Error()))
-			assertThrow("Unexpected argument", () => node("span", true))
+			assertThrow("Unexpected argument", () => $("span", []))
+			assertThrow("Unexpected argument", () => $("span", new Error()))
+			assertThrow("Unexpected argument", () => $("span", true))
 		})
 	})
 
@@ -175,40 +190,40 @@ describe('DOM creator', function() {
 	it('adds html', () => {
 		let store = new Store('test')
 		mount(document.body, () => {
-			node('main', () => {
-				node('hr')
+			$('main', () => {
+				$('hr')
 				observe(() => {
-					html(store.get())
+					$({html: store.get()})
 				})
-				node('img')
+				$('img')
 			})
 		})
-		assertBody(`main{hr{} fake-emulated-html{"test"} img{}}`)
+		assertBody(`main{hr fake-emulated-html{"test"} img}`)
 
 		store.set("")
 		passTime()
-		assertBody(`main{hr{} img{}}`)
+		assertBody(`main{hr img}`)
 
 		store.set(123)
 		passTime()
-		assertBody(`main{hr{} fake-emulated-html{"123"} img{}}`)
+		assertBody(`main{hr fake-emulated-html{"123"} img}`)
 
-		assertThrow("Operation not permitted outside of a mount() scope", () => html("test"))
+		assertThrow("Operation not permitted outside of a mount() scope", () => $({html: "test"}))
 		observe(() => {
-			assertThrow("Operation not permitted outside of a mount() scope", () => html("test"))
+			assertThrow("Operation not permitted outside of a mount() scope", () => $({html: "test"}))
 		})
 	})
 
 	it('only unlinks the top parent of the tree being removed', () => {
 		let store = new Store(true)
 		mount(document.body, () => {
-			if (store.get()) node('main', () => {
-				node('a')
-				node('b')
-				node('c')
+			if (store.get()) $('main', () => {
+				$('a')
+				$('b')
+				$('c')
 			})
 		})
-		assertBody(`main{a{} b{} c{}}`)
+		assertBody(`main{a b c}`)
 		assertEqual(getCounts(), {new: 4, change: 4})
 
 		store.set(false)

@@ -1,4 +1,4 @@
-import {node, mount, Store, text} from '../../dist/aberdeen.js';
+import {$, mount, Store} from '../../dist/aberdeen.js';
 
 const items = new Store([])
 const orderIndex = new Store(0)
@@ -23,25 +23,23 @@ const addItems = (count) => {
 addItems(100)
  
 mount(document.body, () => {
-	node('button', 'Add 10', {click: () => addItems(10)})
-	node('button', 'Add 100', {click: () => addItems(100)})
-	node('button', 'Add 1000', {click: () => addItems(1000)})
-	node('input', {placeholder: 'Search first name', autofocus: true}, search)
-	node('table.game', () => {
-		node('tr', () => {
+	$('button:Add 10', {click: () => addItems(10)})
+	$('button:Add 100', {click: () => addItems(100)})
+	$('button:Add 1000', {click: () => addItems(1000)})
+	$('input', {placeholder: 'Search first name', autofocus: true, bind: search})
+	$('table.game', () => {
+		$('tr', () => {
 			for(let i=0; i<COLUMN_NAMES.length; i++) {
-				node('th', COLUMN_NAMES[i], {click: () => orderIndex.set(i)})
+				$('th', {text: COLUMN_NAMES[i], click: () => orderIndex.set(i)})
 			}
 		})
 		items.onEach(item => {
-			node('tr', () => {
+			$('tr', () => {
 				item.onEach(field => {
-					node('td', () => {
-						text(field.get())
-					})
+					$('td', {text: field})
 				})
-				node('td', '⌫', {click: () => item.set()})
+				$('td:⌫', {click: () => item.set()})
 			})
-		}, item => item.get(0).toLowerCase().startsWith(search.get().toLowerCase()) ? item.get(orderIndex.get()) : undefined)
+		}, item => item(0).get().toLowerCase().startsWith(search.get().toLowerCase()) ? item(orderIndex.get()).get() : undefined)
 	})
 })

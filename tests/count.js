@@ -3,34 +3,34 @@ describe('Count', () => {
         let store = new Store()
         let cnt = 0
         mount(document.body, () => {
-            text(store.count())
+            $({text: store.count()})
             cnt++
         })
         passTime()
         assertBody(`"0"`)
         assertEqual(cnt, 1)
 
-        store.set('a', 1)
+        store('a').set(1)
         passTime()
         assertBody(`"1"`)
         assertEqual(cnt, 2)
 
-        store.set('a', 2)
+        store('a').set(2)
         passTime()
         assertBody(`"1"`)
         assertEqual(cnt, 2)
 
-        store.set('b', 1)
+        store('b').set(1)
         passTime()
         assertBody(`"2"`)
         assertEqual(cnt, 3)
 
-        store.delete('a')
+        store('a').delete()
         passTime()
         assertBody(`"1"`)
         assertEqual(cnt, 4)
 
-        store.delete('b')
+        store('b').delete()
         passTime()
         assertBody(`"0"`)
         assertEqual(cnt, 5)
@@ -55,49 +55,49 @@ describe('Count', () => {
     it('throws when counting uncountable things', () => {
         let store = new Store({a: 3})
         assertThrow(() => {
-            store.count('a')
+            store('a').count()
         })
         assertThrow(() => {
-            store.isEmpty('a')
+            store('a').isEmpty()
         })
-        assertEqual(store.count('b'), 0)
-        assertEqual(store.count('b', 'c', 'd'), 0)
-        assertEqual(store.isEmpty('b'), true)
-        assertEqual(store.isEmpty('b', 'c', 'd'), true)
+        assertEqual(store('b').count(), 0)
+        assertEqual(store('b', 'c', 'd').count(), 0)
+        assertEqual(store('b').isEmpty(), true)
+        assertEqual(store('b', 'c', 'd').isEmpty(), true)
     })
 
     it('reactively handles isEmpty', () => {
         let store = new Store()
         let cnt = 0
         mount(document.body, () => {
-            text(store.isEmpty())
+            $({text: store.isEmpty()})
             cnt++
         })
         passTime()
         assertBody(`"true"`)
         assertEqual(cnt, 1)
 
-        store.set('a', 1)
+        store('a').set(1)
         passTime()
         assertBody(`"false"`)
         assertEqual(cnt, 2)
 
-        store.set('a', 2)
+        store('a').set(2)
         passTime()
         assertBody(`"false"`)
         assertEqual(cnt, 2)
 
-        store.set('b', 1)
+        store('b').set(1)
         passTime()
         assertBody(`"false"`)
         assertEqual(cnt, 2)
 
-        store.delete('a')
+        store('a').delete()
         passTime()
         assertBody(`"false"`)
         assertEqual(cnt, 2)
 
-        store.delete('b')
+        store('b').delete()
         passTime()
         assertBody(`"true"`)
         assertEqual(cnt, 3)
