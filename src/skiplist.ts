@@ -14,8 +14,8 @@ export class SkipList<T extends object> {
     add(item: T): boolean {
         if (this.symbols[0] in item) return false // Already included
 
-        // Start at level 1. Keep upping the level by 1 with 1/4 chance.
-        const level = 1 + (Math.clz32(Math.random() * 0xFFFFFFFF) >> 1)
+        // Start at level 1. Keep upping the level by 1 with 1/8 chance.
+        const level = 1 + (Math.clz32(Math.random() * 0xFFFFFFFF) >> 2)
         for(let l = this.symbols.length; l < level; l++) this.symbols.push(Symbol(l))
 
         const keyProp = this.keyProp
@@ -26,8 +26,10 @@ export class SkipList<T extends object> {
         for (let l = this.symbols.length-1; l>=0; l--) {
             const symbol = this.symbols[l]
             while ((next = current[symbol] as Item<T>) && next[keyProp] < key) current = next;
-            (item as any)[symbol] = current[symbol];
-            (current as any)[symbol] = item;
+            if (l < level) {
+                (item as any)[symbol] = current[symbol];
+                (current as any)[symbol] = item;
+            }
         }
 
         return true // Added

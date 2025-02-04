@@ -1,4 +1,4 @@
-
+import { SkipList } from "./skiplist"
 
 /*
 * QueueRunner
@@ -441,11 +441,11 @@ class OnEachScope extends Scope {
 	/** A function that renders an item */
 	_renderer: (key: any, value: DatumType) => void
 	
-	/** The ordered list of currently item scopes */
-	_byPosition: OnEachItemScope[] = []
-	
 	/** The item scopes in a Map by index */
 	_byIndex: Map<any, OnEachItemScope> = new Map()
+
+	/** The ordered list of current item scopes */
+	_bySortStr: SkipList<OnEachItemScope> = new SkipList('_sortStr')
 	
 	/** Indexes that have been created/removed and need to be handled in the next `queueRun` */
 	_newIndexes: Set<any> = new Set()
@@ -454,17 +454,16 @@ class OnEachScope extends Scope {
 	constructor(
 		target: TargetType,
 		renderer: (key: any, value: DatumType) => void,
-		getSortKey: (key: any, value: DatumType) => SortKeyType
+		makeSortKey: (key: any, value: DatumType) => SortKeyType
 	) {
 		super(currentScope!._parentElement, currentScope!._lastChild || currentScope!._precedingSibling, currentScope!._queueOrder+1)
 		this._target = target
 		this._renderer = renderer
-		this._makeSortKey = getSortKey
+		this._makeSortKey = makeSortKey
 
 		addObserver(target, ANY_SYMBOL, this)
 		currentScope!._cleaners.push(this)
-
-		this._lastChild = this
+		currentScope!._lastChild = this
 
 		// Do _addChild() calls for initial items
 		if (target instanceof Map) {
@@ -524,13 +523,13 @@ class OnEachScope extends Scope {
 	
 	delete() {
 		super.delete()
-		for (const [index, scope] of this._byIndex) {
+		for (const scope of this._byIndex.values()) {
 			scope.delete()
 		}
 		
 		// Help garbage collection:
-		this._byPosition.length = 0
 		this._byIndex.clear()
+		this._bySortStr.clear()
 	}
 	
 	_addChild(itemIndex: any) {
@@ -546,36 +545,12 @@ class OnEachScope extends Scope {
 		if (!scope) return internalError(6)
 		scope._remove()
 		this._byIndex.delete(itemIndex)
-		this._removeFromPosition(scope)
-	}
-	
-	_findPosition(sortStr: string) {
-		// In case of duplicate `sortStr`s, this will return the first match.
-		let items = this._byPosition
-		let min = 0, max = items.length
-		
-		// Fast-path for elements that are already ordered (as is the case when working with arrays ordered by index)
-		if (!max || sortStr > items[max-1]._sortStr) return max
-		
-		// Binary search for the insert position		
-		while(min<max) {
-			let mid = (min+max)>>1
-			if (items[mid]._sortStr < sortStr) {
-				min = mid+1
-			} else {
-				max = mid
-			}
-		}
-		return min
 	}
 	
 	_insertAtPosition(child: OnEachItemScope) {
-		let pos = this._findPosition(child._sortStr)
-		this._byPosition.splice(pos, 0, child)
+		this._bySortStr.add(child)
+		let nextSibling = this._bySortStr.next(child)
 		
-		// Based on the position in the list, set the precedingSibling for the new Scope
-		// and for the next sibling.
-		let nextSibling: OnEachItemScope = this._byPosition[pos+1]
 		if (nextSibling) {
 			child._precedingSibling = nextSibling._precedingSibling
 			nextSibling._precedingSibling = child
@@ -586,29 +561,17 @@ class OnEachScope extends Scope {
 	}
 	
 	_removeFromPosition(child: OnEachItemScope) {
-		if (child._sortStr==='') return
-		let pos = this._findPosition(child._sortStr)
-		while(true) {
-			if (this._byPosition[pos] === child) {
-				// Yep, this is the right scope
-				this._byPosition.splice(pos, 1)
-				if (pos < this._byPosition.length) {
-					let nextSibling: Scope | undefined = this._byPosition[pos] as (Scope | undefined)
-					/* c8 ignore next */
-					if (!nextSibling) return internalError(8)
-						/* c8 ignore next */
-					if (nextSibling._precedingSibling !== child) return internalError(13)
-						nextSibling._precedingSibling = child._precedingSibling
-				} else {
-					/* c8 ignore next */
-					if (child !== this._lastChild) return internalError(12)
-						this._lastChild = child._precedingSibling === this._precedingSibling ? undefined : child._precedingSibling	
-				}
-				return
-			}
-			// There may be another Scope with the same sortStr
+		let nextSibling = this._bySortStr.next(child)
+		this._bySortStr.remove(child)
+
+		if (nextSibling) {
 			/* c8 ignore next */
-			if (++pos >= this._byPosition.length || this._byPosition[pos]._sortStr !== child._sortStr) return internalError(5)
+			if (nextSibling._precedingSibling !== child) return internalError(13)
+			nextSibling._precedingSibling = child._precedingSibling
+		} else {
+			/* c8 ignore next */
+			if (child !== this._lastChild) return internalError(12)
+			this._lastChild = child._precedingSibling === this._precedingSibling ? undefined : child._precedingSibling	
 		}
 	}
 }
@@ -652,11 +615,12 @@ class OnEachItemScope extends Scope {
 		let savedScope = currentScope
 		currentScope = this
 		
-		let itemStore = new Store(this._parent._target, this._itemIndex)
+		const target = this._parent._target
+		const value: DatumType = target instanceof Map ? target.get(this._itemIndex) : [this._itemIndex]
 		
 		let sortKey
 		try {
-			sortKey = this._parent._makeSortKey(itemStore)
+			sortKey = this._parent._makeSortKey(value, this._itemIndex)
 		} catch(e) {
 			handleError(e, false)
 		}
@@ -674,13 +638,18 @@ class OnEachItemScope extends Scope {
 				this._parent._insertAtPosition(this)
 			}
 			try {
-				this._parent._renderer(itemStore)
+				this._parent._renderer(value, this._itemIndex)
 			} catch(e) {
 				handleError(e, true)
 			}
 		}
 		
 		currentScope = savedScope
+	}
+
+	_remove() {
+		super._remove()
+		if (this._sortStr!=='') this._parent._removeFromPosition(this)
 	}
 }
 
@@ -718,8 +687,8 @@ function addObserver(target: any, index: any, observer: Observer|undefined = cur
 	currentScope?._cleaners.push(byIndex)
 }
 
-export function onEach(target: TargetType, render: (value: any, index: any) => void, getSortKey?: (value: any, index: any) => SortKeyType): void {
-	let onEachScope = new OnEachScope(target, getSortKey)
+export function onEach(target: TargetType, render: (value: any, index: any) => void, makeSortKey?: (value: any, index: any) => SortKeyType): void {
+	let onEachScope = new OnEachScope(target, makeSortKey)
 	// TODO
 }
 
@@ -795,8 +764,8 @@ const mapMethods = {
 		addObserver(target, ANY_SYMBOL)
 		return target.forEach(callbackFn)
 	},
-	onEach(this: TargetType, render: (value: any, index: any) => void, getSortKey?: (value: any, index: any) => SortKeyType): void {
-		onEach(this, render, getSortKey)
+	onEach(this: TargetType, render: (value: any, index: any) => void, makeSortKey?: (value: any, index: any) => SortKeyType): void {
+		onEach(this, render, makeSortKey)
 	},
 	isEmpty(this: TargetType): boolean {
 		return isEmpty(this)
@@ -814,7 +783,7 @@ const mapHandler: ProxyHandler<Map<any, any>> = {
 	},
 };
 export type MapProxy<A extends DatumType,B> = Map<A,B> & {
-	onEach(this: MapProxy<A,B>, render: (value: B, index: A) => void, getSortKey?: (value: B, index: A) => SortKeyType): void;
+	onEach(this: MapProxy<A,B>, render: (value: B, index: A) => void, makeSortKey?: (value: B, index: A) => SortKeyType): void;
 	isEmpty(this: MapProxy<A,B>): boolean;
 };
 
@@ -905,8 +874,8 @@ const arrayMethods = {
 		return target.forEach(callbackFn);
 	},
 	// TODO: look at jsdocs for more methods?
-	onEach(this: TargetType, render: (value: any, index: any) => void, getSortKey?: (value: any, index: any) => SortKeyType): void {
-		onEach(this, render, getSortKey)
+	onEach(this: TargetType, render: (value: any, index: any) => void, makeSortKey?: (value: any, index: any) => SortKeyType): void {
+		onEach(this, render, makeSortKey)
 	},
 	isEmpty(this: TargetType): boolean {
 		return isEmpty(this)
@@ -937,7 +906,7 @@ const arrayHandler: ProxyHandler<any[]> = {
 	},
 };
 export type ArrayProxy<T extends DatumType> = Array<T> & {
-	onEach(this: ArrayProxy<T>, render: (value: T, index: any) => void, getSortKey?: (value: T, index: any) => SortKeyType): void;
+	onEach(this: ArrayProxy<T>, render: (value: T, index: any) => void, makeSortKey?: (value: T, index: any) => SortKeyType): void;
 	isEmpty(this: ArrayProxy<T>): boolean;
 };
 

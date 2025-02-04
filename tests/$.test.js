@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
-import { * } from "../src/aberdeen.ts"
-
+import { mount, $ } from "../src/aberdeen.ts"
 
 test('creates nested nodes', () => {
 	mount(document.body, () => {
