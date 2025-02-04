@@ -1,20 +1,18 @@
 import * as _ from './_fakedom.js';
-import mocha from 'mocha'
-import {deepEqual as equal} from 'fast-equals'
+import { beforeEach, afterEach } from "bun:test";
 
-import * as aberdeen from '../dist-min/aberdeen.js'
-import * as transitions from '../dist-min/transitions.js'
-import * as prediction from '../dist-min/prediction.js'
+import * as aberdeen from '../src/aberdeen.ts'
+import * as transitions from '../src/transitions.ts'
+import * as prediction from '../src/prediction.ts'
 Object.assign(global, aberdeen, transitions, prediction)
 
-let currentMountSeq = new Store(0)
-mocha.beforeEach(() => {
+beforeEach(() => {
 	document.body = document.createElement('body')
 	resetCounts()
 	setErrorHandler()
 })
 
-mocha.afterEach(() => {
+afterEach(() => {
 	unmount()
 	passTime(2001) // wait for deletion transitions
 	assertBody(``)
