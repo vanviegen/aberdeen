@@ -1,5 +1,5 @@
 describe('Destroy event', function() {
-	it('works for simple deletes', () => {
+	test('works for simple deletes', () => {
         let store = new Store(true)
 		mount(document.body, () => {
             if (store.get()) $('b', {destroy: "x"})
@@ -18,7 +18,7 @@ describe('Destroy event', function() {
         assertEqual(getCounts(), {new: 2, change: 4})
     });
 
-	it('inserts before deleted item', () => {
+	test('inserts before deleted item', () => {
         let store = new Store(['a'])
 		mount(document.body, () => {
             store.onEach(v => {
@@ -38,7 +38,7 @@ describe('Destroy event', function() {
 		assertBody(`b`)
     });
 
-	it('transitions onEach deletes', () => {
+	test('transitions onEach deletes', () => {
         let store = new Store(['a', 'b', 'c'])
 		let mnt = mount(document.body, () => {
             store.onEach(v => {
@@ -66,7 +66,7 @@ describe('Destroy event', function() {
 		assertBody(`a2 b d2 e f2`)
     })
 
-    it('deletes in the middle of deleting items', () => {
+    test('deletes in the middle of deleting items', () => {
         let store = new Store(['a', 'b', 'c'])
 		mount(document.body, () => {
             store.onEach(v => {
@@ -97,7 +97,7 @@ describe('Destroy event', function() {
         assertBody(`b`)
     });
 
-    it('aborts deletion transition on higher level removal', () => {
+    test('aborts deletion transition on higher level removal', () => {
         let store = new Store(['a'])
 		mount(document.body, () => {
             store.onEach(v => {
@@ -118,7 +118,7 @@ describe('Destroy event', function() {
         // the held elements should be removed immediately... are they? and does the timeout then cause havoc?
     });
 
-    it('transitions removal of an entire onEach', () => {
+    test('transitions removal of an entire onEach', () => {
         let store = new Store(['a'])
 		mount(document.body, () => {
             store.onEach(v => {
@@ -134,7 +134,7 @@ describe('Destroy event', function() {
         assertBody(``)
     });
 
-    it('insert new elements after a recently deleted item', () => {
+    test('insert new elements after a recently deleted item', () => {
         let store = new Store({b: true, c: false})
 		mount(document.body, () => {
             $('a')
@@ -158,7 +158,7 @@ describe('Destroy event', function() {
         assertBody(`a c`)
     })
 
-    it('remove elements before and after a deleting element', () => {
+    test('remove elements before and after a deleting element', () => {
         let store = new Store({a: true, b: true, c: true})
 		mount(document.body, () => {
             store.onEach(el => {
@@ -183,7 +183,7 @@ describe('Destroy event', function() {
         assertBody(``)
     })
 
-    it('remove middle elements before and after a deleting element', () => {
+    test('remove middle elements before and after a deleting element', () => {
         let store = new Store({a: true, b: true, c: true, d: true, e: true})
 		mount(document.body, () => {
             store.onEach(el => {
@@ -208,7 +208,7 @@ describe('Destroy event', function() {
         assertBody(`a e`)
     })
 
-    it('remove elements before and after a deleting element', () => {
+    test('remove elements before and after a deleting element', () => {
         let store = new Store({a: true, b: true, c: true})
 		mount(document.body, () => {
             store.onEach(el => {
@@ -233,7 +233,7 @@ describe('Destroy event', function() {
         assertBody(``)
     })
 
-    it('performs a shrink animation', async() => {
+    test('performs a shrink animation', async() => {
         let store = new Store(true)
         mount(document.body, () => {
             if (store.get()) $('a', {destroy: shrink})
@@ -249,7 +249,7 @@ describe('Destroy event', function() {
         assertBody(``)
     })
 
-    it('performs a horizontal shrink animation', async() => {
+    test('performs a horizontal shrink animation', async() => {
         let store = new Store(true)
         mount(document.body, () => {
             $('div', {$display: 'flex', $flexDirection: 'row-reverse'}, () => {

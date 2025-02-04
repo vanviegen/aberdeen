@@ -1,5 +1,5 @@
 describe('Clean', function() {
-	it('triggers once when redrawing', () => {
+	test('triggers once when redrawing', () => {
 
         let cnt1 = 0, cnt2 = 0
         let store = new Store(1)

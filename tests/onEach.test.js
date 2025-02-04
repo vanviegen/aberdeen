@@ -1,6 +1,6 @@
 describe('onEach', function() {
 
-	it('does nothing for an empty object', () => {
+	test('does nothing for an empty object', () => {
 		let cnt = 0
 		mount(document.body, () => {
 			let p = proxy({})
@@ -12,7 +12,7 @@ describe('onEach', function() {
 	})
 
 
-	it('emits a single entry', () => {
+	test('emits a single entry', () => {
 		let result = []
 		observe(() => {
 			let p = proxy({x: 3})
@@ -23,7 +23,7 @@ describe('onEach', function() {
 		assertEqual(result, [['x', 3]])
 	})
 
-	it('emits multiple entries', () => {
+	test('emits multiple entries', () => {
 		let result = []
 		observe(() => {
 			let p = proxy({x: 3, y: 4, z: 5})
@@ -36,7 +36,7 @@ describe('onEach', function() {
 		assertEqual(result, [['x', 3], ['y', 4], ['z', 5]])
 	})
 
-	it('adds a single item to the DOM', () => {
+	test('adds a single item to the DOM', () => {
 		mount(document.body, () => {
 			let p = proxy({x: 3})
 			p.onEach(function(p) {
@@ -46,7 +46,7 @@ describe('onEach', function() {
 		assertBody(`p.x{"3"}`)
 	})
 
-	it('adds multiple items to the DOM in default order', () => {
+	test('adds multiple items to the DOM in default order', () => {
 		mount(document.body, () => {
 			let p = proxy({c: 3, a: 1, b: 2})
 			p.onEach(function(p) {
@@ -56,7 +56,7 @@ describe('onEach', function() {
 		assertBody(`p{"a"} p{"b"} p{"c"}`)
 	})
 
-	it('maintains the last-element marker', () => {
+	test('maintains the last-element marker', () => {
 		mount(document.body, () => {
 			let p = proxy({c: 3, a: 1, b: 2})
 			p.onEach(function(p) {
@@ -67,7 +67,7 @@ describe('onEach', function() {
 		assertBody(`p{"a"} p{"b"} p{"c"} div`)
 	})
 
-	it('maintains position for items', () => {
+	test('maintains position for items', () => {
 		let p = proxy({0: false, 1: false, 2: false, 3: false})
 		let cnts = [0,0,0,0];
 		mount(document.body, () => {
@@ -91,7 +91,7 @@ describe('onEach', function() {
 		assertEqual(cnts, [2,2,2,2]);
 	})
 
-	it('adds items in the right position', () => {
+	test('adds items in the right position', () => {
 		let p = proxy({});
 
 		mount(document.body, () => {
@@ -113,7 +113,7 @@ describe('onEach', function() {
 		}
 	})
 
-	it('removes items and calls cleaners', () => {
+	test('removes items and calls cleaners', () => {
 		let items = ['d', 'a', 'b', 'f', 'c', 'e']
 		let p = proxy({})
 		for(let item of items) {
@@ -145,7 +145,7 @@ describe('onEach', function() {
 		}
 	})
 
-	it(`removes an entire object and calls cleaners`, () => {
+	test(`removes an entire object and calls cleaners`, () => {
 		let cleaned = {};
 		let p = proxy({b:2,c:3,a:1})
 		let cnt = 0
@@ -171,7 +171,7 @@ describe('onEach', function() {
 		assertEqual(cnt, 3)
 	})
 
-	it('should ignore on delete followed by set', () => {
+	test('should ignore on delete followed by set', () => {
 		let p = proxy({a:1, b:2})
 		let cnt = 0
 		mount(document.body, () => {
@@ -191,7 +191,7 @@ describe('onEach', function() {
 		assertEqual(cnt, 2) // should not trigger again as the value is not subscribed
 	});
 
-	it('should do nothing on set followed by delete', () => {
+	test('should do nothing on set followed by delete', () => {
 		let p = proxy({a:1})
 		let cnt = 0
 		mount(document.body, () => {
@@ -211,7 +211,7 @@ describe('onEach', function() {
 		assertEqual(cnt, 1)
 	})
 
-	it(`should handle items with identical sort keys`, () => {
+	test(`should handle items with identical sort keys`, () => {
 		let p = proxy({a: 1, b: 1, c: 1, d: 1})
 		mount(document.body, () => {
 			p.onEach(item => {
@@ -234,7 +234,7 @@ describe('onEach', function() {
 
 	})
 
-	it('keeps two onEaches in order', () => {
+	test('keeps two onEaches in order', () => {
 		let p1 = proxy(['c1'])
 		let p2 = proxy(['c2'])
 		mount(document.body, () => {
@@ -272,7 +272,7 @@ describe('onEach', function() {
 		assertBody(`c1 b1 b2 c2`)
 	})
 	
-	it(`iterates arrays`, () => {
+	test(`iterates arrays`, () => {
 		let p = proxy(['e', 'b', 'a', 'd'])
 		mount(document.body, () => {
 			p.onEach(item => {
@@ -291,7 +291,7 @@ describe('onEach', function() {
 		assertBody(`h0 h1 h2 h3 h4 i2 i1 i4 i3 i0`)
 	})
 
-	it(`iterates arrays that are pushed into`, () => {
+	test(`iterates arrays that are pushed into`, () => {
 		let p = proxy(['e', 'b', 'a', 'd'])
 		mount(document.body, () => {
 			p.onEach(item => {
@@ -308,7 +308,7 @@ describe('onEach', function() {
 		assertBody(`h0 h1 h2 h3 h4 i2 i1 i4 i3 i0`) 
 	})
 
-	it(`removes all children before redrawing`, () => {
+	test(`removes all children before redrawing`, () => {
 		let p = proxy({a:1, b:2})
 		let select = proxy(1)
 		mount(document.body, () => {
@@ -328,7 +328,7 @@ describe('onEach', function() {
 		assertBody(`b`) 
 	})
 
-	it('should handle items that don\'t create DOM elements', () => {
+	test('should handle items that don\'t create DOM elements', () => {
 		let p = proxy("b0 b1 c1 b2 c0 a1 a0 a2".split(" "))
 		mount(document.body, () => {
 			p.onEach(item => {
@@ -353,7 +353,7 @@ describe('onEach', function() {
 		assertBody(`"7a" "7a" "1b" "2c"`) // The order within the same letter is unspecified
 	})
 
-	it('filters when there is no sort key', () => {
+	test('filters when there is no sort key', () => {
 		let p = proxy(['a','b','c'])
 		mount(document.body, () => {
 			p.onEach(item => {
@@ -367,7 +367,7 @@ describe('onEach', function() {
 		assertBody(``)
 	})
 
-	it('can run outside of any scope', () => {
+	test('can run outside of any scope', () => {
 		let p = proxy([3, 7])
 		let incr = p.map(x => x.get()+1)
 		assertEqual(incr.get(), [4, 8])

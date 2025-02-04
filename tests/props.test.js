@@ -1,5 +1,5 @@
 describe('Property', function() {
-    it('Sets and unsets classes', () => {
+    test('Sets and unsets classes', () => {
         let cnt1 = 0, cnt2 = 0, cnt3 = 0
         let classObj = new Store({".a": false, ".b": true, ".c": undefined})
         mount(document.body, () => {
@@ -28,7 +28,7 @@ describe('Property', function() {
         assertEqual([cnt1,cnt2,cnt3], [1,1,3])
     })
 
-    it('Defines and removes event listeners', () => {
+    test('Defines and removes event listeners', () => {
         let store = new Store(true)
         let el;
         let myFunc = ()=>{}
@@ -47,7 +47,7 @@ describe('Property', function() {
         assertEqual(el.events, {click: new Set()})
     })
 
-    it('Styles elements', () => {
+    test('Styles elements', () => {
         const colorStore = new Store('blue')
         let count = 0
         mount(document.body, () => {

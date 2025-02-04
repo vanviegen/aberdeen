@@ -1,18 +1,18 @@
 describe('$', function() {
-	it('creates nested nodes', () => {
+	test('creates nested nodes', () => {
 		mount(document.body, () => {
 			$("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
 		})
 		assertBody(`a{b.cls.second{c{x=y}}}`)
 	});
-	it('creates elements with text', () => {
+	test('creates elements with text', () => {
 		mount(document.body, () => {
 			$('.cls:This is my :-containg text!')
 			$('h2', {text: 'More text...'})
 		})
 		assertBody(`div.cls{"This is my :-containg text!"} h2{"More text..."}`)
 	})
-	it('reactively modifies attributes that have stores as values', () => {
+	test('reactively modifies attributes that have stores as values', () => {
 		let cnt = 0
 		let store = new Store('initial')
 		mount(document.body, () => {
@@ -29,7 +29,7 @@ describe('$', function() {
 		assertBody(`input{placeholder=modified} div{"modified"} p{color:modified}`)
 		assertEqual(cnt, 1)
 	})
-	it('reacts to conditions', () => {
+	test('reacts to conditions', () => {
 		const store = new Store({a: true})
 		assertEqual(store('a').get(), true)
 		let cnt = 0

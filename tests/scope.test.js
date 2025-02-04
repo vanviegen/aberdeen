@@ -1,5 +1,5 @@
 describe('Scope', () => {
-	it('rerenders only the inner scope', () => {
+	test('rerenders only the inner scope', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
@@ -20,7 +20,7 @@ describe('Scope', () => {
 		assertEqual(cnt2,2)
 	})
 
-	it('adds and removes elements', () => {
+	test('adds and removes elements', () => {
 		let store = new Store(false)
 		
 		let cnt1 = 0, cnt2 = 0
@@ -43,7 +43,7 @@ describe('Scope', () => {
 		assertEqual(cnt2,5)
 	})
 
-	it('refreshes standalone observe()s', () => {
+	test('refreshes standalone observe()s', () => {
 		let store = new Store(false)
 		
 		let cnt1 = 0, cnt2 = 0
@@ -67,7 +67,7 @@ describe('Scope', () => {
 		assertEqual(cnt2,5)
 	})
 
-	it('uses observe()s as reference for DOM insertion', () => {
+	test('uses observe()s as reference for DOM insertion', () => {
 		let store1 = new Store(false)
 		let store2 = new Store(false)
 		
@@ -99,7 +99,7 @@ describe('Scope', () => {
 		assertEqual(cnt2,6)
 	})
 
-	it('insert at right position with an empty parent scope', () => {
+	test('insert at right position with an empty parent scope', () => {
 		mount(document.body, () => {
 			$('a')
 			observe(() => {
@@ -111,7 +111,7 @@ describe('Scope', () => {
 		assertBody(`a b`)
 	})
 
-	it('can use $ like observe', () => {
+	test('can use $ like observe', () => {
 		mount(document.body, () => {
 			$('a')
 			$(() => {
@@ -123,7 +123,7 @@ describe('Scope', () => {
 		assertBody(`a b`)
 	})
 
-	it('refrains from rerendering dead scopes', () => {
+	test('refrains from rerendering dead scopes', () => {
 		let cnts = [0,0,0,0]
 		let store = new Store('a')
 		mount(document.body, () => {
@@ -147,7 +147,7 @@ describe('Scope', () => {
 		assertEqual(cnts, [1,1,2,1])
 	})
 
-	it('inserts higher priority updates', () => {
+	test('inserts higher priority updates', () => {
 		let parent = new Store()
 		let children = new Store()
 		let pcnt = 0, ccnt = 0
@@ -177,7 +177,7 @@ describe('Scope', () => {
 		assertEqual(ccnt, 3) // only a *or* b should have executed a second time, triggering parent
 	})
 
-	it('does not rerender on peek', () => {
+	test('does not rerender on peek', () => {
 		let store = new Store('before')
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
@@ -198,7 +198,7 @@ describe('Scope', () => {
 		assertEqual(cnt2,1)
 	})
 
-	it('emits for objects with numeric get() paths', () => {
+	test('emits for objects with numeric get() paths', () => {
 		let values = new Store({})
 
 		mount(document.body, () => {
@@ -215,7 +215,7 @@ describe('Scope', () => {
 		assertBody(`p p{"x"} p p{"x"}`)
 	})
 
-	it('allows modifying stores from within scopes', () => {
+	test('allows modifying stores from within scopes', () => {
 		let cnt0 = 0, cnt1 = 0, cnt2 = 0, cnt3 = 0;
 		let store = new Store({})
 		let inverse = new Store({})

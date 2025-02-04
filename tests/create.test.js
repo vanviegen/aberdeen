@@ -1,6 +1,6 @@
 describe('Create event', function() {
 
-    it('does not apply on initial rendering', () => {
+    test('does not apply on initial rendering', () => {
         let store = new Store(true)
 		mount(document.body, () => {
             $('b', {create: 'y'})
@@ -9,7 +9,7 @@ describe('Create event', function() {
 		assertBody(`b`)
     });
 
-    it('works at top-level', async () => {
+    test('works at top-level', async () => {
         let store = new Store(false)
 		mount(document.body, () => {
             if (store.get()) $('b', {create: 'y'})
@@ -29,7 +29,7 @@ describe('Create event', function() {
 		assertBody(`b`)
     });
 
-    it('does not apply when it is part of a larger whole newly rendered', async () => {
+    test('does not apply when it is part of a larger whole newly rendered', async () => {
         let store = new Store(false)
 		mount(document.body, () => {
             if (store.get()) $('b', () => $('c', {create: 'y'}))
@@ -48,7 +48,7 @@ describe('Create event', function() {
         assertBody(`b{c}`)
     });
 
-    it('works in an onEach', async () => {
+    test('works in an onEach', async () => {
         let store = new Store([])
 		mount(document.body, () => {
             store.onEach(item => {
@@ -68,7 +68,7 @@ describe('Create event', function() {
 		assertBody(`a c`)
     });
 
-    it('performs a grow animation', async() => {
+    test('performs a grow animation', async() => {
         let store = new Store(false)
         mount(document.body, () => {
             $('div', {$display: 'flex'}, () => {
@@ -88,7 +88,7 @@ describe('Create event', function() {
         assertBody(`div{display:flex a}`)
     })
 
-    it('aborts a grow animation', () => {
+    test('aborts a grow animation', () => {
         let store = new Store(false)
         mount(document.body, () => {
             if (store.get()) {

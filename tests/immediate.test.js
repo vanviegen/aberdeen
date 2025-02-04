@@ -9,7 +9,7 @@ function captureOnError(message, func, showMsg=true) {
 
 describe('Immediate observe', function() {
 
-    it('runs immediately', () => {
+    test('runs immediately', () => {
         let store = new Store({a: 1})
         let count = 0
         immediateObserve(() => {
@@ -28,7 +28,7 @@ describe('Immediate observe', function() {
         assertEqual(count, 2)
     });
 
-    it('stabilizes dependent values', () => {
+    test('stabilizes dependent values', () => {
         let store = new Store({num: 1})
         immediateObserve(() => { // num to str
             let num = store('num').get()
@@ -59,7 +59,7 @@ describe('Immediate observe', function() {
         assertEqual(store.get(), {num: 5, str: 'xxxxx'})
     })
 
-    it('stops when it goes out of scope', () => {
+    test('stops when it goes out of scope', () => {
         let store = new Store({a: 1})
         observe(() => {
             if (store('stop').get()) return
@@ -79,7 +79,7 @@ describe('Immediate observe', function() {
         assertEqual(store('b').get(), 6)
     })
 
-    it('throws an error if a loop does not stabilize', () => {
+    test('throws an error if a loop does not stabilize', () => {
         let store = new Store({a: 1})
         immediateObserve(() => {
             store('b').set(store('a').get() + 1)

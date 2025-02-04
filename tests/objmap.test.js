@@ -1,12 +1,12 @@
 describe('Objects and maps', () => {
-    it('map fetches with a limited depth', () => {
+    test('map fetches with a limited depth', () => {
         let store = new Store(objToMap({a: {b: {c: {d: 42}}}}))
         
         let res = store.getTyped('map', 2)
         assertEqual(res.size, 1)
         assertEqual(res.get('a').get('b').get(), objToMap({c: {d: 42}}))
     })
-    it('merges maps collapsing changes', () => {
+    test('merges maps collapsing changes', () => {
         for(let converter of [objToMap, a=>a]) {
             let store = new Store(converter({a: 1, b: 2, c: 3, d: undefined}))
             assertEqual(store.count(), 3)
@@ -33,7 +33,7 @@ describe('Objects and maps', () => {
         }
     })
 
-	it('handles invalid indexes', () => {
+	test('handles invalid indexes', () => {
 		let store = new Store({})
         assertThrow('Invalid object index', () => store(true).set(1))
 	})

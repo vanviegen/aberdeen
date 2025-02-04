@@ -1,5 +1,5 @@
 describe('The map() and multiMap() methods', () => {
-    it('transforms Maps to Maps', () => {
+    test('transforms Maps to Maps', () => {
         let store = new Store(objToMap({a: 0, b: 2, c: 3}))
         let cnt1 = 0, cnt2 = 0
 
@@ -23,7 +23,7 @@ describe('The map() and multiMap() methods', () => {
         assertBody(`"a=10" "b=20"`)
         assertEqual([cnt1, cnt2], [4, 3])
     })
-    it('transforms Arrays to Objects', () => {
+    test('transforms Arrays to Objects', () => {
         let store = new Store(['a', 'b'])
         let cnt1 = 0, cnt2 = 0
         let out
@@ -52,7 +52,7 @@ describe('The map() and multiMap() methods', () => {
         assertBody(`"c=2" "b=1" "A=0"`)
         assertEqual([cnt1, cnt2], [4, 4])
     })
-    it('transforms Objects to Maps', () => {
+    test('transforms Objects to Maps', () => {
         let store = new Store({a: {a:[]}, b: new Map([[1,2], [3,4]]), c: {c:5}, d: {}, e: 123})
         let cnt1 = 0
         let out
@@ -73,7 +73,7 @@ describe('The map() and multiMap() methods', () => {
         assertEqual(out.peek(), new Map([['c',5]]))
         assertEqual(cnt1, 6)
     })
-    it('preserves the input collection type', () => {
+    test('preserves the input collection type', () => {
         let store = new Store([3, 7])
 		let mapped = store.map(x => x.get()+1)
         
@@ -88,7 +88,7 @@ describe('The map() and multiMap() methods', () => {
         assertEqual(mapped.get(), new Map([['x', 4], ['y', 8]]))
     })
 
-    it('derives', () => {
+    test('derives', () => {
         const store = new Store(21)
         const double = store.derive(v => v*2)
         assertEqual(double.get(), 42)

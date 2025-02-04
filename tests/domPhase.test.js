@@ -1,6 +1,6 @@
 describe('domPhase', function() {
 
-    it('awaits read/write batches', async () => {
+    test('awaits read/write batches', async () => {
         let order = []
         function log(n) {
             // console.log(n)

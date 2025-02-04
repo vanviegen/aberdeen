@@ -1,6 +1,6 @@
 describe('Prediction', function() {
 
-    it('reverts', () => {
+    test('reverts', () => {
         let store = new Store('a')
 		mount(document.body, () => {
             $(store.get())
@@ -21,7 +21,7 @@ describe('Prediction', function() {
 		assertBody(`a`)
     });
 
-    it('reverts entire patch when it can no longer apply', () => {
+    test('reverts entire patch when it can no longer apply', () => {
         let store = new Store({1: 'a', 2: 'x', 3: 'm'})
 		mount(document.body, () => {
             $(store(1).get())
@@ -52,7 +52,7 @@ describe('Prediction', function() {
 		assertBody(`c x n`)
     });
 
-    it('forcibly reverts to canon state', () => {
+    test('forcibly reverts to canon state', () => {
         let store = new Store('a')
 		mount(document.body, () => {
             $(store.get())
@@ -74,7 +74,7 @@ describe('Prediction', function() {
 		assertBody(`a`)
     })
 
-    it('does not cause redraw when it comes true', () => {
+    test('does not cause redraw when it comes true', () => {
         let store = new Store('a')
         let draws = 0
 		mount(document.body, () => {

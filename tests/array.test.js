@@ -1,5 +1,5 @@
 describe('Array', () => {
-	it('fires higher-scope isEmpty before getting to content', () => {
+	test('fires higher-scope isEmpty before getting to content', () => {
 		let store = new Store(['a'])
 		let cnt1 = 0, cnt2 = 0
 		mount(document.body, () => {
@@ -24,7 +24,7 @@ describe('Array', () => {
 		assertEqual([cnt1,cnt2], [2,2])
 	})
 
-	it('reactively get() full array', () => {
+	test('reactively get() full array', () => {
 		let store = new Store([3, 4, new Store([5, 6])])
 		mount(document.body, () => {
 			$({text: JSON.stringify(store.get())})
@@ -42,7 +42,7 @@ describe('Array', () => {
 		assertEqual(store(6, 'a').get(), undefined)
 	})
 
-	it('handles invalid indexes', () => {
+	test('handles invalid indexes', () => {
 		let store = new Store(["a","b","c"])
 		for(let index of [-1, 1000000, "1", 0.5]) {
 			assertThrow('Invalid array index', () => store(index).set("test"))
@@ -53,7 +53,7 @@ describe('Array', () => {
 		assertThrow("Invalid array index", () => store(true).get())
 	})
 
-	it('merges', () => {
+	test('merges', () => {
 		let cnt1 = 0, cnt2 = 0
 		let store = new Store([1,undefined,3])
 		mount(document.body, () => {

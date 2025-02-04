@@ -1,5 +1,5 @@
 describe('DOM creator', function() {
-	it('adds nodes', () => {
+	test('adds nodes', () => {
 		mount(document.body, () => {
 			$('p')
 		})
@@ -7,13 +7,13 @@ describe('DOM creator', function() {
 		assertBody(`p`)
 	});
 
-	it('refuses tags containing spaces', () => {
+	test('refuses tags containing spaces', () => {
 		mount(document.body, () => {
 			assertThrow('cannot contain space', $('a b'))
 		})
 	});
 
-	it('adds classes', () => {
+	test('adds classes', () => {
 		mount(document.body, () => {
 			$('p.a.b')
 		})
@@ -21,7 +21,7 @@ describe('DOM creator', function() {
 		assertBody(`p.a.b`)
 	});
 
-	it('sets attributes', () => {
+	test('sets attributes', () => {
 		mount(document.body, () => {
 			$('div', {class: 'C', text: "T"}, {id: 'I', index: 1})
 		})
@@ -29,7 +29,7 @@ describe('DOM creator', function() {
 		assertBody(`div.C{id=I index=1 "T"}`)
 	});
 
-	it('sets properties', () => {
+	test('sets properties', () => {
 		mount(document.body, () => {
 			$('p.C', {class: 'C', value: 3})
 		})
@@ -37,7 +37,7 @@ describe('DOM creator', function() {
 		assertBody(`p.C{value->3}`)
 	});
 
-	it('nests elements', () => {
+	test('nests elements', () => {
 		mount(document.body, () => {
 			$('p', () => {
 				$('a', () => {
@@ -51,7 +51,7 @@ describe('DOM creator', function() {
 		assertBody(`p{a{i{"contents"}}}`)
 	});
 
-	it('sets properties from the inner scope', () => {
+	test('sets properties from the inner scope', () => {
 		mount(document.body, () => {
 			$('a', () => {
 				$({
@@ -65,7 +65,7 @@ describe('DOM creator', function() {
 		assertBody(`a{href=/ target=_blank disabled->true}`)
 	});
 
-	it('sets style objects', () => {
+	test('sets style objects', () => {
 		mount(document.body, () => {
 			$('a', {style: 'color: red;'})
 			$('b', {$color: 'green'})
@@ -86,7 +86,7 @@ describe('DOM creator', function() {
 		assertBody(`a{style="color: red;"} b{color:green} c{color:orange} d{color:purple} e{style="color: magento;"} f{style="color: cyan;"}`)
 	})
 
-	it('unmounts', () => {
+	test('unmounts', () => {
 		let store = new Store('Hej world')
 		let cnt = 0
 		mount(document.body, () => {
@@ -105,12 +105,12 @@ describe('DOM creator', function() {
 		assertThrow("No such mount", () => unmount(123))
 	})
 
-	it('only allows a single mount point per parent', () => {
+	test('only allows a single mount point per parent', () => {
 		mount(document.body, () => {})
 		assertThrow('single mount', () => mount(document.body, () => {}))
 	})
 
-	it('creates text $s', () => {
+	test('creates text $s', () => {
 		let index = new Store(0)
 		let cases = [
 			['test', `"test"`],
@@ -134,7 +134,7 @@ describe('DOM creator', function() {
 		}
 	})
 
-	it('adds preexisting elements to the DOM', () => {
+	test('adds preexisting elements to the DOM', () => {
 		mount(document.body, () => {
 			let el = document.createElement('video')
 			el.classList.add("test")
@@ -145,7 +145,7 @@ describe('DOM creator', function() {
 		assertBody(`video.test div.aberdeen-error{"Error"}`)
 	})
 
-	it('handles nontypical options well', () => {
+	test('handles nontypical options well', () => {
 		let cases = [
 			[`div`, () => $("")],
 			[`div`, () => $(".")],
@@ -167,13 +167,13 @@ describe('DOM creator', function() {
 		})
 	})
 
-	it('dumps all basic values', () => {
+	test('dumps all basic values', () => {
 		let store = new Store([true,false,null,undefined,-12,3.14,"test",'"quote"'])
 		mount(document.body, () => store.dump())
 		assertBody(`"<array>" ul{li{"0: " "true"} li{"1: " "false"} li{"2: " "null"} li{"4: " "-12"} li{"5: " "3.14"} li{"6: " "\\"test\\""} li{"7: " "\\"\\\\\\"quote\\\\\\"\\""}}`)
 	})
 
-	it('dumps maps, objects and arrays', () => {
+	test('dumps maps, objects and arrays', () => {
 		let store = new Store(new Map([[3,4],['a','b']]))
 		mount(document.body, () => store.dump())
 		assertBody(`"<map>" ul{li{"\\"a\\": " "\\"b\\""} li{"3: " "4"}}`)
@@ -187,7 +187,7 @@ describe('DOM creator', function() {
 		assertBody(`"<array>" ul{li{"0: " "4"} li{"2: " "\\"b\\""}}`)
 	})
 
-	it('adds html', () => {
+	test('adds html', () => {
 		let store = new Store('test')
 		mount(document.body, () => {
 			$('main', () => {
@@ -214,7 +214,7 @@ describe('DOM creator', function() {
 		})
 	})
 
-	it('only unlinks the top parent of the tree being removed', () => {
+	test('only unlinks the top parent of the tree being removed', () => {
 		let store = new Store(true)
 		mount(document.body, () => {
 			if (store.get()) $('main', () => {

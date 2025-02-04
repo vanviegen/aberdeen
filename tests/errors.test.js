@@ -8,7 +8,7 @@ function captureOnError(message, func, showMsg=true) {
 }
 
 describe('Error handling', () => {
-    it('works by default', () => {
+    test('works by default', () => {
         mount(document.body, () => {
             $('a')
             $('b', () => {
@@ -19,7 +19,7 @@ describe('Error handling', () => {
         assertBody(`a b{div.aberdeen-error{"Error"}} c`)
     })
 
-	it('continues rendering after an error', () => {
+	test('continues rendering after an error', () => {
         let error = new Store(false)
         mount(document.body, () => {
             $('a', () => {
@@ -42,7 +42,7 @@ describe('Error handling', () => {
     })
 
 
-    it('can disable the default error message', () => {
+    test('can disable the default error message', () => {
         captureOnError('FakeError', () => {
             mount(document.body, () => {
                 $('a', () => {
@@ -58,7 +58,7 @@ describe('Error handling', () => {
     })
 
 
-    it('throws when doing DOM operations outside of mount', () => {
+    test('throws when doing DOM operations outside of mount', () => {
 		let ops = [
 			() => $('div'),
 			() => $({placeholder: 'hi'}),
@@ -78,7 +78,7 @@ describe('Error handling', () => {
 	})
 
 
-    it('continue rendering after an error in onEach', () => {
+    test('continue rendering after an error in onEach', () => {
         let store = new Store(['a','b','c'])
         captureOnError('noSuchFunction', () => {
             mount(document.body, () => {
@@ -97,7 +97,7 @@ describe('Error handling', () => {
         assertBody(`"a" "c" "e"`)
     })
 
-    it('continue rendering after an error in onEach sort', () => {
+    test('continue rendering after an error in onEach sort', () => {
         let store = new Store(['a','b','c'])
         captureOnError('noSuchFunction', () => {
             mount(document.body, () => {
@@ -118,13 +118,13 @@ describe('Error handling', () => {
         assertBody(`"e" "c" "a"`)
     })
 
-    it('throws when indexing a non-indexable type', () => {
+    test('throws when indexing a non-indexable type', () => {
         let store = new Store(3)
         assertThrow('found 3 at index 0 instead of', () => store('a').get())
         assertThrow('found 3 at index 0 instead of', () => store('a').set(5))
     })
 
-    it('throws when onEach() is invoked wrong', () => {
+    test('throws when onEach() is invoked wrong', () => {
         let store1 = new Store()
         let store2 = new Store()
         store1.set(5)
@@ -137,11 +137,11 @@ describe('Error handling', () => {
         passTime()
     })
 
-    it('throws when passing invalid Store arguments', () => {
+    test('throws when passing invalid Store arguments', () => {
         assertThrow('1st parameter should be an ObsCollection', () => new Store(3, true))
     })
 
-    it('breaks up long update->observe recursions', () => {
+    test('breaks up long update->observe recursions', () => {
         let store = new Store({a: 0, b: 0})
         observe(() => {
             store('a').set(store('b').get()+1)

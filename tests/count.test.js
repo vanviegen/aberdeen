@@ -1,5 +1,5 @@
 describe('Count', () => {
-	it('reactively counts object keys', () => {
+	test('reactively counts object keys', () => {
         let store = new Store()
         let cnt = 0
         mount(document.body, () => {
@@ -36,7 +36,7 @@ describe('Count', () => {
         assertEqual(cnt, 5)
     })
 
-    it('counts non-reflectively', () => {
+    test('counts non-reflectively', () => {
         let cases = [
             {data: [], count: 0},
             {data: [1,2], count: 2},
@@ -52,7 +52,7 @@ describe('Count', () => {
         }
     })
 
-    it('throws when counting uncountable things', () => {
+    test('throws when counting uncountable things', () => {
         let store = new Store({a: 3})
         assertThrow(() => {
             store('a').count()
@@ -66,7 +66,7 @@ describe('Count', () => {
         assertEqual(store('b', 'c', 'd').isEmpty(), true)
     })
 
-    it('reactively handles isEmpty', () => {
+    test('reactively handles isEmpty', () => {
         let store = new Store()
         let cnt = 0
         mount(document.body, () => {

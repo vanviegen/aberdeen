@@ -1,5 +1,5 @@
 describe('Sort', () => {
-	it('uses custom sort orders', () => {
+	test('uses custom sort orders', () => {
 		let store = new Store({
 			c: {x: 2, y: 2, z: -2},
 			a: {x: 5, y: 2, z: -500000},
@@ -27,7 +27,7 @@ describe('Sort', () => {
 		assertBody(`e c d b a`)
 	})
 
-	it('changes position when sort key changes', () => {
+	test('changes position when sort key changes', () => {
 		let store = new Store({
 			a: 5,
 			b: 3,
@@ -60,7 +60,7 @@ describe('Sort', () => {
 		assertEqual(c, 7)
 	})
 
-	it('have items disappear when the sort key is null', () => {
+	test('have items disappear when the sort key is null', () => {
 		let store = new Store({a: true, b: false, c: true, d: false})
 		let p = 0, c = 0;
 		mount(document.body, () => {
@@ -81,7 +81,7 @@ describe('Sort', () => {
 		assertEqual(c, 3)
 	})
 
-	it('stores all supported types', () => {
+	test('stores all supported types', () => {
 		let types = {
 			function: function() {},
 			number: 123,
