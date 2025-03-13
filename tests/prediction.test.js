@@ -1,7 +1,7 @@
 describe('Prediction', function() {
 
     test('reverts', () => {
-        let store = new Store('a')
+        let store = proxy('a')
 		mount(document.body, () => {
             $(store.get())
 		})
@@ -22,7 +22,7 @@ describe('Prediction', function() {
     });
 
     test('reverts entire patch when it can no longer apply', () => {
-        let store = new Store({1: 'a', 2: 'x', 3: 'm'})
+        let store = proxy({1: 'a', 2: 'x', 3: 'm'})
 		mount(document.body, () => {
             $(store(1).get())
             $(store(2).get())
@@ -43,7 +43,7 @@ describe('Prediction', function() {
         // Create the conflict
         applyCanon(() => {
             // Check that state was reverted to pre-predictions
-            assertEqual(store(1).get(), 'a')
+            expect(store(1).get()).toEqual('a')
             store(1).set('c')
         })
 
@@ -53,7 +53,7 @@ describe('Prediction', function() {
     });
 
     test('forcibly reverts to canon state', () => {
-        let store = new Store('a')
+        let store = proxy('a')
 		mount(document.body, () => {
             $(store.get())
 		})
@@ -75,23 +75,23 @@ describe('Prediction', function() {
     })
 
     test('does not cause redraw when it comes true', () => {
-        let store = new Store('a')
+        let store = proxy('a')
         let draws = 0
 		mount(document.body, () => {
             $(store.get())
             draws++
 		})
 		assertBody(`a`)
-        assertEqual(draws, 1)
+        expect(draws).toEqual(1)
 
         let prediction = applyPrediction(() => store.set('b'))
         passTime()
 		assertBody(`b`)
-        assertEqual(draws, 2)
+        expect(draws).toEqual(2)
 
         applyCanon(() => store.set('b'), [prediction])
         passTime()
 		assertBody(`b`)
-        assertEqual(draws, 2)
+        expect(draws).toEqual(2)
     })
 })

@@ -1,5 +1,6 @@
 import { expect, test, beforeEach } from "bun:test";
 import { SkipList } from "../src/skiplist.ts"
+
 let list;
 beforeEach(() => {
     list = new SkipList('id');

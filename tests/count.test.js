@@ -1,6 +1,6 @@
 describe('Count', () => {
 	test('reactively counts object keys', () => {
-        let store = new Store()
+        let store = proxy()
         let cnt = 0
         mount(document.body, () => {
             $({text: store.count()})
@@ -8,32 +8,32 @@ describe('Count', () => {
         })
         passTime()
         assertBody(`"0"`)
-        assertEqual(cnt, 1)
+        expect(cnt).toEqual(1)
 
         store('a').set(1)
         passTime()
         assertBody(`"1"`)
-        assertEqual(cnt, 2)
+        expect(cnt).toEqual(2)
 
         store('a').set(2)
         passTime()
         assertBody(`"1"`)
-        assertEqual(cnt, 2)
+        expect(cnt).toEqual(2)
 
         store('b').set(1)
         passTime()
         assertBody(`"2"`)
-        assertEqual(cnt, 3)
+        expect(cnt).toEqual(3)
 
         store('a').delete()
         passTime()
         assertBody(`"1"`)
-        assertEqual(cnt, 4)
+        expect(cnt).toEqual(4)
 
         store('b').delete()
         passTime()
         assertBody(`"0"`)
-        assertEqual(cnt, 5)
+        expect(cnt).toEqual(5)
     })
 
     test('counts non-reflectively', () => {
@@ -46,28 +46,28 @@ describe('Count', () => {
             {data: objToMap({a:1, b:2}), count: 2},
         ]
         for(let c of cases) {
-            let store = new Store(c.data)
-            assertEqual(store.count(), c.count)
-            assertEqual(store.isEmpty(), c.count==0)
+            let store = proxy(c.data)
+            expect(store.count()).toEqual(c.count)
+            expect(store.isEmpty()).toEqual(c.count==0)
         }
     })
 
     test('throws when counting uncountable things', () => {
-        let store = new Store({a: 3})
+        let store = proxy({a: 3})
         assertThrow(() => {
             store('a').count()
         })
         assertThrow(() => {
             store('a').isEmpty()
         })
-        assertEqual(store('b').count(), 0)
-        assertEqual(store('b', 'c', 'd').count(), 0)
-        assertEqual(store('b').isEmpty(), true)
-        assertEqual(store('b', 'c', 'd').isEmpty(), true)
+        expect(store('b').count()).toEqual(0)
+        expect(store('b').toEqual('c', 'd').count(), 0)
+        expect(store('b').isEmpty()).toEqual(true)
+        expect(store('b').toEqual('c', 'd').isEmpty(), true)
     })
 
     test('reactively handles isEmpty', () => {
-        let store = new Store()
+        let store = proxy()
         let cnt = 0
         mount(document.body, () => {
             $({text: store.isEmpty()})
@@ -75,31 +75,31 @@ describe('Count', () => {
         })
         passTime()
         assertBody(`"true"`)
-        assertEqual(cnt, 1)
+        expect(cnt).toEqual(1)
 
         store('a').set(1)
         passTime()
         assertBody(`"false"`)
-        assertEqual(cnt, 2)
+        expect(cnt).toEqual(2)
 
         store('a').set(2)
         passTime()
         assertBody(`"false"`)
-        assertEqual(cnt, 2)
+        expect(cnt).toEqual(2)
 
         store('b').set(1)
         passTime()
         assertBody(`"false"`)
-        assertEqual(cnt, 2)
+        expect(cnt).toEqual(2)
 
         store('a').delete()
         passTime()
         assertBody(`"false"`)
-        assertEqual(cnt, 2)
+        expect(cnt).toEqual(2)
 
         store('b').delete()
         passTime()
         assertBody(`"true"`)
-        assertEqual(cnt, 3)
+        expect(cnt).toEqual(3)
     })
 })

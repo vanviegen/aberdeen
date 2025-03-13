@@ -20,7 +20,7 @@ describe('Error handling', () => {
     })
 
 	test('continues rendering after an error', () => {
-        let error = new Store(false)
+        let error = proxy(false)
         mount(document.body, () => {
             $('a', () => {
                 $('b')
@@ -79,7 +79,7 @@ describe('Error handling', () => {
 
 
     test('continue rendering after an error in onEach', () => {
-        let store = new Store(['a','b','c'])
+        let store = proxy(['a','b','c'])
         captureOnError('noSuchFunction', () => {
             mount(document.body, () => {
                 store.onEach(item => {
@@ -98,7 +98,7 @@ describe('Error handling', () => {
     })
 
     test('continue rendering after an error in onEach sort', () => {
-        let store = new Store(['a','b','c'])
+        let store = proxy(['a','b','c'])
         captureOnError('noSuchFunction', () => {
             mount(document.body, () => {
                 store.onEach(item => {
@@ -119,14 +119,14 @@ describe('Error handling', () => {
     })
 
     test('throws when indexing a non-indexable type', () => {
-        let store = new Store(3)
+        let store = proxy(3)
         assertThrow('found 3 at index 0 instead of', () => store('a').get())
         assertThrow('found 3 at index 0 instead of', () => store('a').set(5))
     })
 
     test('throws when onEach() is invoked wrong', () => {
-        let store1 = new Store()
-        let store2 = new Store()
+        let store1 = proxy()
+        let store2 = proxy()
         store1.set(5)
         observe(() => {
             assertThrow('neither a collection nor undefined', () => store1.onEach(item=>{}))
@@ -138,11 +138,11 @@ describe('Error handling', () => {
     })
 
     test('throws when passing invalid Store arguments', () => {
-        assertThrow('1st parameter should be an ObsCollection', () => new Store(3, true))
+        assertThrow('1st parameter should be an ObsCollection', () => proxy(3, true))
     })
 
     test('breaks up long update->observe recursions', () => {
-        let store = new Store({a: 0, b: 0})
+        let store = proxy({a: 0, b: 0})
         observe(() => {
             store('a').set(store('b').get()+1)
         })

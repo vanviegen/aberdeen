@@ -87,7 +87,7 @@ describe('DOM creator', function() {
 	})
 
 	test('unmounts', () => {
-		let store = new Store('Hej world')
+		let store = proxy('Hej world')
 		let cnt = 0
 		mount(document.body, () => {
 			cnt++
@@ -100,7 +100,7 @@ describe('DOM creator', function() {
 
 		store.set('Updated')
 		passTime()
-		assertEqual(cnt, 1)
+		expect(cnt).toEqual(1)
 
 		assertThrow("No such mount", () => unmount(123))
 	})
@@ -111,7 +111,7 @@ describe('DOM creator', function() {
 	})
 
 	test('creates text $s', () => {
-		let index = new Store(0)
+		let index = proxy(0)
 		let cases = [
 			['test', `"test"`],
 			['', `""`],
@@ -168,13 +168,13 @@ describe('DOM creator', function() {
 	})
 
 	test('dumps all basic values', () => {
-		let store = new Store([true,false,null,undefined,-12,3.14,"test",'"quote"'])
+		let store = proxy([true,false,null,undefined,-12,3.14,"test",'"quote"'])
 		mount(document.body, () => store.dump())
 		assertBody(`"<array>" ul{li{"0: " "true"} li{"1: " "false"} li{"2: " "null"} li{"4: " "-12"} li{"5: " "3.14"} li{"6: " "\\"test\\""} li{"7: " "\\"\\\\\\"quote\\\\\\"\\""}}`)
 	})
 
 	test('dumps maps, objects and arrays', () => {
-		let store = new Store(new Map([[3,4],['a','b']]))
+		let store = proxy(new Map([[3,4],['a','b']]))
 		mount(document.body, () => store.dump())
 		assertBody(`"<map>" ul{li{"\\"a\\": " "\\"b\\""} li{"3: " "4"}}`)
 		
@@ -188,7 +188,7 @@ describe('DOM creator', function() {
 	})
 
 	test('adds html', () => {
-		let store = new Store('test')
+		let store = proxy('test')
 		mount(document.body, () => {
 			$('main', () => {
 				$('hr')
@@ -215,7 +215,7 @@ describe('DOM creator', function() {
 	})
 
 	test('only unlinks the top parent of the tree being removed', () => {
-		let store = new Store(true)
+		let store = proxy(true)
 		mount(document.body, () => {
 			if (store.get()) $('main', () => {
 				$('a')
@@ -224,11 +224,11 @@ describe('DOM creator', function() {
 			})
 		})
 		assertBody(`main{a b c}`)
-		assertEqual(getCounts(), {new: 4, change: 4})
+		expect(getCounts()).toEqual({new: 4, change: 4})
 
 		store.set(false)
 		passTime()
 		assertBody(``)
-		assertEqual(getCounts(), {new: 4, change: 5})
+		expect(getCounts()).toEqual({new: 4, change: 5})
 	})
 });

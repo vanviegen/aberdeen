@@ -1,25 +1,25 @@
 describe('Destroy event', function() {
 	test('works for simple deletes', () => {
-        let store = new Store(true)
+        let store = proxy(true)
 		mount(document.body, () => {
             if (store.get()) $('b', {destroy: "x"})
             else $('c', {destroy: "x"})
 		})
 		assertBody(`b`)
-        assertEqual(getCounts(), {new: 1, change: 1})
+        expect(getCounts()).toEqual({new: 1, change: 1})
 
         store.set(false)
         passTime(1)
 		assertBody(`c b.x`)
-        assertEqual(getCounts(), {new: 2, change: 3})
+        expect(getCounts()).toEqual({new: 2, change: 3})
 
         passTime(5000)
 		assertBody(`c`)
-        assertEqual(getCounts(), {new: 2, change: 4})
+        expect(getCounts()).toEqual({new: 2, change: 4})
     });
 
 	test('inserts before deleted item', () => {
-        let store = new Store(['a'])
+        let store = proxy(['a'])
 		mount(document.body, () => {
             store.onEach(v => {
                 $(v.get(), {destroy: "x"})
@@ -39,14 +39,14 @@ describe('Destroy event', function() {
     });
 
 	test('transitions onEach deletes', () => {
-        let store = new Store(['a', 'b', 'c'])
+        let store = proxy(['a', 'b', 'c'])
 		let mnt = mount(document.body, () => {
             store.onEach(v => {
                 $(v.get(), {destroy: "x"})
             })
 		})
 		assertBody(`a b c`)
-        assertEqual(getCounts(), {new: 3, change: 3})
+        expect(getCounts()).toEqual({new: 3, change: 3})
 
         store(1).set(undefined)
         passTime(1)
@@ -67,7 +67,7 @@ describe('Destroy event', function() {
     })
 
     test('deletes in the middle of deleting items', () => {
-        let store = new Store(['a', 'b', 'c'])
+        let store = proxy(['a', 'b', 'c'])
 		mount(document.body, () => {
             store.onEach(v => {
                 $(v.get(), {destroy: "x"})
@@ -98,7 +98,7 @@ describe('Destroy event', function() {
     });
 
     test('aborts deletion transition on higher level removal', () => {
-        let store = new Store(['a'])
+        let store = proxy(['a'])
 		mount(document.body, () => {
             store.onEach(v => {
                 $(v.get(), {destroy: "x"})
@@ -119,7 +119,7 @@ describe('Destroy event', function() {
     });
 
     test('transitions removal of an entire onEach', () => {
-        let store = new Store(['a'])
+        let store = proxy(['a'])
 		mount(document.body, () => {
             store.onEach(v => {
                 $(v.get(), {destroy: "x"})
@@ -135,7 +135,7 @@ describe('Destroy event', function() {
     });
 
     test('insert new elements after a recently deleted item', () => {
-        let store = new Store({b: true, c: false})
+        let store = proxy({b: true, c: false})
 		mount(document.body, () => {
             $('a')
             observe(() => {
@@ -159,7 +159,7 @@ describe('Destroy event', function() {
     })
 
     test('remove elements before and after a deleting element', () => {
-        let store = new Store({a: true, b: true, c: true})
+        let store = proxy({a: true, b: true, c: true})
 		mount(document.body, () => {
             store.onEach(el => {
                 if (el.get()) $(el.index(), el.index()=='b' ? {destroy: 'y'} : null)
@@ -184,7 +184,7 @@ describe('Destroy event', function() {
     })
 
     test('remove middle elements before and after a deleting element', () => {
-        let store = new Store({a: true, b: true, c: true, d: true, e: true})
+        let store = proxy({a: true, b: true, c: true, d: true, e: true})
 		mount(document.body, () => {
             store.onEach(el => {
                 if (el.get()) $(el.index(), el.index()=='c' ? {destroy: 'y'} : null)
@@ -209,7 +209,7 @@ describe('Destroy event', function() {
     })
 
     test('remove elements before and after a deleting element', () => {
-        let store = new Store({a: true, b: true, c: true})
+        let store = proxy({a: true, b: true, c: true})
 		mount(document.body, () => {
             store.onEach(el => {
                 if (el.get()) $(el.index(), el.index()=='b' ? {destroy: 'y'} : null)
@@ -234,7 +234,7 @@ describe('Destroy event', function() {
     })
 
     test('performs a shrink animation', async() => {
-        let store = new Store(true)
+        let store = proxy(true)
         mount(document.body, () => {
             if (store.get()) $('a', {destroy: shrink})
         })
@@ -250,7 +250,7 @@ describe('Destroy event', function() {
     })
 
     test('performs a horizontal shrink animation', async() => {
-        let store = new Store(true)
+        let store = proxy(true)
         mount(document.body, () => {
             $('div', {$display: 'flex', $flexDirection: 'row-reverse'}, () => {
                 if (store.get()) $('a', {destroy: shrink})

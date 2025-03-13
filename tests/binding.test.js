@@ -1,6 +1,6 @@
 describe('Value binding', function() {
 	test('binds input values', () => {
-		let store = new Store('test')
+		let store = proxy('test')
 		let inputElement;
 		mount(document.body, () => {
 			$('input', {bind: store}, () => {
@@ -18,7 +18,7 @@ describe('Value binding', function() {
 	})
 
 	test('binds checkboxes', () => {
-		let store = new Store(true)
+		let store = proxy(true)
 		let inputElement;
 		mount(document.body, () => {
 			$('input', {type: 'checkbox', bind: store}, () => {
@@ -35,7 +35,7 @@ describe('Value binding', function() {
 	})
 
 	test('binds radio buttons', () => {
-		let store = new Store('woman')
+		let store = proxy('woman')
 		let inputElement1, inputElement2;
 		mount(document.body, () => {
 			$('input', {type: 'radio', name: 'gender', value: 'man', bind: store}, () => {
@@ -53,11 +53,11 @@ describe('Value binding', function() {
 		inputElement2.event("input")
 		passTime()
 
-		assertEqual(store.get(), 'man')
+		expect(store.get()).toEqual('man')
 	})
 
 	test('reads initial value when Store is undefined', () => {
-		let store = new Store({})
+		let store = proxy({})
 		mount(document.body, () => {
 			$('input', {value: 'a', bind: store('input')})
 			$('input', {type: 'checkbox', checked: true, bind: store('checkbox')})
@@ -65,12 +65,12 @@ describe('Value binding', function() {
 			$('input', {type: 'radio', name: 'abc', value: 'y', checked: true, bind: store('radio')})
 			$('input', {type: 'radio', name: 'abc', value: 'z', checked: false, bind: store('radio')})
 		})
-		assertEqual(store.get(), {input: 'a', checkbox: true, radio: 'y'})
+		expect(store.get()).toEqual({input: 'a', checkbox: true, radio: 'y'})
 	})
 
 	test('changes DOM when Store value is updated', () => {
-		let store = new Store("test")
-		let toggle = new Store(true)
+		let store = proxy("test")
+		let toggle = proxy(true)
 		mount(document.body, () => {
 			$('input', {bind: store})
 			$('input', {type: 'checkbox', bind: toggle})
@@ -84,7 +84,7 @@ describe('Value binding', function() {
 	})
 
 	test('returns numbers for number/range typed inputs', () => {
-		let store = new Store("")
+		let store = proxy("")
 		let inputElement;
 		mount(document.body, () => {
 			$('input', {type: 'number', bind: store}, () => {
@@ -96,12 +96,12 @@ describe('Value binding', function() {
 		inputElement.value = "123"
 		inputElement.event("input")
 		passTime()
-		assertEqual(store.get(), 123)
+		expect(store.get()).toEqual(123)
 
 		inputElement.value = ""
 		inputElement.event("input")
 		passTime()
-		assertEqual(store.get(), null)
+		expect(store.get()).toEqual(null)
 	})
 
 	test('only works on Stores', () => {

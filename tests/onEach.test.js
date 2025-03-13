@@ -8,7 +8,7 @@ describe('onEach', function() {
 				cnt++
 			})
 		})
-		assertEqual(cnt, 0)
+		expect(cnt).toEqual(0)
 	})
 
 
@@ -20,7 +20,7 @@ describe('onEach', function() {
 				result.push([k, v])
 			})
 		})
-		assertEqual(result, [['x', 3]])
+		expect(result).toEqual([['x', 3]])
 	})
 
 	test('emits multiple entries', () => {
@@ -33,7 +33,7 @@ describe('onEach', function() {
 			// The order is undefined, so we'll sort it
 			result.sort((a,b) => a[1] - b[1])
 		})
-		assertEqual(result, [['x', 3], ['y', 4], ['z', 5]])
+		expect(result).toEqual([['x', 3], ['y', 4], ['z', 5]])
 	})
 
 	test('adds a single item to the DOM', () => {
@@ -78,17 +78,17 @@ describe('onEach', function() {
 		})
 
 		assertBody(``);
-		assertEqual(cnts, [1,1,1,1]);
+		expect(cnts).toEqual([1,1,1,1]);
 
 		p.merge({1: true});
 		passTime();
 		assertBody(`p{id=1}`)
-		assertEqual(cnts, [1,2,1,1]);
+		expect(cnts).toEqual([1,2,1,1]);
 
 		p.merge({0: true, 2: true, 3: true});
 		passTime();
 		assertBody(`p{id=0} p{id=1} p{id=2} p{id=3}`)
-		assertEqual(cnts, [2,2,2,2]);
+		expect(cnts).toEqual([2,2,2,2]);
 	})
 
 	test('adds items in the right position', () => {
@@ -141,7 +141,7 @@ describe('onEach', function() {
 			cleanedExpected.push(item);
 			passTime()
 			assertBody(current.map(s => s).join(' '))
-			assertEqual(cleaned, cleanedExpected)
+			expect(cleaned).toEqual(cleanedExpected)
 		}
 	})
 
@@ -167,8 +167,8 @@ describe('onEach', function() {
 		p.set(true)
 		passTime()
 		assertBody(`"true"`)
-		assertEqual(cleaned, {a:true, b:true, c:true})
-		assertEqual(cnt, 3)
+		expect(cleaned).toEqual({a:true, b:true, c:true})
+		expect(cnt).toEqual(3)
 	})
 
 	test('should ignore on delete followed by set', () => {
@@ -181,14 +181,14 @@ describe('onEach', function() {
 			})
 		})
 		assertBody(`a b`)
-		assertEqual(cnt, 2)
+		expect(cnt).toEqual(2)
 
 		p('a').delete()
-		assertEqual(p.get(), {b: 2})
+		expect(p.get()).toEqual({b: 2})
 		p('a').set(3)
 		passTime()
 		assertBody(`a b`)
-		assertEqual(cnt, 2) // should not trigger again as the value is not subscribed
+		expect(cnt).toEqual(2) // should not trigger again as the value is not subscribed
 	});
 
 	test('should do nothing on set followed by delete', () => {
@@ -201,14 +201,14 @@ describe('onEach', function() {
 			})
 		})
 		assertBody(`a`)
-		assertEqual(cnt, 1)
+		expect(cnt).toEqual(1)
 
 		p('b').set(2)
-		assertEqual(p.get(), {a: 1, b: 2})
+		expect(p.get()).toEqual({a: 1, b: 2})
 		p('b').delete()
 		passTime()
 		assertBody(`a`)
-		assertEqual(cnt, 1)
+		expect(cnt).toEqual(1)
 	})
 
 	test(`should handle items with identical sort keys`, () => {
@@ -218,19 +218,19 @@ describe('onEach', function() {
 				$(item.index())
 			}, item => item.getNumber())
 		})
-		assertEqual(getBody().split(' ').sort().join(' '), `a b c d`)
+		expect(getBody().split(' ').sort().join(' ')).toEqual(`a b c d`)
 
 		p('b').delete()
 		passTime()
-		assertEqual(getBody().split(' ').sort().join(' '), `a c d`)
+		expect(getBody().split(' ').sort().join(' ')).toEqual(`a c d`)
 
 		p('d').delete()
 		passTime()
-		assertEqual(getBody().split(' ').sort().join(' '), `a c`)
+		expect(getBody().split(' ').sort().join(' ')).toEqual(`a c`)
 
 		p('a').delete()
 		passTime()
-		assertEqual(getBody().split(' ').sort().join(' '), `c`)
+		expect(getBody().split(' ').sort().join(' ')).toEqual(`c`)
 
 	})
 
@@ -370,20 +370,20 @@ describe('onEach', function() {
 	test('can run outside of any scope', () => {
 		let p = proxy([3, 7])
 		let incr = p.map(x => x.get()+1)
-		assertEqual(incr.get(), [4, 8])
+		expect(incr.get()).toEqual([4, 8])
 
 		p.push(11)
 		passTime()
-		assertEqual(incr.get(), [4, 8, 12])
+		expect(incr.get()).toEqual([4, 8, 12])
 
 		p(1).set(0)
 		passTime()
-		assertEqual(incr.get(), [4, 1, 12])
+		expect(incr.get()).toEqual([4, 1, 12])
 
 		unmount()
 
 		p.push(19)
 		passTime()
-		assertEqual(incr.get(), [])
+		expect(incr.get()).toEqual([])
 	})
 })

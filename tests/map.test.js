@@ -1,6 +1,6 @@
 describe('The map() and multiMap() methods', () => {
     test('transforms Maps to Maps', () => {
-        let store = new Store(objToMap({a: 0, b: 2, c: 3}))
+        let store = proxy(objToMap({a: 0, b: 2, c: 3}))
         let cnt1 = 0, cnt2 = 0
 
         mount(document.body, () => {
@@ -16,15 +16,15 @@ describe('The map() and multiMap() methods', () => {
         })
 
         assertBody(`"b=20" "c=30"`)
-        assertEqual([cnt1, cnt2], [3, 2])
+        expect([cnt1).toEqual(cnt2], [3, 2])
 
         store.merge(objToMap({a: 1, c: undefined}))
         passTime()
         assertBody(`"a=10" "b=20"`)
-        assertEqual([cnt1, cnt2], [4, 3])
+        expect([cnt1).toEqual(cnt2], [4, 3])
     })
     test('transforms Arrays to Objects', () => {
-        let store = new Store(['a', 'b'])
+        let store = proxy(['a', 'b'])
         let cnt1 = 0, cnt2 = 0
         let out
 
@@ -40,20 +40,20 @@ describe('The map() and multiMap() methods', () => {
             }, s => -s.get())
         })
 
-        assertEqual(out.peek(), objToMap({a: 0, b: 1}))
+        expect(out.peek()).toEqual(objToMap({a: 0, b: 1}))
         assertBody(`"b=1" "a=0"`)
-        assertEqual([cnt1, cnt2], [2, 2])
+        expect([cnt1).toEqual(cnt2], [2, 2])
 
         store(0).set('A')
         store.push('c')
         passTime()
-        assertEqual(store.peek(), ['A', 'b', 'c'])
-        assertEqual(out.peek(), objToMap({A: 0, b: 1, c: 2}))
+        expect(store.peek()).toEqual(['A', 'b', 'c'])
+        expect(out.peek()).toEqual(objToMap({A: 0, b: 1, c: 2}))
         assertBody(`"c=2" "b=1" "A=0"`)
-        assertEqual([cnt1, cnt2], [4, 4])
+        expect([cnt1).toEqual(cnt2], [4, 4])
     })
     test('transforms Objects to Maps', () => {
-        let store = new Store({a: {a:[]}, b: new Map([[1,2], [3,4]]), c: {c:5}, d: {}, e: 123})
+        let store = proxy({a: {a:[]}, b: new Map([[1,2], [3,4]]), c: {c:5}, d: {}, e: 123})
         let cnt1 = 0
         let out
 
@@ -64,36 +64,36 @@ describe('The map() and multiMap() methods', () => {
             })
         })
 
-        assertEqual(out.peek(), new Map([['a',[]], [1,2], [3,4], ['c',5]]))
-        assertEqual(cnt1, 5)
+        expect(out.peek()).toEqual(new Map([['a',[]], [1,2], [3,4], ['c',5]]))
+        expect(cnt1).toEqual(5)
 
         store('b').delete()
         store('a').set({})
         passTime()
-        assertEqual(out.peek(), new Map([['c',5]]))
-        assertEqual(cnt1, 6)
+        expect(out.peek()).toEqual(new Map([['c',5]]))
+        expect(cnt1).toEqual(6)
     })
     test('preserves the input collection type', () => {
-        let store = new Store([3, 7])
+        let store = proxy([3, 7])
 		let mapped = store.map(x => x.get()+1)
         
-        assertEqual(mapped.get(), [4, 8])
+        expect(mapped.get()).toEqual([4, 8])
 
         store.set({x: 3, y: 7})
         passTime()
-        assertEqual(mapped.get(), {x: 4, y: 8})
+        expect(mapped.get()).toEqual({x: 4, y: 8})
 
         store.set(new Map([['x', 3], ['y', 7]]))
         passTime()
-        assertEqual(mapped.get(), new Map([['x', 4], ['y', 8]]))
+        expect(mapped.get()).toEqual(new Map([['x', 4], ['y', 8]]))
     })
 
     test('derives', () => {
-        const store = new Store(21)
+        const store = proxy(21)
         const double = store.derive(v => v*2)
-        assertEqual(double.get(), 42)
+        expect(double.get()).toEqual(42)
         store.set(100)
         passTime()
-        assertEqual(double.get(), 200)
+        expect(double.get()).toEqual(200)
     })
 })

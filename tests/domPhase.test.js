@@ -35,7 +35,7 @@ describe('domPhase', function() {
         await Promise.all(tasks.map(task => task()))
         clearTimeout(interval)
 
-        assertEqual(order.join(' '), 'a0 b0 b1w b2w a1r b3r a2r b4r a3w b5w')
+        expect(order.join(' ')).toEqual('a0 b0 b1w b2w a1r b3r a2r b4r a3w b5w')
     });
 
 })

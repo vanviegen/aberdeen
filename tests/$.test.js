@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mount, $ } from "../src/aberdeen.ts"
+import { mount, $, proxy, ref } from "../src/aberdeen.ts"
 
 test('creates nested nodes', () => {
 	mount(document.body, () => {
@@ -16,7 +16,7 @@ test('creates elements with text', () => {
 })
 test('reactively modifies attributes that have stores as values', () => {
 	let cnt = 0
-	let store = new Store('initial')
+	let store = proxy('initial')
 	mount(document.body, () => {
 		cnt++
 		$('input', {placeholder:store})
@@ -24,36 +24,36 @@ test('reactively modifies attributes that have stores as values', () => {
 		$('p', {$color:store})
 	})
 	assertBody(`input{placeholder=initial} div{"initial"} p{color:initial}`)
-	assertEqual(cnt, 1)
+	expect(cnt).toEqual(1)
 
-	store.set('modified')
+	store.value = 'modified'
 	passTime()
 	assertBody(`input{placeholder=modified} div{"modified"} p{color:modified}`)
-	assertEqual(cnt, 1)
+	expect(cnt).toEqual(1)
 })
 test('reacts to conditions', () => {
-	const store = new Store({a: true})
-	assertEqual(store('a').get(), true)
+	const store = proxy({a: true})
+	expect(store.a).toEqual(true)
 	let cnt = 0
 	mount(document.body, () => {
 		cnt++
-		$("div", {".y": store('a')}, "span", {".z": store('b')})
-		const value = store('a').if("nope", store('yes'))
+		$("div", {".y": ref(store, 'a')}, "span", {".z": store('b')})
+		const value = $(() => store.a ? 'nope' : store.yes)
 		$("input", {value})
 	})
 	assertBody(`div.y{span} input{value->nope}`)
-	assertEqual(cnt, 1)
-	assertEqual(getCounts(), {new: 3, change: 5}) // also removes unset classes
+	expect(cnt).toEqual(1)
+	expect(getCounts()).toEqual({new: 3, change: 5}) // also removes unset classes
 
-	store.set({b: true, yes: "abc"})
+	$.set(store, {b: true, yes: "abc"})
 	passTime()
 
 	assertBody(`div{span.z} input{value->abc}`)
-	assertEqual(cnt, 1)
-	assertEqual(getCounts(), {new: 3, change: 5+2})
+	expect(cnt).toEqual(1)
+	expect(getCounts()).toEqual({new: 3, change: 5+2})
 
-	store("yes").set("def")
+	store.yes = "def"
 	passTime()
 	assertBody(`div{span.z} input{value->def}`)
-	assertEqual(cnt, 1)
+	expect(cnt).toEqual(1)
 })

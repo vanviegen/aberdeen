@@ -1,7 +1,7 @@
 describe('Property', function() {
     test('Sets and unsets classes', () => {
         let cnt1 = 0, cnt2 = 0, cnt3 = 0
-        let classObj = new Store({".a": false, ".b": true, ".c": undefined})
+        let classObj = proxy({".a": false, ".b": true, ".c": undefined})
         mount(document.body, () => {
             cnt1++
             $('div', () => {
@@ -25,11 +25,11 @@ describe('Property', function() {
         passTime()
         assertBody(`div.b.d`)
 
-        assertEqual([cnt1,cnt2,cnt3], [1,1,3])
+        expect([cnt1,cnt2,cnt3]).toEqual([1,1,3])
     })
 
     test('Defines and removes event listeners', () => {
-        let store = new Store(true)
+        let store = proxy(true)
         let el;
         let myFunc = ()=>{}
         mount(document.body, () => {
@@ -40,15 +40,15 @@ describe('Property', function() {
         })
 
         passTime()
-        assertEqual(el.events, {click: new Set([myFunc])})
+        expect(el.events).toEqual({click: new Set([myFunc])})
 
         store.set(false)
         passTime()
-        assertEqual(el.events, {click: new Set()})
+        expect(el.events).toEqual({click: new Set()})
     })
 
     test('Styles elements', () => {
-        const colorStore = new Store('blue')
+        const colorStore = proxy('blue')
         let count = 0
         mount(document.body, () => {
             count++
@@ -69,7 +69,7 @@ describe('Property', function() {
         passTime()
         assertBody(`div{backgroundColor:red color:orange margin:10px}`)
 
-        assertEqual(count, 1)
+        expect(count).toEqual(1)
 
     })
 })
