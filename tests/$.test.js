@@ -37,9 +37,10 @@ test('reacts to conditions', () => {
 	let cnt = 0
 	mount(document.body, () => {
 		cnt++
-		$("div", {".y": ref(store, 'a')}, "span", {".z": store('b')})
-		const value = $(() => store.a ? 'nope' : store.yes)
-		$("input", {value})
+		$("div", {".y": ref(store, 'a')}, "span", {".z": ref(store, 'b')})
+		$("input", {
+			value: $(() => store.a ? 'nope' : store.yes)
+		})
 	})
 	assertBody(`div.y{span} input{value->nope}`)
 	expect(cnt).toEqual(1)

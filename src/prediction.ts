@@ -1,4 +1,4 @@
-import {withEmitHandler} from './aberdeen.js'
+import $ from './aberdeen.js'
 
 type ObsCollection = any
 type Patch = Map<ObsCollection, Map<any, [any, any]>>;
@@ -6,7 +6,7 @@ type Patch = Map<ObsCollection, Map<any, [any, any]>>;
 
 function recordPatch(func: () => void): Patch {
 	const recordingPatch = new Map()
-	withEmitHandler(function(target, index, newData, oldData) {
+	$.withEmitHandler(function(target, index, newData, oldData) {
 		addToPatch(recordingPatch, target, index, newData, oldData)
 	}, func)
 	return recordingPatch

@@ -42,16 +42,70 @@ function queue(runner: QueueRunner) {
 	queueSet.add(runner);
 }
 
-/**
-* Normally, changes to `Store`s are reacted to asynchronously, in an (optimized) 
-* batch, after a timeout of 0s. Calling `runQueue()` will do so immediately
-* and synchronously. Doing so may be helpful in cases where you need some DOM
-* modification to be done synchronously.
-*
-* This function is re-entrant, meaning it is safe to call `runQueue` from a
-* function that is called due to another (automatic) invocation of `runQueue`.
-*/
-export function runQueue(): void {
+function $(...args: (string | (() => void) | false | null | undefined | {[key: string]: any})[]) {
+	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true);
+		
+	let deepEl = currentScope._parentElement;
+	let result
+	
+	for(let arg of args) {
+		if (arg == null || arg === false) continue;
+		if (typeof arg === 'string') {
+			let text, classes;
+			const textPos = arg.indexOf(':');
+			if (textPos >= 0) {
+				text = arg.substring(textPos+1);
+				if (textPos === 0) { // Just a string to add as text, no new node
+					addLeafNode(deepEl, document.createTextNode(text));
+					continue;
+				}
+				arg = arg.substring(0,textPos);
+			}
+			const classPos = arg.indexOf('.');
+			if (classPos >= 0) {
+				classes = arg.substring(classPos+1).replaceAll('.', ' ');
+				arg = arg.substring(0, classPos);
+			}
+			if (arg.indexOf(' ') >= 0) throw new Error(`Tag '${arg}' cannot contain space`);
+			const el = document.createElement(arg || 'div');
+			if (classes) el.className = classes;
+			if (text) el.textContent = text;
+			addLeafNode(deepEl, el);
+			deepEl = el;
+		}
+		else if (typeof arg === 'object') {
+			if (arg.constructor !== Object) throw new Error(`Unexpected argument: ${arg}`);
+			for(const key in arg) {
+				const val = arg[key];
+				applyArg(deepEl, key, val);
+			}
+		} else if (typeof arg === 'function' && arg === args[args.length-1]) {
+			const order = currentScope._queueOrder + 1
+			let scope
+			if (deepEl === currentScope._parentElement) {
+				// We're adding to a pre-existing element, that may already have other observers attached
+				const previousSibling = currentScope._lastChild || currentScope._precedingSibling
+				if (args.length===1) {
+					scope = new ResultScope(deepEl, previousSibling, order, arg);
+					result = scope.result
+				} else {
+					scope = new SimpleScope(deepEl, previousSibling, order, arg);
+				}
+				currentScope._lastChild = scope;		
+			} else {
+				// This is the first scope within a new DOM element
+				scope = new SimpleScope(deepEl, deepEl.lastChild as Node, order, arg);
+			}
+			scope._init()
+		} else {
+			throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`);
+		}
+	}
+
+	return result
+}
+
+$.runQueue = function(): void {
 	for(; queueIndex < queueArray.length; ) {
 		// Sort queue if new unordered items have been added since last time.
 		if (!queueOrdered) {
@@ -100,7 +154,7 @@ let domInReadPhase = false;
 * See `transitions.js` for some examples.
 */
 
-export const DOM_READ_PHASE = {
+$.DOM_READ_PHASE = {
 	then: function(fulfilled: () => void) {
 		if (domInReadPhase) fulfilled();
 			else {
@@ -127,7 +181,7 @@ export const DOM_READ_PHASE = {
 * See `transitions.js` for some examples.
 */
 
-export const DOM_WRITE_PHASE = {
+$.DOM_WRITE_PHASE = {
 	then: function(fulfilled: () => void) {
 		if (!domInReadPhase) fulfilled();
 			else {
@@ -726,11 +780,11 @@ function addObserver(target: any, index: any, observer: Observer|undefined = cur
 	currentScope?._cleaners.push(byIndex);
 }
 
-export function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeSortKey?: (value: DatumType, index: any) => SortKeyType): void {
+$.onEach = (target: TargetType, render: (value: DatumType, index: any) => void, makeSortKey?: (value: DatumType, index: any) => SortKeyType): void {
 	new OnEachScope(target, render, makeSortKey);
 }
 
-export function isEmpty(target: TargetType): boolean {
+$.isEmpty = (target: TargetType): boolean {
 	return (new IsEmptyObserver(currentScope, target)).count == 0
 }
 
@@ -954,15 +1008,15 @@ function optProxy(value: any): any {
 	return proxied;
 }
 
-export function proxy<T extends DatumType>(array: T[]): ArrayProxy<T>;
-export function proxy<T extends object>(obj: T): ObjectProxy<T>;
-export function proxy<T extends DatumType>(value: T): ObjectProxy<{value: T}>
+$.proxy = <T extends DatumType>(array: T[]): ArrayProxy<T>;
+$.proxy = <T extends object>(obj: T): ObjectProxy<T>;
+$.proxy = <T extends DatumType>(value: T): ObjectProxy<{value: T}>
 
-export function proxy(target: TargetType): TargetType {
+$.proxy = (target: TargetType): TargetType {
 	return optProxy(typeof target === 'object' && target !== null ? target : {value: target});
 }
 
-export function isProxied(target: TargetType): boolean {
+$.isProxied = (target: TargetType): boolean {
 	return typeof target === 'object' && target !== null && (target as any)[TARGET_SYMBOL] !== undefined;
 }
 
@@ -1010,11 +1064,11 @@ function addLeafNode(deepEl: Element, node: Node) {
 * })
 * ```
 */
-export function get<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1] | undefined;
-export function get<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2] | undefined;
-export function get<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
+$.get = <T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1] | undefined;
+$.get = <T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2] | undefined;
+$.get = <T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
 
-export function get(target: TargetType, ...indices: any[]): DatumType | undefined {
+$.get = (target: TargetType, ...indices: any[]): DatumType | undefined {
 	// We'll work on the proxied object, subscribing to reads
 	let node: any = target;
 	for(let index of indices) {
@@ -1026,12 +1080,12 @@ export function get(target: TargetType, ...indices: any[]): DatumType | undefine
 }
 
 
-export function set<T extends object>(target: T, value: T): void;
-export function set<T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
-export function set<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
-export function set<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
+$.set = <T extends object>(target: T, value: T): void;
+$.set = <T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
+$.set = <T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
+$.set = <T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
 
-export function set(target: TargetType, ...indicesAndValue: any[]): void {
+$.set = (target: TargetType, ...indicesAndValue: any[]): void {
 	// We don't want to subscribe, so we'll work on the actual target object
 	target = (target as any)[TARGET_SYMBOL] || target
 	const value = indicesAndValue.pop();
@@ -1046,12 +1100,12 @@ export function set(target: TargetType, ...indicesAndValue: any[]): void {
 }
 
 
-export function merge<T extends object>(target: T, value: T): void;
-export function merge<T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
-export function merge<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
-export function merge<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
+$.merge = <T extends object>(target: T, value: T): void;
+$.merge = <T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
+$.merge = <T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
+$.merge = <T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
 
-export function merge(target: TargetType, ...indicesAndValue: any[]): void {
+$.merge = (target: TargetType, ...indicesAndValue: any[]): void {
 	// We don't want to subscribe, so we'll work on the actual target object
 	target = (target as any)[TARGET_SYMBOL] || target
 	const value = indicesAndValue.pop();
@@ -1072,6 +1126,7 @@ interface RefTarget {
 }
 const refHandler: ProxyHandler<RefTarget> = {
 	get(target: RefTarget, prop: any) {
+		if (prop===TARGET_SYMBOL) return target;
 		if (prop==="value") {
 			console.log(`REF GET`);
 			return (target.proxy as any)[target.index];
@@ -1087,7 +1142,7 @@ const refHandler: ProxyHandler<RefTarget> = {
 	},
 };
 
-export function ref(proxy: TargetType, index: any) {
+$.ref = (proxy: TargetType, index: any) {
 	return new Proxy({proxy, index}, refHandler);
 }
 
@@ -1158,168 +1213,13 @@ const SPECIAL_PROPS: {[key: string]: (el: Element, value: any) => void} = {
 }
 
 
-
-/**
-* Modifies the *parent* DOM element in the current reactive scope, or adds
-* new DOM elements to it.
-* 
-* @param args - Arguments that define how to modify/create elements.
-* 
-* ### String arguments
-* Create new elements with optional classes and text content:
-* ```js
-* $('div.myClass')              // <div class="myClass"></div>
-* $('span.c1.c2:Hello')         // <span class="c1 c2">Hello</span>
-* $('p:Some text')              // <p>Some text</p>
-* $('.my-thing')                // <div class="my-thing"></div>
-* $('div', 'span', 'p.cls')     // <div><span<p class="cls"></p></span></div>
-* $(':Just some text!')		 // Just some text! (No new element, just a text node)
-* ```
-* 
-* ### Object arguments
-* Set properties, attributes, events and special features:
-* ```js
-* // Classes (dot prefix)
-* $('div', {'.active': true})           // Add class
-* $('div', {'.hidden': false})          // Remove (or don't add) class
-* $('div', {'.selected': myStore})      // Reactively add/remove class
-* 
-* // Styles (dollar prefixed and camel-cased CSS properties)
-* $('div', {$color: 'red'})             // style.color = 'red'
-* $('div', {$marginTop: '10px'})        // style.marginTop = '10px'
-* $('div', {$color: myColorStore})      // Reactively change color
-* 
-* // Events (function values)
-* $('button', {click: () => alert()})   // Add click handler
-* 
-* // Properties (boolean values, `selectedIndex`, `value`)
-* $('input', {disabled: true})          // el.disabled = true
-* $('input', {value: 'test'})           // el.value = 'test'
-* $('select', {selectedIndex: 2})       // el.selectedIndex = 2
-* 
-* // Transitions
-* $('div', {create: 'fade-in'})         // Add class on create
-* $('div', {create: el => {...}})       // Run function on create
-* $('div', {destroy: 'fade-out'})       // Add class before remove
-* $('div', {destroy: el => {...}})      // Run function before remove
-* 
-* // Content
-* $('div', {html: '<b>Bold</b>'})       // Set innerHTML
-* $('div', {text: 'Plain text'})        // Add text node
-* const myElement = document.createElement('video')
-* $('div', {element: myElement})        // Add existing DOM element
-*
-* // Regular attributes (everything else)
-* $('div', {title: 'Info'})             // el.setAttribute('title', 'info')
-* ```
-* 
-* When a `Store` is passed as a value, a seperate observe-scope will
-* be created for it, such that when the `Store` changes, only *that*
-* UI property will need to be updated.
-* So in the following example, when `colorStore` changes, only the
-* `color` CSS property will be updated.
-* ```js
-* $('div', {
-*   '.active': activeStore,             // Reactive class
-*   $color: colorStore,                 // Reactive style
-*   text: textStore                     // Reactive text
-* })
-* ```
-* 
-* ### Two-way input binding
-* Set the initial value of an <input> <textarea> or <select> to that
-* of a `Store`, and then start reflecting user changes to the former
-* in the latter.
-* ```js
-* $('input', {bind: myStore})           // Binds input.value
-* ```
-* This is a special case, as changes to the `Store` will *not* be
-* reflected in the UI. 
-* 
-* ### Function arguments
-* Create child scopes that re-run on observed `Store` changes:
-* ```js 
-* $('div', () => {
-*   $(myStore.get() ? 'span' : 'p')     // Reactive element type
-* })
-* ```
-* When *only* a function is given, `$` behaves exactly like {@link Store.observe},
-* except that it will only work when we're inside a `mount`.
-* 
-* @throws {ScopeError} If called outside an observable scope.
-* @throws {Error} If invalid arguments are provided.
-*/
-
-export function $(...args: (string | (() => void) | false | null | undefined | {[key: string]: any})[]) {
-	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true);
-		
-	let deepEl = currentScope._parentElement;
-	let result
-	
-	for(let arg of args) {
-		if (arg == null || arg === false) continue;
-		if (typeof arg === 'string') {
-			let text, classes;
-			const textPos = arg.indexOf(':');
-			if (textPos >= 0) {
-				text = arg.substring(textPos+1);
-				if (textPos === 0) { // Just a string to add as text, no new node
-					addLeafNode(deepEl, document.createTextNode(text));
-					continue;
-				}
-				arg = arg.substring(0,textPos);
-			}
-			const classPos = arg.indexOf('.');
-			if (classPos >= 0) {
-				classes = arg.substring(classPos+1).replaceAll('.', ' ');
-				arg = arg.substring(0, classPos);
-			}
-			if (arg.indexOf(' ') >= 0) throw new Error(`Tag '${arg}' cannot contain space`);
-			const el = document.createElement(arg || 'div');
-			if (classes) el.className = classes;
-			if (text) el.textContent = text;
-			addLeafNode(deepEl, el);
-			deepEl = el;
-		}
-		else if (typeof arg === 'object') {
-			if (arg.constructor !== Object) throw new Error(`Unexpected argument: ${arg}`);
-			for(const key in arg) {
-				const val = arg[key];
-				applyArg(deepEl, key, val);
-			}
-		} else if (typeof arg === 'function' && arg === args[args.length-1]) {
-			const order = currentScope._queueOrder + 1
-			let scope
-			if (deepEl === currentScope._parentElement) {
-				// We're adding to a pre-existing element, that may already have other observers attached
-				const previousSibling = currentScope._lastChild || currentScope._precedingSibling
-				if (args.length===1) {
-					scope = new ResultScope(deepEl, previousSibling, order, arg);
-					result = scope.result
-				} else {
-					scope = new SimpleScope(deepEl, previousSibling, order, arg);
-				}
-				currentScope._lastChild = scope;		
-			} else {
-				// This is the first scope within a new DOM element
-				scope = new SimpleScope(deepEl, deepEl.lastChild as Node, order, arg);
-			}
-			scope._init()
-		} else {
-			throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`);
-		}
-	}
-
-	return result
-}
-
-
 function applyArg(deepEl: Element, key: string, value: any) {
 	console.log("applyArg", key, value)
 	if (typeof value === 'object' && value !== null && value[TARGET_SYMBOL] !== undefined) { // Value is a proxy
 		if (key === 'bind') {
 			applyBind(deepEl, value)
 		} else {
+			console.log("setArgScope")
 			let childScope = new SetArgScope(deepEl, deepEl.lastChild as Node, currentScope!._queueOrder+1, key, value)
 			// SetArgScope will (repeatedly) call `applyArg` again with the actual value
 			childScope._init();
@@ -1379,7 +1279,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
 * })
 * ```
 */
-export function setErrorHandler(handler?: (error: Error) => boolean | undefined) {
+$.setErrorHandler = (handler?: (error: Error) => boolean | undefined) {
 	onError = handler || defaultOnError;
 }
 
@@ -1391,7 +1291,7 @@ export function setErrorHandler(handler?: (error: Error) => boolean | undefined)
 * how your changes interact with Aberdeen, in most cases results will not be
 * terribly surprising. Be careful within the parent element of onEach() though.
 */
-export function getParentElement(): Element {
+$.getParentElement = (): Element {
 	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true);
 	return currentScope._parentElement;
 }
@@ -1402,7 +1302,7 @@ export function getParentElement(): Element {
 * disappears or redraws.
 * @param cleaner - The function to be executed.
 */
-export function clean(cleaner: () => void) {
+$.clean = (cleaner: () => void) {
 	if (!currentScope) throw new ScopeError(false);
 	currentScope._cleaners.push({delete: cleaner});
 }
@@ -1430,7 +1330,7 @@ export function clean(cleaner: () => void) {
 *   console.log(doubled.get())
 * })
 */
-export function observe(func: () => void): number | undefined {
+$.observe = (func: () => void): number | undefined {
 	return _mount(undefined, func, SimpleScope);
 }
 
@@ -1443,7 +1343,7 @@ export function observe(func: () => void): number | undefined {
 * @param func The function to be (repeatedly) executed.
 * @returns The mount id (usable for `unmount`) if this is a top-level observe.
 */
-export function immediateObserve(func: () => void): number | undefined {
+$.immediateObserve = (func: () => void): number | undefined {
 	return _mount(undefined, func, ImmediateScope);
 }
 
@@ -1489,7 +1389,7 @@ export function immediateObserve(func: () => void): number | undefined {
 * })
 * ```
 */
-export function mount(parentElement: Element, func: () => void) {
+$.mount = (parentElement: Element, func: () => void) {
 	for(let scope of topScopes.values()) {
 		if (parentElement === scope._parentElement) {
 			throw new Error("Only a single mount per parent element");
@@ -1525,7 +1425,7 @@ function _mount(parentElement: Element | undefined, func: () => void, MountScope
 * of any other mount or observe.
 * @param id Optional mount number (as returned by `mount`, `observe` or `immediateObserve`). If `undefined`, unmount all.
 */
-export function unmount(id?: number) {
+$.unmount = (id?: number) {
 	if (id == null) {
 		for(let scope of topScopes.values()) scope._remove();
 		topScopes.clear();
@@ -1560,7 +1460,7 @@ export function unmount(id?: number) {
 * for `count()` however.
 */
 
-export function peek<T>(func: () => T): T;
+$.peek = <T>(func: () => T): T;
 /** Alternatively `peek` can behave like {@link get}, only without subscribing to reads.
 *
 * @param target A (possibly proxied) object, `Map` or `Array`.
@@ -1581,11 +1481,11 @@ export function peek<T>(func: () => T): T;
 * })
 * ```
 */
-export function peek<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1] | undefined;
-export function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2] | undefined;
-export function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
+$.peek = <T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1] | undefined;
+$.peek = <T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2] | undefined;
+$.peek = <T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
 
-export function peek(target: TargetType, ...indices: any[]): DatumType | undefined {
+$.peek = (target: TargetType, ...indices: any[]): DatumType | undefined {
 	let savedScope = currentScope;
 	currentScope = undefined;
 	try {
@@ -1631,7 +1531,7 @@ class ScopeError extends Error {
 }
 
 /** @internal */
-export function withEmitHandler(handler: (target: TargetType, index: any, newData: DatumType, oldData: DatumType) => void, func: ()=>void) {
+$.withEmitHandler = (handler: (target: TargetType, index: any, newData: DatumType, oldData: DatumType) => void, func: ()=>void) {
 	const oldEmitHandler = emit;
 	emit = handler;
 	try {
@@ -1649,3 +1549,108 @@ declare global {
 		replaceAll(from: string, to: string): string;
 	}
 }
+
+export default $ as {
+	/**
+	* Modifies the *parent* DOM element in the current reactive scope, or adds
+	* new DOM elements to it.
+	* 
+	* @param args - Arguments that define how to modify/create elements.
+	* 
+	* ### String arguments
+	* Create new elements with optional classes and text content:
+	* ```js
+	* $('div.myClass')              // <div class="myClass"></div>
+	* $('span.c1.c2:Hello')         // <span class="c1 c2">Hello</span>
+	* $('p:Some text')              // <p>Some text</p>
+	* $('.my-thing')                // <div class="my-thing"></div>
+	* $('div', 'span', 'p.cls')     // <div><span<p class="cls"></p></span></div>
+	* $(':Just some text!')		 // Just some text! (No new element, just a text node)
+	* ```
+	* 
+	* ### Object arguments
+	* Set properties, attributes, events and special features:
+	* ```js
+	* // Classes (dot prefix)
+	* $('div', {'.active': true})           // Add class
+	* $('div', {'.hidden': false})          // Remove (or don't add) class
+	* $('div', {'.selected': myStore})      // Reactively add/remove class
+	* 
+	* // Styles (dollar prefixed and camel-cased CSS properties)
+	* $('div', {$color: 'red'})             // style.color = 'red'
+	* $('div', {$marginTop: '10px'})        // style.marginTop = '10px'
+	* $('div', {$color: myColorStore})      // Reactively change color
+	* 
+	* // Events (function values)
+	* $('button', {click: () => alert()})   // Add click handler
+	* 
+	* // Properties (boolean values, `selectedIndex`, `value`)
+	* $('input', {disabled: true})          // el.disabled = true
+	* $('input', {value: 'test'})           // el.value = 'test'
+	* $('select', {selectedIndex: 2})       // el.selectedIndex = 2
+	* 
+	* // Transitions
+	* $('div', {create: 'fade-in'})         // Add class on create
+	* $('div', {create: el => {...}})       // Run function on create
+	* $('div', {destroy: 'fade-out'})       // Add class before remove
+	* $('div', {destroy: el => {...}})      // Run function before remove
+	* 
+	* // Content
+	* $('div', {html: '<b>Bold</b>'})       // Set innerHTML
+	* $('div', {text: 'Plain text'})        // Add text node
+	* const myElement = document.createElement('video')
+	* $('div', {element: myElement})        // Add existing DOM element
+	*
+	* // Regular attributes (everything else)
+	* $('div', {title: 'Info'})             // el.setAttribute('title', 'info')
+	* ```
+	* 
+	* When a `Store` is passed as a value, a seperate observe-scope will
+	* be created for it, such that when the `Store` changes, only *that*
+	* UI property will need to be updated.
+	* So in the following example, when `colorStore` changes, only the
+	* `color` CSS property will be updated.
+	* ```js
+	* $('div', {
+	*   '.active': activeStore,             // Reactive class
+	*   $color: colorStore,                 // Reactive style
+	*   text: textStore                     // Reactive text
+	* })
+	* ```
+	* 
+	* ### Two-way input binding
+	* Set the initial value of an <input> <textarea> or <select> to that
+	* of a `Store`, and then start reflecting user changes to the former
+	* in the latter.
+	* ```js
+	* $('input', {bind: myStore})           // Binds input.value
+	* ```
+	* This is a special case, as changes to the `Store` will *not* be
+	* reflected in the UI. 
+	* 
+	* ### Function arguments
+	* Create child scopes that re-run on observed `Store` changes:
+	* ```js 
+	* $('div', () => {
+	*   $(myStore.get() ? 'span' : 'p')     // Reactive element type
+	* })
+	* ```
+	* When *only* a function is given, `$` behaves exactly like {@link Store.observe},
+	* except that it will only work when we're inside a `mount`.
+	* 
+	* @throws {ScopeError} If called outside an observable scope.
+	* @throws {Error} If invalid arguments are provided.
+	*/
+	(...args: (string | (() => void) | false | null | undefined | {[key: string]: any})[]);
+
+	/**
+	* Normally, changes to `Store`s are reacted to asynchronously, in an (optimized) 
+	* batch, after a timeout of 0s. Calling `runQueue()` will do so immediately
+	* and synchronously. Doing so may be helpful in cases where you need some DOM
+	* modification to be done synchronously.
+	*
+	* This function is re-entrant, meaning it is safe to call `runQueue` from a
+	* function that is called due to another (automatic) invocation of `runQueue`.
+	*/
+	runQueue(): void;
+};
