@@ -16,7 +16,7 @@ describe('Create event', function() {
 		})
         
 		assertBody(``)
-        expect(getCounts()).toEqual({new: 0, change: 0})
+        assertDomUpdates({new: 0, changed: 0})
 
         store.set(true)
         await asyncPassTime(0)
@@ -24,7 +24,7 @@ describe('Create event', function() {
         // removed, so we'll just look at the number of changes, which would have
         // been 1 (just inserting the newly created DOM element) without the
         // create-transition.
-        expect(getCounts()).toEqual({new: 1, change: 3})
+        assertDomUpdates({new: 1, changed: 3})
 
 		assertBody(`b`)
     });
@@ -43,7 +43,7 @@ describe('Create event', function() {
         // removed, so we'll just look at the number of changes, which would have
         // been 4 (2 $ insert + 1 class add + 1 class remove) with the
         // create-transition.
-        expect(getCounts()).toEqual({new: 2, change: 2}) // 2 new $s, 2 $ inserts 
+        assertDomUpdates({new: 2, changed: 2}) // 2 new $s, 2 $ inserts 
 
         assertBody(`b{c}`)
     });
@@ -63,7 +63,7 @@ describe('Create event', function() {
         // removed, so we'll just look at the number of changes, which would have
         // been 2 (just inserting the newly created DOM elements) without the
         // create-transition.
-        expect(getCounts()).toEqual({new: 2, change: 6})
+        assertDomUpdates({new: 2, changed: 6})
 
 		assertBody(`a c`)
     });

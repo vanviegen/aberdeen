@@ -41,9 +41,12 @@
   "devDependencies": {
     "c8": "^10.1.3",
     "typedoc": "^0.23.28",
-    "typescript": "^4.9.5"
+    "typescript": "^4.9.5",
+    "@types/bun": "latest"
   },
   "files": [
-   "dist", "dist-min", "src"
+    "dist",
+    "dist-min",
+    "src"
   ]
 }

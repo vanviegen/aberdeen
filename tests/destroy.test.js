@@ -6,16 +6,16 @@ describe('Destroy event', function() {
             else $('c', {destroy: "x"})
 		})
 		assertBody(`b`)
-        expect(getCounts()).toEqual({new: 1, change: 1})
+        assertDomUpdates({new: 1, changed: 1})
 
         store.set(false)
         passTime(1)
 		assertBody(`c b.x`)
-        expect(getCounts()).toEqual({new: 2, change: 3})
+        assertDomUpdates({new: 2, changed: 3})
 
         passTime(5000)
 		assertBody(`c`)
-        expect(getCounts()).toEqual({new: 2, change: 4})
+        assertDomUpdates({new: 2, changed: 4})
     });
 
 	test('inserts before deleted item', () => {
@@ -46,7 +46,7 @@ describe('Destroy event', function() {
             })
 		})
 		assertBody(`a b c`)
-        expect(getCounts()).toEqual({new: 3, change: 3})
+        assertDomUpdates({new: 3, changed: 3})
 
         store(1).set(undefined)
         passTime(1)

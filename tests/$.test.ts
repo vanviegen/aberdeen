@@ -1,14 +1,15 @@
 import { expect, test } from "bun:test";
-import { mount, $, proxy, ref } from "../src/aberdeen.ts"
+import { assertBody, passTime, assertDomUpdates } from "./helpers";
+import $ from "../src/aberdeen"
 
 test('creates nested nodes', () => {
-	mount(document.body, () => {
+	$.mount(document.body, () => {
 		$("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
 	})
 	assertBody(`a{b.cls.second{c{x=y}}}`)
 });
 test('creates elements with text', () => {
-	mount(document.body, () => {
+	$.mount(document.body, () => {
 		$('.cls:This is my :-containg text!')
 		$('h2', {text: 'More text...'})
 	})
@@ -16,8 +17,8 @@ test('creates elements with text', () => {
 })
 test('reactively modifies attributes that have stores as values', () => {
 	let cnt = 0
-	let store = proxy('initial')
-	mount(document.body, () => {
+	let store = $.proxy('initial' as string)
+	$.mount(document.body, () => {
 		cnt++
 		$('input', {placeholder:store})
 		$('div', {text:store})
@@ -32,26 +33,26 @@ test('reactively modifies attributes that have stores as values', () => {
 	expect(cnt).toEqual(1)
 })
 test('reacts to conditions', () => {
-	const store = proxy({a: true})
+	const store: Record<string,any> = $.proxy({a: true})
 	expect(store.a).toEqual(true)
 	let cnt = 0
-	mount(document.body, () => {
+	$.mount(document.body, () => {
 		cnt++
-		$("div", {".y": ref(store, 'a')}, "span", {".z": ref(store, 'b')})
+		$("div", {".y": $.ref(store, 'a')}, "span", {".z": $.ref(store, 'b')})
 		$("input", {
 			value: $(() => store.a ? 'nope' : store.yes)
 		})
 	})
 	assertBody(`div.y{span} input{value->nope}`)
 	expect(cnt).toEqual(1)
-	expect(getCounts()).toEqual({new: 3, change: 5}) // also removes unset classes
+	assertDomUpdates({new: 3, changed: 5}) // also removes unset classes
 
-	$.set(store, {b: true, yes: "abc"})
+	$.set(store, {b: true, yes: "abc"}) // delete 'a'
 	passTime()
 
 	assertBody(`div{span.z} input{value->abc}`)
 	expect(cnt).toEqual(1)
-	expect(getCounts()).toEqual({new: 3, change: 5+2})
+	assertDomUpdates({new: 3, changed: 5+2})
 
 	store.yes = "def"
 	passTime()

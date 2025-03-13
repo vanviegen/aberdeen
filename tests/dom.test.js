@@ -224,11 +224,11 @@ describe('DOM creator', function() {
 			})
 		})
 		assertBody(`main{a b c}`)
-		expect(getCounts()).toEqual({new: 4, change: 4})
+		assertDomUpdates({new: 4, changed: 4})
 
 		store.set(false)
 		passTime()
 		assertBody(``)
-		expect(getCounts()).toEqual({new: 4, change: 5})
+		assertDomUpdates({new: 4, changed: 5})
 	})
 });
