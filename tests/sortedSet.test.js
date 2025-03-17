@@ -1,9 +1,20 @@
 import { expect, test, beforeEach } from "bun:test";
-import { SkipList } from "../src/skiplist.ts"
+import { SortedSet, makeKeyBetween } from "../src/sortedSet.ts"
+
+
+expect.extend({
+    toBeBetween: function(actual, floor, ceiling) {
+        const pass = actual > floor && actual < ceiling;
+        return {
+            pass,
+            message: () => `expected ${this.utils.printReceived(actual,)} ${pass ? 'not ' : ''}to be within range ${this.utils.printExpected(`${floor} - ${ceiling}`)}`
+        }
+    }
+});
 
 let list;
 beforeEach(() => {
-    list = new SkipList('id');
+    list = new SortedSet('id');
 });
 
 // Basic operations
@@ -84,3 +95,27 @@ test('handle sparse ids', () => {
     items.forEach(item => list.add(item));
     expect([...list].map(i => i.id)).toEqual([0, 100, 1000, 10000]);
 });
+
+test('makeKeyBetween', () => {
+    expect(makeKeyBetween('a', 'c')).toBe('b');
+
+    expect(makeKeyBetween('a', 'b')).toBeBetween('a', 'b');
+    expect(makeKeyBetween('a', 'b')).toHaveLength(2);
+
+    expect(makeKeyBetween(undefined, 'x')).toBeBetween('0', 'x');
+    expect(makeKeyBetween(undefined, 'x')).toHaveLength(1);
+
+    expect(makeKeyBetween('x', undefined)).toBeBetween('x', "\x7f");
+    expect(makeKeyBetween('x', undefined)).toHaveLength(1);
+
+    expect(makeKeyBetween('xya', 'xyc')).toBe('xyb');
+
+    expect(makeKeyBetween('xya~~~', 'xybZ')).toBeBetween('xya~~~', 'xybZ');
+
+    // Nothing can come before this
+    expect(() => makeKeyBetween(undefined, "0")).toThrow("Invalid pre");
+    expect(() => makeKeyBetween("b", "b")).toThrow("Invalid pre");
+    expect(() => makeKeyBetween("b", "a")).toThrow("Invalid pre");
+
+    
+})

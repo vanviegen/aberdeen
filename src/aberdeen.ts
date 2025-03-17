@@ -1,6 +1,12 @@
-import { SkipList } from "./skiplist"
+import { SkipList } from "../dist-min/skiplist";
+import { SortedSet } from "./sortedSet"
 
-// TODO: at SkipList as a proxied type, with efficient onEach implementation (we could do that for array as well)
+// LATEST THINKING:
+// We don't need to expose SortedSet afterall. Just create an object with id keys, or something like that. You'll
+// probably want/need an identifier for your objects anyway, and reordering shouldn't change identifiers.
+// SortedSet should again be just an implementation detach of onEach. And let's just *always* use it, and not try
+// to create fast-paths for already-sorted cases (which are unlikely to occur anyway and which require complex
+// metadata as anyhow).
 
 /*
 * QueueRunner
@@ -21,7 +27,7 @@ let runQueueDepth = 0 // Incremented when a queue event causes another queue eve
 let topRedrawScope: Scope | undefined // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 
 
-type TargetType = {[key: string]: any} | any[];
+type TargetType = any[] | SortedSet<object> | {[key: string]: any};
 type DatumType = TargetType | boolean | number | string | null | undefined;
 
 /** @internal */
@@ -403,7 +409,7 @@ class SetArgScope extends SimpleScope {
 		precedingSibling: Node | Scope | undefined,
 		queueOrder: number,
 		private _key: string,
-		private _target: ObjectProxy<{value: DatumType}>,
+		private _target: {value: DatumType},
 	) {
 		super(parentElement, precedingSibling, queueOrder)
 	}
@@ -445,82 +451,60 @@ function runImmediateQueue() {
 	}
 }
 
-class IsEmptyObserver implements Observer {
-	scope: Scope | undefined;
-	count: number;
-	
-	constructor(scope: Scope|undefined, proxy: TargetType) {
-		this.scope = scope;
-		const target: TargetType | undefined = (proxy as any)[TARGET_SYMBOL];
-		if (!target) throw new TypeError("Proxy object expected");
-		this.count = target instanceof Array ? target.length : Object.keys(target).length;
-		addObserver(target, ANY_SYMBOL, this);
-	}
-	
-	_onChange(index: any, newData: DatumType, oldData: DatumType) {
-		if (newData===undefined) {
-			// oldData is guaranteed not to be undefined
-			if (!--this.count) queue(this.scope!);
-		} else if (oldData===undefined) {
-			if (!this.count++) queue(this.scope!);
-		}
-	}
-}
 
-/** @internal */
-class OnEachScope extends Scope {
-	
-	/** The data structure we are iterating */
-	_target: TargetType;
-	
-	/** A function returning a number/string/array that defines the position of an item */
-	_makeSortKey: (key: any, value: DatumType) => SortKeyType;
-	
+// TODO: make optimized OnEachScopes for array (sorting is easy) and plain object (sorted by insert order) and SkipList (custom sort).
+// Provide a method to create a synced SkipList out of some other iteratable.
+
+abstract class OnEachScope extends Scope {
 	/** A function that renders an item */
 	_renderer: (key: any, value: DatumType) => void;
-	
-	/** The item scopes in a Map by index */
-	_byIndex: Map<any, OnEachItemScope> = new Map();
 
-	/** The ordered list of current item scopes */
-	_bySortStr: SkipList<OnEachItemScope> = new SkipList('_sortStr');
-	
 	/** Indexes that have been created/removed and need to be handled in the next `queueRun` */
 	_newIndexes: Set<any> = new Set();
 	_removedIndexes: Set<any> = new Set();
-	
+
+	/** The data structure we are iterating */
+	_target: TargetType;
+		
+	/** The item scopes in a Map by index */
+	_byIndex: Map<any, OnEachItemScope> = new Map();
+
+	/* Cases
+	- SortedSet provided
+	- Array provided
+	- object/array/SortedList provided with makeKey, create a new sortedlist while in the OnEachItemScope
+	*/
+
 	constructor(
 		target: TargetType,
 		renderer: (value: DatumType, key: any, ) => void,
-		makeSortKey: (value: DatumType, key: any) => SortKeyType = defaultMakeSortKey,
 	) {
 		super(currentScope!._parentElement, currentScope!._lastChild || currentScope!._precedingSibling, currentScope!._queueOrder+1);
-		this._target = target;
 		this._renderer = renderer;
-		this._makeSortKey = makeSortKey;
+		this._target = target;
 
 		addObserver(target, ANY_SYMBOL, this);
-		currentScope!._cleaners.push(this);
-		currentScope!._lastChild = this;
 
 		// Do _addChild() calls for initial items
 		if (target instanceof Array) {
 			for(let i=0; i<target.length; i++) {
-				if (target!==undefined) {
-					this._addChild(i, false);
-				}	
-			}	
+				if (target[i] !== undefined) {
+					this._addChild(i, target[i], false);
+				}
+			}
+		} else if (target instanceof SortedSet) {
+			for(let item of target) {
+				this._addChild(undefined, item, false);
+			}
 		} else {
-			for(const key in target) {
-				this._addChild(key, false);
+			for(let k in target) {
+				this._addChild(k, target[k], false);
 			}
 		}
+
+		currentScope!._lastChild = this;
 	}
-	
-	// toString(): string {
-	// 	return `OnEachScope(collection=${this.collection})`
-	// }
-	
+
 	_onChange(index: any, newData: DatumType, oldData: DatumType) {
 		if (oldData===undefined) {
 			if (this._removedIndexes.has(index)) {
@@ -538,6 +522,11 @@ class OnEachScope extends Scope {
 			}
 		}
 	}
+	
+	// toString(): string {
+	// 	return `OnEachScope(collection=${this.collection})`
+	// }
+	
 	
 	_queueRun() {
 		if (this._isDead) return;
@@ -563,14 +552,16 @@ class OnEachScope extends Scope {
 		
 		// Help garbage collection:
 		this._byIndex.clear();
-		this._bySortStr.clear();
 	}
 	
 	_addChild(itemIndex: any, topRedraw: boolean) {
-		let scope = new OnEachItemScope(this._parentElement, undefined, this._queueOrder+1, this, itemIndex);
-		this._byIndex.set(itemIndex, scope);
-		if (topRedraw) topRedrawScope = scope;
-		scope._update();
+		let child = new OnEachItemScope(this._parentElement, undefined, this._queueOrder+1, this, itemIndex);
+		this._byIndex.set(itemIndex, child);
+		// set scope._precedingSibling to the previous child in _byIndex, and (this._lastchild or precedingSibling of the next child)
+
+		// alternatively: don't store precedingSibling on child, but have it request its previous (or next) sibling on-demand using a method call.. probably easier? only how would that work for
+		if (topRedraw) topRedrawScope = child;
+		child._update();
 		topRedrawScope = undefined;
 		// We're not adding a cleaner here, as we'll be calling them from our delete function
 	}
@@ -611,6 +602,153 @@ class OnEachScope extends Scope {
 		}
 	}
 }
+
+
+// /** @internal */
+// class OnEachScope extends Scope {
+	
+// 	/** The data structure we are iterating */
+// 	_target: TargetType;
+	
+// 	/** A function returning a number/string/array that defines the position of an item */
+// 	_makeSortKey: (key: any, value: DatumType) => SortKeyType;
+	
+// 	/** A function that renders an item */
+// 	_renderer: (key: any, value: DatumType) => void;
+	
+// 	/** The item scopes in a Map by index */
+// 	_byIndex: Map<any, OnEachItemScope> = new Map();
+
+// 	/** The ordered list of current item scopes */
+// 	_bySortStr: SortedSet<OnEachItemScope> = new SortedSet('_sortStr');
+	
+// 	/** Indexes that have been created/removed and need to be handled in the next `queueRun` */
+// 	_newIndexes: Set<any> = new Set();
+// 	_removedIndexes: Set<any> = new Set();
+	
+// 	constructor(
+// 		proxy: TargetType,
+// 		renderer: (value: DatumType, key: any, ) => void,
+// 		makeSortKey: (value: DatumType, key: any) => SortKeyType = defaultMakeSortKey,
+// 	) {
+// 		super(currentScope!._parentElement, currentScope!._lastChild || currentScope!._precedingSibling, currentScope!._queueOrder+1);
+// 		const target: TargetType = (proxy as any)[TARGET_SYMBOL] || proxy;
+// 		this._target = target;
+// 		this._renderer = renderer;
+// 		this._makeSortKey = makeSortKey;
+
+// 		addObserver(target, ANY_SYMBOL, this);
+// 		currentScope!._cleaners.push(this);
+// 		currentScope!._lastChild = this;
+
+// 		// Do _addChild() calls for initial items
+// 		if (target instanceof Array) {
+// 			for(let i=0; i<target.length; i++) {
+// 				if (target[i]!==undefined) {
+// 					this._addChild(i, false);
+// 				}	
+// 			}	
+// 		} else {
+// 			for(const key in target) {
+// 				this._addChild(key, false);
+// 			}
+// 		}
+// 	}
+	
+// 	// toString(): string {
+// 	// 	return `OnEachScope(collection=${this.collection})`
+// 	// }
+	
+// 	_onChange(index: any, newData: DatumType, oldData: DatumType) {
+// 		if (oldData===undefined) {
+// 			if (this._removedIndexes.has(index)) {
+// 				this._removedIndexes.delete(index);
+// 			} else {
+// 				this._newIndexes.add(index);
+// 				queue(this);
+// 			}
+// 		} else if (newData===undefined) {
+// 			if (this._newIndexes.has(index)) {
+// 				this._newIndexes.delete(index);
+// 			} else {
+// 				this._removedIndexes.add(index);
+// 				queue(this);
+// 			}
+// 		}
+// 	}
+	
+// 	_queueRun() {
+// 		if (this._isDead) return;
+		
+// 		let indexes = this._removedIndexes;
+// 		this._removedIndexes = new Set();
+// 		indexes.forEach(index => {
+// 			this._removeChild(index);
+// 		});
+		
+// 		indexes = this._newIndexes;
+// 		this._newIndexes = new Set();
+// 		indexes.forEach(index => {
+// 			this._addChild(index, true);
+// 		});
+// 	}
+	
+// 	delete() {
+// 		super.delete();
+// 		for (const scope of this._byIndex.values()) {
+// 			scope.delete();
+// 		}
+		
+// 		// Help garbage collection:
+// 		this._byIndex.clear();
+// 		this._bySortStr.clear();
+// 	}
+	
+// 	_addChild(itemIndex: any, topRedraw: boolean) {
+// 		let scope = new OnEachItemScope(this._parentElement, undefined, this._queueOrder+1, this, itemIndex);
+// 		this._byIndex.set(itemIndex, scope);
+// 		if (topRedraw) topRedrawScope = scope;
+// 		scope._update();
+// 		topRedrawScope = undefined;
+// 		// We're not adding a cleaner here, as we'll be calling them from our delete function
+// 	}
+	
+// 	_removeChild(itemIndex: any) {
+// 		let scope = this._byIndex.get(itemIndex);
+// 		/* c8 ignore next */
+// 		if (!scope) return internalError(6);
+// 		scope._remove();
+// 		this._byIndex.delete(itemIndex);
+// 	}
+	
+// 	_insertAtPosition(child: OnEachItemScope) {
+// 		this._bySortStr.add(child);
+// 		let nextSibling = this._bySortStr.next(child);
+		
+// 		if (nextSibling) {
+// 			child._precedingSibling = nextSibling._precedingSibling;
+// 			nextSibling._precedingSibling = child;
+// 		} else {
+// 			child._precedingSibling = this._lastChild || this._precedingSibling;
+// 			this._lastChild = child;
+// 		}
+// 	}
+	
+// 	_removeFromPosition(child: OnEachItemScope) {
+// 		let nextSibling = this._bySortStr.next(child);
+// 		this._bySortStr.remove(child);
+
+// 		if (nextSibling) {
+// 			/* c8 ignore next */
+// 			if (nextSibling._precedingSibling !== child) return internalError(13);
+// 			nextSibling._precedingSibling = child._precedingSibling;
+// 		} else {
+// 			/* c8 ignore next */
+// 			if (child !== this._lastChild) return internalError(12);
+// 			this._lastChild = child._precedingSibling === this._precedingSibling ? undefined : child._precedingSibling	
+// 		}
+// 	}
+// }
 
 /** @internal */
 class OnEachItemScope extends Scope {
@@ -655,7 +793,7 @@ class OnEachItemScope extends Scope {
 		currentScope = this;
 		
 		const target = this._parent._target;
-		const value: DatumType = [this._itemIndex];
+		const value: DatumType = (this._parent._target as any)[this._itemIndex];
 		
 		let sortKey;
 		try {
@@ -726,24 +864,78 @@ function addObserver(target: any, index: any, observer: Observer|undefined = cur
 	currentScope?._cleaners.push(byIndex);
 }
 
-function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeSortKey?: (value: DatumType, index: any) => SortKeyType): void {
-	new OnEachScope(target, render, makeSortKey);
+function onEach<T>(target: Array<T>, render: (value: T, index: number) => void, makeKey?: (value: T, index: number) => undefined|string|number): void;
+function onEach<T>(target: Record<string|symbol,T>, render: (value: T, index: string|symbol, makeKey?: (value: T, index: string|symbol) => undefined|string|number) => void): void;
+function onEach<T extends object>(target: SkipList<T>, render: (value: T) => void, makeKey?: (value: T, index: string|number) => undefined|string|number): void;
+
+function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeKey?: Function): void {
+	if (!target || typeof target !== 'object') throw new Error('onEach requires an object');
+	target = (target as any)[TARGET_SYMBOL] || target;
+
+	if (target instanceof Array) new OnEachArrayScope(target, render);
+	else if (target instanceof SortedSet) new OnEachSortedSetScope(target, render);
+	else new OnEachObjectScope(target, render);
 }
 
-function isEmpty(target: TargetType): boolean {
-	return (new IsEmptyObserver(currentScope, target)).count == 0
+function streamSortedSet<T extends object>(collection: Array<T>, makeKey: keyof T | ((value: T, index: number) => undefined|string|number)) : SortedSet<T>;
+function streamSortedSet<K extends (string|number|symbol),T extends object>(collection: Record<K,T>, makeKey: keyof T | ((value: T, index: K) => undefined|string|number)) : SortedSet<T>;
+function streamSortedSet<T extends object>(collection: SortedSet<T>, makeKey: keyof T | ((value: T) => undefined|string|number)) : SortedSet<T>;
+
+function streamSortedSet<T extends object>(collection: T[] | SortedSet<T> | Record<any,T>, makeKey: any): any {
+	if (typeof makeKey !== 'function') {
+		const key = makeKey;
+		makeKey = function(value: any) { return value[key] }
+	}
+	const newIndexKey = Symbol('indexKey')
+	let sortedSet = new SortedSet<any>(newIndexKey);
+	collection = (collection as any)[TARGET_SYMBOL] || collection;
+	addObserver(collection, ANY_SYMBOL, {
+		_onChange: function(index, newData, oldData) {
+			if (oldData !== undefined) sortedSet.remove(oldData);
+			if (newData) {
+				const key = makeKey(newData);
+				if (key !== undefined) {
+					(newData as any)[newIndexKey] = sortKeyToString(key);
+					sortedSet.add(newData);
+				}
+			}
+		}
+	});
 }
 
+function testEmpty(target: TargetType) {
+	if (target instanceof Array || target instanceof SkipList) for(let _k of target) return false
+	else for(let _k in target) return false;
+	return true
+}
+
+function isEmpty(proxied: TargetType): boolean {
+	const target = (proxied as any)[TARGET_SYMBOL] || proxied;
+	const empty = testEmpty(target);
+	const scope = currentScope;
+
+	if (scope) addObserver(target, {
+		_onChange(index: any, newData: DatumType, oldData: DatumType) {
+			if (newData===undefined) {
+				if (!empty && testEmpty(target)) queue(scope);
+			} else if (oldData===undefined) {
+				if (empty) queue(scope);
+			}
+		}
+	})
+
+	return empty;
+}
 
 function update(target: TargetType | undefined, index: any, newData: DatumType, oldData: DatumType, merge: boolean) {
 	if (newData === oldData) return;
 	if (typeof newData === 'object' && newData && typeof oldData === 'object' && oldData && newData.constructor === oldData.constructor) {
 		if (newData instanceof Array) {
 			for(let i=0; i<newData.length; i++) {
-				update(newData, index, newData[index], (oldData as any[])[index], merge);
+				update(newData, i, newData[i], (oldData as any[])[i], merge);
 			}
 			// For arrays, merge equals set (as overwriting a partial array rarely makes sense)
-			for(let i=(oldData as any[]).length; i<newData.length; i++) {
+			for(let i=newData.length; i<(oldData as any[]).length; i++) {
 				emit(oldData, i, undefined, (oldData as any)[i])
 			}
 			(oldData as any[]).length = newData.length;
@@ -814,7 +1006,6 @@ const objectHandler: ProxyHandler<any> = {
 		return result;
 	},
 };
-export type ObjectProxy<T extends object> = T;
 
 const arrayMethods = {
 	push: function(this: any, ...items: any[]) {
@@ -902,16 +1093,14 @@ const arrayMethods = {
 		addObserver(target, ANY_SYMBOL);
 		return target.forEach((v:any, t:any) => callbackFn(optProxy(v), t));
 	},
+	[Symbol.iterator](): IterableIterator<T> {
+		const target = (this as any)[TARGET_SYMBOL];
+		addObserver(target, ANY_SYMBOL);
+		return target[Symbol.iterator];
+	}
 	// TODO: look at jsdocs for more methods?
-	onEach(this: TargetType, render: (value: any, index: any) => void, makeSortKey?: (value: any, index: any) => SortKeyType): void {
-		new OnEachScope(this, render, makeSortKey);
-	},
-	isEmpty(this: TargetType): boolean {
-		return isEmpty(this);
-	},
 };
 const arrayHandler: ProxyHandler<any[]> = {
-	...objectHandler,
 	get(target: any, prop: any) {
 		if (prop===TARGET_SYMBOL) return target;
 		console.log(`ARRAY prop GET ${String(prop)}`);
@@ -933,10 +1122,48 @@ const arrayHandler: ProxyHandler<any[]> = {
 		return true;
 	},
 };
-export type ArrayProxy<T extends DatumType> = Array<T> & {
-	onEach(this: ArrayProxy<T>, render: (value: T, index: any) => void, makeSortKey?: (value: T, index: any) => SortKeyType): void;
-	isEmpty(this: ArrayProxy<T>): boolean;
-};
+
+class SortedSetProxy<T extends object> {
+	constructor(target: TargetType) {
+		(this as any)[TARGET_SYMBOL] = target;
+	}
+	add(item: T): boolean {
+		const target = (this as any)[TARGET_SYMBOL];
+		let result = target.add(item);
+		if (result) emit(target, (item as any)[target.keyProp], item, undefined);
+		return result;
+	}
+
+	remove(item: T): boolean {
+		const target = (this as any)[TARGET_SYMBOL];
+		let result = target.remove(item);
+		if (result) emit(target, (item as any)[target.keyProp], undefined, item);
+		return result;
+	}
+
+	clear(): void {
+		const target = (this as any)[TARGET_SYMBOL];
+		for(let item of target) emit(target, (item as any)[target.keyProp], undefined, item);
+		target.clear();
+	}
+
+	get(indexValue: string|number): T | undefined {
+		const target = (this as any)[TARGET_SYMBOL];
+		addObserver(target, indexValue);
+		return target.get();
+	}
+
+	[Symbol.iterator](): IterableIterator<T> {
+		const target = (this as any)[TARGET_SYMBOL];
+		addObserver(target, ANY_SYMBOL);
+		return target[Symbol.iterator];
+	}
+
+    next(item: T): T | undefined {
+		// We'd need to do some form of gap observing, or trigger on any change. Both options suck.
+		throw new Error("SortedSet.next() intentionally not implemented by observing proxy");
+	};
+}
 
 const proxyMap = new WeakMap<TargetType, /*Proxy*/TargetType>();
 
@@ -948,14 +1175,14 @@ function optProxy(value: any): any {
 	let proxied = proxyMap.get(value);
 	if (proxied) return proxied // Only one proxy per target!
 	
-	proxied = new Proxy(value, value instanceof Array ? arrayHandler : objectHandler);
+	proxied = value instanceof SortedSet ? new SortedSetProxy(value) : new Proxy(value, value instanceof Array ? arrayHandler : objectHandler);
 	proxyMap.set(value, proxied as TargetType);
 	return proxied;
 }
 
-function proxy<T extends DatumType>(array: T[]): ArrayProxy<T>;
-function proxy<T extends object>(obj: T): ObjectProxy<T>;
-function proxy<T extends DatumType>(value: T): ObjectProxy<{value: T}>
+function proxy<T extends DatumType>(array: Array<T>): Array<T>;
+function proxy<T extends object>(obj: T): T;
+function proxy<T extends DatumType>(value: T): {value: T};
 
 function proxy(target: TargetType): TargetType {
 	return optProxy(typeof target === 'object' && target !== null ? target : {value: target});
@@ -1602,7 +1829,7 @@ function peek(target: TargetType, ...indices: any[]): DatumType | undefined {
 */
 
 function defaultMakeSortKey(value: DatumType, index: any) {
-	return index
+	return ''+index
 }
 
 /* c8 ignore start */

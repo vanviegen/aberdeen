@@ -39,21 +39,21 @@ export function assertBody(expected: string): void {
 }
 
 export function assertThrow(what: string, func: ()=>void): void;
-export function assertThrow(what: ()=>void): void;
+export function assertThrow(func: ()=>void): void;
 
-export function assertThrow(what: any, func?: any): void {
-	if (typeof what == 'function') {
-		func = what
-		what = undefined
+export function assertThrow(a: any, b?: any): void {
+	if (typeof a == 'function') {
+		b = a
+		a = undefined
 	}
 	try {
-		func()
+		b()
 	} catch(e) {
         const s = ''+e
-		if (what && s.indexOf(what)<0) throw new AssertError(`wrong exception`, s, `something containing "${what}"`, true)
+		if (a && s.indexOf(a)<0) throw new AssertError(`wrong exception`, s, `something containing "${a}"`, true)
 		return
 	}
-	throw new AssertError(`exception expected`, undefined, `something containing "${what}"`, true)
+	throw new AssertError(`exception expected`, undefined, `something containing "${a}"`, true)
 }
 
 export function objToMap(obj: Record<string,any>) {
