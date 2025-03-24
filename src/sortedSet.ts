@@ -68,6 +68,53 @@ export class SortedSet<T extends object> {
     }
 
     /**
+     * Remove and return the first item.
+     * @returns what was previously the first item in the sorted set, or `undefined` if the set was empty.
+     */
+    fetchFirst(): T | undefined {
+        let item = this.head[this.symbols[0]];
+        if (item) {
+            this.remove(item);
+            return item;
+        }
+    }
+
+    /**
+     * @returns whether the set is empty (`true`) or has at least one item (`false`).
+     */
+    isEmpty(): boolean {
+        return this.head[this.symbols[0]] === undefined;
+    }
+
+    /**
+     * Find, remove and return all objects with the given index value.
+     * @param indexValue The index value to search for.
+     * @returns an array of all objects that were found and removed.
+     * 
+     * O(d + log n) where d is the number of items to be deleted. 
+     */
+    fetchByKey(indexValue: string|number): T[] {
+        const keyProp = this.keyProp;
+        
+        let next: Item<T> | undefined;
+        let current: Item<T> = this.head;
+        let result: T[] = [];
+        
+        for (let l = this.symbols.length - 1; l >= 0; l--) {
+            const symbol = this.symbols[l];
+            while ((next = current[symbol] as Item<T>) && next[keyProp] < indexValue) current = next;
+            while (next && next[keyProp] === indexValue) {
+                (current as any)[symbol] = next[symbol];
+                delete next[symbol];
+                if (!l) result.push(next);
+                next = (current as any)[symbol];
+            }
+        }
+
+        return result;
+    }
+
+    /**
      * Like `add()`, but uses `makeKeyBetween` to automatically generate and set an
      * index value on `item` such that it will be inserted right after `pre`.
      * @param item The item to be added.

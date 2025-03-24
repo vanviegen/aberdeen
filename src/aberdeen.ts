@@ -1,51 +1,39 @@
 import { SkipList } from "../dist-min/skiplist";
 import { SortedSet } from "./sortedSet"
 
-// LATEST THINKING:
-// We don't need to expose SortedSet afterall. Just create an object with id keys, or something like that. You'll
-// probably want/need an identifier for your objects anyway, and reordering shouldn't change identifiers.
-// SortedSet should again be just an implementation detach of onEach. And let's just *always* use it, and not try
-// to create fast-paths for already-sorted cases (which are unlikely to occur anyway and which require complex
-// metadata as anyhow).
-
 /*
 * QueueRunner
 *
 * `queue()`d runners are executed on the next timer tick, by order of their
-* `queueOrder` values.
+* `scopeId` values.
 */
 interface QueueRunner {
-	_queueOrder: number;
+	_scopeId: number;
 	_queueRun(): void;
 }
 
-let queueArray: Array<QueueRunner> = [] // When not empty, a runQueue is scheduled or currently running.
-let queueIndex = 0 // This first element in queueArray that still needs to be processed.
-let queueSet: Set<QueueRunner> = new Set() // Contains the subset of queueArray at index >= queueIndex.
-let queueOrdered = true // Set to `false` when `queue()` appends a runner to `queueArray` that should come before the previous last item in the array. Will trigger a sort.
+let sortedQueue: SortedSet<QueueRunner> | undefined; // When set, a runQueue is scheduled or currently running.
 let runQueueDepth = 0 // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
 let topRedrawScope: Scope | undefined // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 
 
-type TargetType = any[] | SortedSet<object> | {[key: string]: any};
+type TargetType = any[] | {[key: string]: any};
 type DatumType = TargetType | boolean | number | string | null | undefined;
 
 /** @internal */
 export type Patch = Map<TargetType, Map<any, [any, any]>>;
 
 function queue(runner: QueueRunner) {
-	if (queueSet.has(runner)) return;
-	if (runQueueDepth > 42) {
-		throw new Error("Too many recursive updates from observes");
-	}
-	if (!queueArray.length) {
+	if (!sortedQueue) {
+		sortedQueue = new SortedSet<QueueRunner>('_scopeId');
 		setTimeout(runQueue, 0);
+	} else if (!(runQueueDepth&1)) {
+		runQueueDepth++; // Make it uneven
+		if (runQueueDepth > 98) {
+			throw new Error("Too many recursive updates from observes");
+		}
 	}
-	else if (runner._queueOrder < queueArray[queueArray.length-1]._queueOrder) {
-		queueOrdered = false;
-	}
-	queueArray.push(runner);
-	queueSet.add(runner);
+	sortedQueue.add(runner);
 }
 
 /**
@@ -58,32 +46,14 @@ function queue(runner: QueueRunner) {
 * function that is called due to another (automatic) invocation of `runQueue`.
 */
 function runQueue(): void {
-	for(; queueIndex < queueArray.length; ) {
-		// Sort queue if new unordered items have been added since last time.
-		if (!queueOrdered) {
-			queueArray.splice(0, queueIndex);
-			queueIndex = 0
-			// Order queued observers by depth, lowest first.
-			queueArray.sort((a,b) => a._queueOrder - b._queueOrder);
-			queueOrdered = true;
-		}
-		
-		// Process the rest of what's currently in the queue.
-		let batchEndIndex = queueArray.length;
-		while(queueIndex < batchEndIndex && queueOrdered) {
-			let runner = queueArray[queueIndex++];
-			queueSet.delete(runner);
-			runner._queueRun();
-		}
-		
-		// If new items have been added to the queue while processing the previous
-		// batch, we'll need to run this loop again.
-		runQueueDepth++
+	while(true) {
+		const runner = sortedQueue!.fetchFirst();
+		if (!runner) break;
+		if (runQueueDepth&1) runQueueDepth++; // Make it even
+		runner._queueRun();
 	}
-	
-	queueIndex = 0
-	queueArray.length = 0
-	runQueueDepth = 0
+	sortedQueue = undefined;
+	runQueueDepth = 0;
 }
 
 
@@ -145,7 +115,7 @@ const DOM_WRITE_PHASE = {
 }
 
 const DOM_PHASE_RUNNER = {
-	_queueOrder: 99999,
+	_scopeId: Number.MAX_SAFE_INTEGER,
 	_queueRun: function() {
 		let waiters = domWaiters;
 		domWaiters = [];
@@ -166,16 +136,29 @@ type SortKeyType = number | string | Array<number|string>
 
 
 /**
-* Given an integer number, a string or an array of these, this function returns a string that can be used
-* to compare items in a natural sorting order. So `[3, 'ab']` should be smaller than `[3, 'ac']`.
-* The resulting string is guaranteed to never be empty.
+* Given an integer number, a string or an array of these, this function returns a string or number
+* that can be used to compare items in a natural sorting order. So `[3, 'ab']` should be smaller
+* than `[3, 'ac']`, while `[20, 'ab']` should be larger than `[3, 'ac]`.
 */
-function sortKeyToString(key: SortKeyType) {
+function normalizeSortKey(key: SortKeyType): number | string {
 	if (key instanceof Array) {
 		return key.map(partToStr).join('');
 	} else {
+		if (typeof key === 'number') return key;
 		return partToStr(key);
 	}
+}
+
+/**
+ * Basically flips the bits on a key, in order to sort in the reverse direction.
+ */
+function invertSortKey(key: number | string) {
+	if (typeof key === 'number') return -key;
+	let result = '';
+	for (let i = 0; i < key.length; i++) {
+		result += String.fromCodePoint(65535 - key.charCodeAt(i));
+	}
+	return result;
 }
 
 function partToStr(part: number|string): string {
@@ -208,136 +191,101 @@ interface Observer {
 	_onChange(index: any, newData: DatumType, oldData: DatumType): void;
 }
 
-/*
-* Scope
+let scopeCount = 0;
+
+interface Scope extends QueueRunner, Observer {
+	// Scopes are to be handled in creation order. This will make sure that parents are
+	// handled before their children (as they should), and observes are executed in the
+	// order of the source code.
+	_scopeId: number; // = ++scopeCount;
+
+	_getLastNode(): Node | undefined;
+	delete(): void;
+	_remove(): void;
+}
+
+/**
+ * All Scopes that can hold nodes and subscopes, including `SimpleScope` and `OnEachItemScope`
+ * but *not* `OnEachScope`, are `ContentScope`s.
+ */
+abstract class ContentScope implements Scope {
+	_scopeId: number = ++scopeCount;
+
+	// The list of clean functions to be called when this scope is cleaned. These can
+	// be for child scopes, subscriptions as well as `clean(..)` hooks.
+	_cleaners: Array<{delete: (scope: Scope) => void}> = [];
+
+	_lastChild: Node | LinkedScope | undefined;
+
+	abstract _addNode(node: Node): void;
+	abstract _remove(): void;
+	abstract _update(): void;
+	abstract _getParentElement(): Element;
+
+	_getLastNode(): Node | undefined {
+		return findLastNodeInPrevSiblings(this._lastChild);
+	}
+
+	/**
+	 * Call cleaners and make sure the scope is not queued.
+	 * It is called `delete`, so that the list of cleaners can also contain `Set`s.
+	 */
+	delete(/* ignore observer argument */) {
+		for(let cleaner of this._cleaners) {
+			cleaner.delete(this); // pass in observer argument, in case `cleaner` is a `Set`
+		}
+		this._cleaners.length = 0;
+		sortedQueue?.remove(this); // This is very fast and O(1) when not queued
+	}
+	
+	_queueRun() {
+		/* c8 ignore next */
+		if (currentScope) internalError(2);
+			
+		this._remove();
+		
+		topRedrawScope = this
+		this._update();
+		topRedrawScope = undefined
+	}
+
+	_onChange(index: any, newData: DatumType, oldData: DatumType) {
+		queue(this);	
+	}
+}		if (this._sortKey !== undefined && this._sortKey !== sortKey) {
+	this._parent._sortedSet.remove(this);
+}
+
+
+interface LinkedScope extends Scope {
+	_prevSibling: Node | LinkedScope | undefined;
+}
+
+/**
 * @internal
-*
-* A `Scope` is created with a `render` function that is run initially,
+* A `SimpleScope` is created with a `render` function that is run initially,
 * and again when any of the `Store`s that this function reads are changed. Any
 * DOM elements that is given a `render` function for its contents has its own scope.
 * The `Scope` manages the position in the DOM tree elements created by `render`
 * are inserted at. Before a rerender, all previously created elements are removed
 * and the `clean` functions for the scope and all sub-scopes are called.
 */
+class SimpleScope extends ContentScope implements LinkedScope {
 
-abstract class Scope implements QueueRunner, Observer {
-	// The last child node or scope within this scope that has the same `parentElement`
-	_lastChild: Node | Scope | undefined;
-	
-	// The list of clean functions to be called when this scope is cleaned. These can
-	// be for child scopes, subscriptions as well as `clean(..)` hooks.
-	_cleaners: Array<{delete: (scope: Scope) => void}> = [];
-	
-	// Set to true after the scope has been cleaned, causing any spurious reruns to
-	// be ignored.
-	_isDead: boolean = false;
-	
+	// The last child node or scope within this scope
+	_lastChild: Node | LinkedScope | undefined;
+
 	constructor(
-		public _parentElement: Element | undefined,
+		// The parent DOM element we'll add our child nodes to
+		public _parentElement: Element,
 		// The node or scope right before this scope that has the same `parentElement`
-		public _precedingSibling: Node | Scope | undefined,
-		// How deep is this scope nested in other scopes; we use this to make sure events
-		// at lower depths are handled before events at higher depths.
-		public _queueOrder: number,
+		public _prevSibling: Node | LinkedScope | undefined,
+		// The function that 
+		public _renderer: () => any,
 	) {
-	}
-	
-	// Get a reference to the last Node preceding this Scope, or undefined if there is none
-	_findPrecedingNode(stopAt: Scope | Node | undefined = undefined): Node | undefined {
-		let cur: Scope = this;
-		let pre: Scope | Node | undefined;
-		while((pre = cur._precedingSibling) && pre !== stopAt) {
-			if (pre instanceof Node) return pre;
-			let node = pre._findLastNode();
-			if (node) return node;
-			cur = pre;
-		}
-	}
-	
-	// Get a reference to the last Node within this scope and parentElement
-	_findLastNode(): Node | undefined {
-		if (this._lastChild) {
-			if (this._lastChild instanceof Node) return this._lastChild;
-			else return this._lastChild._findLastNode() || this._lastChild._findPrecedingNode(this._precedingSibling);
-		}
-	}
-	
-	_addNode(node: Node) {
-		let prevNode = this._findLastNode() || this._findPrecedingNode();
-		
-		this._parentElement!.insertBefore(node, prevNode ? prevNode.nextSibling : this._parentElement!.firstChild);
-		this._lastChild = node;
-	}
-	
-	_remove() {
-		if (this._parentElement) {
-			let lastNode: Node | undefined = this._findLastNode();
-			if (lastNode) {
-				// at least one DOM node to be removed
-				
-				let nextNode: Node | undefined = this._findPrecedingNode();
-				nextNode = (nextNode ? nextNode.nextSibling : this._parentElement.firstChild) as Node | undefined;
-				
-				this._lastChild = undefined;
-				
-				// Keep removing DOM nodes starting at our first node, until we encounter the last node
-				while(true) {
-					/* c8 ignore next */
-					if (!nextNode) return internalError(1);
-						
-					const node = nextNode;
-					nextNode = node.nextSibling || undefined;
-					let onDestroy = onDestroyMap.get(node);
-					if (onDestroy && node instanceof Element) {
-						if (onDestroy !== true) {
-							if (typeof onDestroy === 'function') {
-								onDestroy(node);
-							} else {
-								destroyWithClass(node, onDestroy);
-							}
-							// This causes the element to be ignored from this function from now on:
-							onDestroyMap.set(node, true);
-						}
-						// Ignore the deleting element
-					} else {
-						this._parentElement.removeChild(node);
-					}
-					if (node === lastNode) break;
-				}
-			}
-		}
-		
-		// run cleaners
-		this.delete();
-	}
-	
-	delete() {
-		this._isDead = true;
-		for(let cleaner of this._cleaners) {
-			cleaner.delete(this);
-		}
-		this._cleaners.length = 0
-	}
-	
-	_onChange(index: any, newData: DatumType, oldData: DatumType) {
-		queue(this);
-	}
-	
-	abstract _queueRun(): void;
-}
+		super();
+		currentScope._lastChild = this;
 
-class SimpleScope extends Scope {
-	constructor(
-		parentElement: Element | undefined,
-		precedingSibling: Node | Scope | undefined,
-		queueOrder: number,
-		renderer?: () => any,
-	) {
-		super(parentElement, precedingSibling, queueOrder);
-		if (renderer) this._renderer = renderer;
-	}
-
-	_init(): void {
 		// Do the initial run
 		this._update();
 
@@ -345,29 +293,9 @@ class SimpleScope extends Scope {
 			// If the current scope has no cleaners after the initial run, that means it hasn't
 			// observed anything, meaning it will never have to rerun, and therefore will never
 			// get any cleaners.
-			// So we don't need to add our own delete() method to the list of cleaners. I think.
-			currentScope?._cleaners.push(this)
+			// So we don't need to add our own delete() method to the list of cleaners.
+			currentScope._cleaners.push(this)
 		}
-	}
-	
-	/* c8 ignore start */
-	_renderer(): any {
-		// Should be overriden by a subclass or the constructor
-		internalError(14);
-	}
-	/* c8 ignore stop */
-	
-	_queueRun() {
-		/* c8 ignore next */
-		if (currentScope) internalError(2);
-			
-		if (this._isDead) return;
-		this._remove();
-		this._isDead = false;
-		
-		topRedrawScope = this
-		this._update();
-		topRedrawScope = undefined
 	}
 	
 	_update() {
@@ -381,7 +309,113 @@ class SimpleScope extends Scope {
 		}
 		currentScope = savedScope;
 	}
+
+	_remove() {
+		const preNode = findLastNodeInPrevSiblings(this._prevSibling);
+		const lastNode = this._getLastNode();
+		removeNodes(lastNode, preNode);
+		this._lastChild = undefined;
+
+		// Run any cleaners
+		this.delete();
+	}
+	
+	_addNode(node: Node) {
+		let prevNode = findLastNodeInPrevSiblings(this._lastChild) || findLastNodeInPrevSiblings(this._prevSibling);
+		const parentEl = this._parentElement;
+		parentEl.insertBefore(node, prevNode?.nextSibling || parentEl.firstChild);
+		this._lastChild = node;
+	}
+
+	_getParentElement(): Element {
+		return this._parentElement;
+	}
 }
+
+
+class MountScope extends ContentScope {
+
+	// The last child node or scope within this scope
+	_lastChild: Node | LinkedScope | undefined;
+
+	constructor(
+		// The parent DOM element we'll add our child nodes to
+		public _parentElement: Element,
+		// The function that 
+		public _renderer: () => any,
+	) {
+		super();
+
+		// In case we're the ROOT_SCOPE, `currentScope` is (obviously) not initialized
+		// yet, hence the condition.
+		if (currentScope) currentScope._cleaners.push(this)
+	}
+	
+	_update() {
+		SimpleScope.prototype._update.call(this);
+	}
+
+	delete() {
+		// We can't rely on our parent scope to remove all our nodes for us, as our parent
+		// probably has a totally different `parentElement`. Therefore, our `delete()` does
+		// what `_remove()` does for regular scopes.
+		removeNodes(this._getLastNode(), undefined);
+		this._lastChild = undefined;
+		super.delete();
+	}
+
+	_remove() {
+		this.delete();
+	}
+	
+	_addNode(node: Node) {
+		let prevNode = findLastNodeInPrevSiblings(this._lastChild);
+		this._parentElement.insertBefore(node, prevNode?.nextSibling || this._parentElement.firstChild);
+		this._lastChild = node;
+	}
+
+	_getParentElement(): Element {
+		return this._parentElement;
+	}
+}
+
+
+
+// Remove node and all its preceding siblings (uptil and excluding preNode)
+// from the DOM, using onDestroy if applicable.
+function removeNodes(node: Node | null | undefined, preNode: Node | null | undefined) {
+	while(node && node !== preNode) {
+		const prevNode: Node | null = node.previousSibling;
+		let onDestroy = onDestroyMap.get(node);
+		if (onDestroy && node instanceof Element) {
+			if (onDestroy !== true) {
+				if (typeof onDestroy === 'function') {
+					onDestroy(node);
+				} else {
+					destroyWithClass(node, onDestroy);
+				}
+				// This causes the element to be ignored from this function from now on:
+				onDestroyMap.set(node, true);
+			}
+			// Ignore the deleting element
+		} else {
+			(node as Element|Text).remove();
+		}
+		node = prevNode;
+	}
+}
+
+// Get a reference to the last node within this scope or any of its preceding siblings.
+// If a `Node` is given, that node is returned.
+function findLastNodeInPrevSiblings(sibling: Node | LinkedScope | undefined): Node | undefined {
+	while(sibling) {
+		if (sibling instanceof Node) return sibling;
+		let node = sibling._getLastNode();
+		if (node) return node;
+		sibling = sibling._prevSibling;
+	}
+}
+
 
 class ResultScope extends SimpleScope {
 	result = proxy(undefined)
@@ -403,23 +437,23 @@ class ResultScope extends SimpleScope {
  * that as well as a renderer function that closes over quite a few variables, which probably
  * wouldn't be great for the performance of this common feature.
  */
-class SetArgScope extends SimpleScope {
-	constructor(
-		parentElement: Element | undefined,
-		precedingSibling: Node | Scope | undefined,
-		queueOrder: number,
-		private _key: string,
-		private _target: {value: DatumType},
-	) {
-		super(parentElement, precedingSibling, queueOrder)
-	}
-
-	_renderer() {
-		applyArg(this._parentElement as Element, this._key, this._target.value)
-	}
+function renderSetArg(this: SetArgScope) {
+	applyArg(this._parentElement as Element, this._key, this._target.value)
 }
 
-let immediateQueue: Set<Scope> = new Set();
+class SetArgScope extends SimpleScope {
+	constructor(
+		parentElement: Element,
+		prevSibling: Node | LinkedScope | undefined,
+		public _key: string,
+		public _target: {value: DatumType},
+	) {
+		super(parentElement, prevSibling, renderSetArg)
+	}
+
+}
+
+let immediateQueue: SortedSet<Scope> = new SortedSet('_scopeId');
 
 class ImmediateScope extends SimpleScope {
 	_onChange(index: any, newData: DatumType, oldData: DatumType) {
@@ -427,98 +461,74 @@ class ImmediateScope extends SimpleScope {
 	}
 }
 
-let immediateQueuerRunning = false;
+let immediateQueueRunning = false;
 function runImmediateQueue() {
-	if (immediateQueuerRunning) return;
-	for(let count=0; immediateQueue.size; count++) {
+	for(let count=0; !immediateQueue.isEmpty() && !immediateQueueRunning; count++) {
 		if (count > 42) {
 			immediateQueue.clear();
 			throw new Error("Too many recursive updates from immediate-mode observes");
 		}
-		immediateQueuerRunning = true;
+		immediateQueueRunning = true;
 		let copy = immediateQueue;
-		immediateQueue = new Set();
-		let savedScope = currentScope;
-		currentScope = undefined;
+		immediateQueue = new SortedSet('_scopeId');
 		try {
 			for(const scope of copy) {
+				// On exception, the exception will be bubbled up to the call site, discarding any
+				// remaining immediate scopes from the queue. This behavior is perhaps debatable,
+				// but getting a synchronous exception at the call site can be very helpful.
 				scope._queueRun();
 			}
 		} finally {
-			currentScope = savedScope;
-			immediateQueuerRunning = false;
+			immediateQueueRunning = false;
 		}
 	}
 }
 
 
-// TODO: make optimized OnEachScopes for array (sorting is easy) and plain object (sorted by insert order) and SkipList (custom sort).
-// Provide a method to create a synced SkipList out of some other iteratable.
-
-abstract class OnEachScope extends Scope {
-	/** A function that renders an item */
-	_renderer: (key: any, value: DatumType) => void;
-
-	/** Indexes that have been created/removed and need to be handled in the next `queueRun` */
-	_newIndexes: Set<any> = new Set();
-	_removedIndexes: Set<any> = new Set();
+/** @internal */
+class OnEachScope implements LinkedScope {
+	_scopeId: number = ++scopeCount;
+	_parentElement: Element = currentScope._getParentElement();
+	_prevSibling: Node | LinkedScope | undefined;
 
 	/** The data structure we are iterating */
 	_target: TargetType;
-		
-	/** The item scopes in a Map by index */
-	_byIndex: Map<any, OnEachItemScope> = new Map();
+	
+	/** All item scopes, by array index or object key. This is used for removing an item scope when its value
+	 * disappears, and calling all subscope cleaners. */
+	_byIndex: Map<any,OnEachItemScope> = new Map();
 
-	/* Cases
-	- SortedSet provided
-	- Array provided
-	- object/array/SortedList provided with makeKey, create a new sortedlist while in the OnEachItemScope
-	*/
+	/** The reverse-ordered list of item scopes, not including those for which makeSortKey returned undefined. */
+	_sortedSet: SortedSet<OnEachItemScope> = new SortedSet('_sortKey');
 
+	/** Indexes that have been created/removed and need to be handled in the next `queueRun`. */
+	_changedIndexes: Set<any> = new Set();
+	
 	constructor(
-		target: TargetType,
-		renderer: (value: DatumType, key: any, ) => void,
+		proxy: TargetType,
+		/** A function that renders an item */
+		public _renderer: (value: DatumType, key: any, ) => void,
+		/** A function returning a number/string/array that defines the position of an item */
+		public _makeSortKey?: (value: DatumType, key: any) => SortKeyType,
 	) {
-		super(currentScope!._parentElement, currentScope!._lastChild || currentScope!._precedingSibling, currentScope!._queueOrder+1);
-		this._renderer = renderer;
-		this._target = target;
+		const target: TargetType = this._target = (proxy as any)[TARGET_SYMBOL] || proxy;
 
 		addObserver(target, ANY_SYMBOL, this);
+		this._prevSibling = currentScope._lastChild;
+		currentScope._lastChild = this;
 
 		// Do _addChild() calls for initial items
 		if (target instanceof Array) {
 			for(let i=0; i<target.length; i++) {
-				if (target[i] !== undefined) {
-					this._addChild(i, target[i], false);
+				if (target[i]!==undefined) {
+					this._addChild(i);
 				}
 			}
-		} else if (target instanceof SortedSet) {
-			for(let item of target) {
-				this._addChild(undefined, item, false);
-			}
 		} else {
-			for(let k in target) {
-				this._addChild(k, target[k], false);
-			}
-		}
-
-		currentScope!._lastChild = this;
-	}
-
-	_onChange(index: any, newData: DatumType, oldData: DatumType) {
-		if (oldData===undefined) {
-			if (this._removedIndexes.has(index)) {
-				this._removedIndexes.delete(index);
-			} else {
-				this._newIndexes.add(index);
-				queue(this);
-			}
-		} else if (newData===undefined) {
-			if (this._newIndexes.has(index)) {
-				this._newIndexes.delete(index);
-			} else {
-				this._removedIndexes.add(index);
-				queue(this);
+			for(const key in target) {
+				if (target[key] !== undefined) {
+					this._addChild(key);
+				}
 			}
 		}
 	}
@@ -527,246 +537,85 @@ abstract class OnEachScope extends Scope {
 	// 	return `OnEachScope(collection=${this.collection})`
 	// }
 	
+	_onChange(index: any, newData: DatumType, oldData: DatumType) {
+		this._changedIndexes.add(index);
+	}
 	
 	_queueRun() {
-		if (this._isDead) return;
-		
-		let indexes = this._removedIndexes;
-		this._removedIndexes = new Set();
-		indexes.forEach(index => {
-			this._removeChild(index);
-		});
-		
-		indexes = this._newIndexes;
-		this._newIndexes = new Set();
-		indexes.forEach(index => {
-			this._addChild(index, true);
-		});
+		let indexes = this._changedIndexes;
+		this._changedIndexes = new Set();
+		for(let index of indexes) {
+			const oldScope = this._byIndex.get(index);
+			if (oldScope) oldScope._remove();
+
+			if ((this._target as any)[index] === undefined) {
+				this._byIndex.delete(index);
+			} else {
+				const newScope = new OnEachItemScope(this, index);
+				this._byIndex.set(index, newScope);
+				topRedrawScope = newScope;
+				newScope._update();				
+			}
+		}
+		topRedrawScope = undefined;
 	}
 	
 	delete() {
-		super.delete();
+		// Propagate to all our subscopes
 		for (const scope of this._byIndex.values()) {
 			scope.delete();
 		}
 		
 		// Help garbage collection:
 		this._byIndex.clear();
+		this._sortedSet.clear(); // Unsure if this is a good idea. It takes time, but presumably makes things a lot easier for GC...
 	}
 	
-	_addChild(itemIndex: any, topRedraw: boolean) {
-		let child = new OnEachItemScope(this._parentElement, undefined, this._queueOrder+1, this, itemIndex);
-		this._byIndex.set(itemIndex, child);
-		// set scope._precedingSibling to the previous child in _byIndex, and (this._lastchild or precedingSibling of the next child)
+	_addChild(itemIndex: any) {
+		new OnEachItemScope(this, itemIndex);
+	}
 
-		// alternatively: don't store precedingSibling on child, but have it request its previous (or next) sibling on-demand using a method call.. probably easier? only how would that work for
-		if (topRedraw) topRedrawScope = child;
-		child._update();
-		topRedrawScope = undefined;
-		// We're not adding a cleaner here, as we'll be calling them from our delete function
-	}
-	
-	_removeChild(itemIndex: any) {
-		let scope = this._byIndex.get(itemIndex);
-		/* c8 ignore next */
-		if (!scope) return internalError(6);
-		scope._remove();
-		this._byIndex.delete(itemIndex);
-	}
-	
-	_insertAtPosition(child: OnEachItemScope) {
-		this._bySortStr.add(child);
-		let nextSibling = this._bySortStr.next(child);
-		
-		if (nextSibling) {
-			child._precedingSibling = nextSibling._precedingSibling;
-			nextSibling._precedingSibling = child;
-		} else {
-			child._precedingSibling = this._lastChild || this._precedingSibling;
-			this._lastChild = child;
+	_getLastNode(): Node | undefined {
+		for(let scope of this._sortedSet) { // Iterates starting at last child scope.
+			const node = scope._getLastNode();
+			if (node) return node;
 		}
 	}
-	
-	_removeFromPosition(child: OnEachItemScope) {
-		let nextSibling = this._bySortStr.next(child);
-		this._bySortStr.remove(child);
 
-		if (nextSibling) {
-			/* c8 ignore next */
-			if (nextSibling._precedingSibling !== child) return internalError(13);
-			nextSibling._precedingSibling = child._precedingSibling;
-		} else {
-			/* c8 ignore next */
-			if (child !== this._lastChild) return internalError(12);
-			this._lastChild = child._precedingSibling === this._precedingSibling ? undefined : child._precedingSibling	
+	_remove(): void { 
+		const lastNode = this._getLastNode();
+		if (lastNode) {
+			const preNode = findLastNodeInPrevSiblings(this._prevSibling);
+			removeNodes(lastNode, preNode);
+		}
+
+		this.delete();
+	}
+
+	// Find the last `Node` that comes *before* `scope`.
+	_findLastNodeBefore(scope: OnEachItemScope): Node | undefined {
+		let preScope: OnEachItemScope | undefined = scope;
+		while(true) {
+			preScope = this._sortedSet.next(preScope);
+			if (!preScope) break;
+			const preNode = findLastNodeInPrevSiblings(preScope._lastChild);
+			if (preNode) return preNode;
 		}
 	}
 }
 
-
-// /** @internal */
-// class OnEachScope extends Scope {
-	
-// 	/** The data structure we are iterating */
-// 	_target: TargetType;
-	
-// 	/** A function returning a number/string/array that defines the position of an item */
-// 	_makeSortKey: (key: any, value: DatumType) => SortKeyType;
-	
-// 	/** A function that renders an item */
-// 	_renderer: (key: any, value: DatumType) => void;
-	
-// 	/** The item scopes in a Map by index */
-// 	_byIndex: Map<any, OnEachItemScope> = new Map();
-
-// 	/** The ordered list of current item scopes */
-// 	_bySortStr: SortedSet<OnEachItemScope> = new SortedSet('_sortStr');
-	
-// 	/** Indexes that have been created/removed and need to be handled in the next `queueRun` */
-// 	_newIndexes: Set<any> = new Set();
-// 	_removedIndexes: Set<any> = new Set();
-	
-// 	constructor(
-// 		proxy: TargetType,
-// 		renderer: (value: DatumType, key: any, ) => void,
-// 		makeSortKey: (value: DatumType, key: any) => SortKeyType = defaultMakeSortKey,
-// 	) {
-// 		super(currentScope!._parentElement, currentScope!._lastChild || currentScope!._precedingSibling, currentScope!._queueOrder+1);
-// 		const target: TargetType = (proxy as any)[TARGET_SYMBOL] || proxy;
-// 		this._target = target;
-// 		this._renderer = renderer;
-// 		this._makeSortKey = makeSortKey;
-
-// 		addObserver(target, ANY_SYMBOL, this);
-// 		currentScope!._cleaners.push(this);
-// 		currentScope!._lastChild = this;
-
-// 		// Do _addChild() calls for initial items
-// 		if (target instanceof Array) {
-// 			for(let i=0; i<target.length; i++) {
-// 				if (target[i]!==undefined) {
-// 					this._addChild(i, false);
-// 				}	
-// 			}	
-// 		} else {
-// 			for(const key in target) {
-// 				this._addChild(key, false);
-// 			}
-// 		}
-// 	}
-	
-// 	// toString(): string {
-// 	// 	return `OnEachScope(collection=${this.collection})`
-// 	// }
-	
-// 	_onChange(index: any, newData: DatumType, oldData: DatumType) {
-// 		if (oldData===undefined) {
-// 			if (this._removedIndexes.has(index)) {
-// 				this._removedIndexes.delete(index);
-// 			} else {
-// 				this._newIndexes.add(index);
-// 				queue(this);
-// 			}
-// 		} else if (newData===undefined) {
-// 			if (this._newIndexes.has(index)) {
-// 				this._newIndexes.delete(index);
-// 			} else {
-// 				this._removedIndexes.add(index);
-// 				queue(this);
-// 			}
-// 		}
-// 	}
-	
-// 	_queueRun() {
-// 		if (this._isDead) return;
-		
-// 		let indexes = this._removedIndexes;
-// 		this._removedIndexes = new Set();
-// 		indexes.forEach(index => {
-// 			this._removeChild(index);
-// 		});
-		
-// 		indexes = this._newIndexes;
-// 		this._newIndexes = new Set();
-// 		indexes.forEach(index => {
-// 			this._addChild(index, true);
-// 		});
-// 	}
-	
-// 	delete() {
-// 		super.delete();
-// 		for (const scope of this._byIndex.values()) {
-// 			scope.delete();
-// 		}
-		
-// 		// Help garbage collection:
-// 		this._byIndex.clear();
-// 		this._bySortStr.clear();
-// 	}
-	
-// 	_addChild(itemIndex: any, topRedraw: boolean) {
-// 		let scope = new OnEachItemScope(this._parentElement, undefined, this._queueOrder+1, this, itemIndex);
-// 		this._byIndex.set(itemIndex, scope);
-// 		if (topRedraw) topRedrawScope = scope;
-// 		scope._update();
-// 		topRedrawScope = undefined;
-// 		// We're not adding a cleaner here, as we'll be calling them from our delete function
-// 	}
-	
-// 	_removeChild(itemIndex: any) {
-// 		let scope = this._byIndex.get(itemIndex);
-// 		/* c8 ignore next */
-// 		if (!scope) return internalError(6);
-// 		scope._remove();
-// 		this._byIndex.delete(itemIndex);
-// 	}
-	
-// 	_insertAtPosition(child: OnEachItemScope) {
-// 		this._bySortStr.add(child);
-// 		let nextSibling = this._bySortStr.next(child);
-		
-// 		if (nextSibling) {
-// 			child._precedingSibling = nextSibling._precedingSibling;
-// 			nextSibling._precedingSibling = child;
-// 		} else {
-// 			child._precedingSibling = this._lastChild || this._precedingSibling;
-// 			this._lastChild = child;
-// 		}
-// 	}
-	
-// 	_removeFromPosition(child: OnEachItemScope) {
-// 		let nextSibling = this._bySortStr.next(child);
-// 		this._bySortStr.remove(child);
-
-// 		if (nextSibling) {
-// 			/* c8 ignore next */
-// 			if (nextSibling._precedingSibling !== child) return internalError(13);
-// 			nextSibling._precedingSibling = child._precedingSibling;
-// 		} else {
-// 			/* c8 ignore next */
-// 			if (child !== this._lastChild) return internalError(12);
-// 			this._lastChild = child._precedingSibling === this._precedingSibling ? undefined : child._precedingSibling	
-// 		}
-// 	}
-// }
-
 /** @internal */
-class OnEachItemScope extends Scope {
-	_parent: OnEachScope;
-	_itemIndex: any;
-	_sortStr: string = ""
+class OnEachItemScope extends ContentScope {
+	_sortKey: string | number | undefined; // When undefined, this scope is currently not showing in the list
 	
 	constructor(
-		parentElement: Element | undefined,
-		precedingSibling: Node | Scope | undefined,
-		queueOrder: number,
-		parent: OnEachScope,
-		itemIndex: any,
+		public _parent: OnEachScope,
+		public _itemIndex: any,
 	) {
-		super(parentElement, precedingSibling, queueOrder);
-		this._parent = parent;
-		this._itemIndex = itemIndex;
-		// Does not register itself to be cleaner by parent scope, as the OnEachScope will manage this for us (for efficiency)
+		super();
+		_parent._byIndex.set(_itemIndex, this);
+
+		// Don't register to be cleaned by parent scope, as the OnEachScope will manage this for us (for efficiency)
 	}
 	
 	// toString(): string {
@@ -777,9 +626,7 @@ class OnEachItemScope extends Scope {
 		/* c8 ignore next */
 		if (currentScope) internalError(4);
 			
-		if (this._isDead) return;
 		this._remove();
-		this._isDead = false;
 		
 		topRedrawScope = this;
 		this._update();
@@ -788,45 +635,77 @@ class OnEachItemScope extends Scope {
 	
 	_update() {
 		// Have the makeSortKey function return an ordering int/string/array.
+
+		// Note that we're NOT subscribing on target[itemIndex], as the OnEachScope uses
+		// a wildcard subscription to delete/recreate scopes when that changes.
+		// We ARE creating a proxy around the value though (in case its an object/array),
+		// so we'll have our own scope subscribe to changes on that.
+		const value: DatumType = optProxy((this._parent._target as any)[this._itemIndex]);
+
 		// Since makeSortKey may get() the Store, we'll need to set currentScope first.
 		let savedScope = currentScope;
 		currentScope = this;
 		
-		const target = this._parent._target;
-		const value: DatumType = (this._parent._target as any)[this._itemIndex];
-		
-		let sortKey;
 		try {
-			sortKey = this._parent._makeSortKey(value, this._itemIndex);
+			this._parent._renderer(value, this._itemIndex);
 		} catch(e) {
-			handleError(e, false);
+			handleError(e, true);
 		}
-		
-		let oldSortStr: string = this._sortStr;
-		let newSortStr: string = sortKey==null ? '' : sortKeyToString(sortKey);
-		
-		if (oldSortStr!=='' && oldSortStr!==newSortStr) {
-			this._parent._removeFromPosition(this);
-		}
-		
-		this._sortStr = newSortStr;
-		if (newSortStr!=='') {
-			if (newSortStr !== oldSortStr) {
-				this._parent._insertAtPosition(this);
-			}
-			try {
-				this._parent._renderer(value, this._itemIndex);
-			} catch(e) {
-				handleError(e, true);
-			}
-		}
-		
+
 		currentScope = savedScope;
 	}
 
+	_addNode(node: Node) {
+		let prevNode = findLastNodeInPrevSiblings(this._lastChild);
+		if (!prevNode) {
+			// This is the first node we're inserting for this item (in this redraw).
+			// Therefore we need to check if _sortKey is set and still valid, and to
+			// (re)insert ourselves into the hash if needed.
+			this._updateSortedSet()
+			prevNode = this._parent._findLastNodeBefore(this);
+		}
+
+		const parentEl = this._parent._parentElement;
+		parentEl.insertBefore(node, prevNode?.nextSibling || parentEl.firstChild);
+		this._lastChild = node;
+	}
+
+	_updateSortedSet() {
+		let sortKey: string|number|undefined = '';
+		if (this._parent._makeSortKey) {
+			const value: DatumType = optProxy((this._parent._target as any)[this._itemIndex]);
+			const rawSortKey = this._parent._makeSortKey(value, this._itemIndex);
+			if (rawSortKey != null) sortKey = invertSortKey(normalizeSortKey(rawSortKey));
+		}
+		
+		if (this._sortKey !== sortKey) {
+			if (this._sortKey !== undefined) {
+				this._parent._sortedSet.remove(this);
+			}
+			this._sortKey = sortKey;
+			this._parent._sortedSet.add(this);
+		}
+	}
+
 	_remove() {
-		super._remove();
-		if (this._sortStr!=='') this._parent._removeFromPosition(this);
+		const lastNode = findLastNodeInPrevSiblings(this._lastChild);
+		if (lastNode) {
+			const preNode = this._parent._findLastNodeBefore(this);
+			removeNodes(lastNode, preNode);
+		}
+		this._lastChild = undefined;
+
+		// TODO: don't do this for queueRuns!
+		if (this._sortKey !== undefined) {
+			this._parent._sortedSet.remove(this);
+			this._sortKey = undefined;
+		}
+
+		this.delete();
+	}
+
+	_getParentElement(): Element {
+		return this._parent._parentElement;
 	}
 }
 
@@ -835,7 +714,8 @@ class OnEachItemScope extends Scope {
 * This global is set during the execution of a `Scope.render`. It is used by
 * functions like `$` and `clean`.
 */
-let currentScope: Scope | undefined;
+const ROOT_SCOPE = new MountScope(document.body, ()=>{});
+let currentScope: ContentScope = ROOT_SCOPE;
 
 /**
 * A special Node observer index to subscribe to any value in the map changing.
@@ -848,10 +728,11 @@ const ANY_SYMBOL = Symbol('any');
  */
 const TARGET_SYMBOL = Symbol('target');
 
-const observers = new WeakMap<TargetType, Map<any, Set<Observer>>>
+const observers = new WeakMap<TargetType, Map<any, Set<Observer>>>;
+let peeking = 0;
 
-function addObserver(target: any, index: any, observer: Observer|undefined = currentScope) {
-	if (!observer) return;
+function addObserver(target: any, index: any, observer: Observer = currentScope) {
+	if (peeking || observer === ROOT_SCOPE) return;
 
 	let byTarget = observers.get(target);
 	if (!byTarget) observers.set(target, byTarget = new Map());
@@ -861,7 +742,10 @@ function addObserver(target: any, index: any, observer: Observer|undefined = cur
 	if (byIndex.has(observer)) return;
 
 	byIndex.add(observer);
-	currentScope?._cleaners.push(byIndex);
+	
+	// Note that we're adding the cleaner to `currentScope` instead of `observer`,
+	// as `observer` is not necessarily a `ContentScope`.
+	currentScope._cleaners.push(byIndex)
 }
 
 function onEach<T>(target: Array<T>, render: (value: T, index: number) => void, makeKey?: (value: T, index: number) => undefined|string|number): void;
@@ -872,35 +756,7 @@ function onEach(target: TargetType, render: (value: DatumType, index: any) => vo
 	if (!target || typeof target !== 'object') throw new Error('onEach requires an object');
 	target = (target as any)[TARGET_SYMBOL] || target;
 
-	if (target instanceof Array) new OnEachArrayScope(target, render);
-	else if (target instanceof SortedSet) new OnEachSortedSetScope(target, render);
-	else new OnEachObjectScope(target, render);
-}
-
-function streamSortedSet<T extends object>(collection: Array<T>, makeKey: keyof T | ((value: T, index: number) => undefined|string|number)) : SortedSet<T>;
-function streamSortedSet<K extends (string|number|symbol),T extends object>(collection: Record<K,T>, makeKey: keyof T | ((value: T, index: K) => undefined|string|number)) : SortedSet<T>;
-function streamSortedSet<T extends object>(collection: SortedSet<T>, makeKey: keyof T | ((value: T) => undefined|string|number)) : SortedSet<T>;
-
-function streamSortedSet<T extends object>(collection: T[] | SortedSet<T> | Record<any,T>, makeKey: any): any {
-	if (typeof makeKey !== 'function') {
-		const key = makeKey;
-		makeKey = function(value: any) { return value[key] }
-	}
-	const newIndexKey = Symbol('indexKey')
-	let sortedSet = new SortedSet<any>(newIndexKey);
-	collection = (collection as any)[TARGET_SYMBOL] || collection;
-	addObserver(collection, ANY_SYMBOL, {
-		_onChange: function(index, newData, oldData) {
-			if (oldData !== undefined) sortedSet.remove(oldData);
-			if (newData) {
-				const key = makeKey(newData);
-				if (key !== undefined) {
-					(newData as any)[newIndexKey] = sortKeyToString(key);
-					sortedSet.add(newData);
-				}
-			}
-		}
-	});
+	new OnEachScope(target, render);
 }
 
 function testEmpty(target: TargetType) {
@@ -1007,7 +863,7 @@ const objectHandler: ProxyHandler<any> = {
 	},
 };
 
-const arrayMethods = {
+const arrayMethods: Record<string,Function> = {
 	push: function(this: any, ...items: any[]) {
 		console.log('ARRAY push:', items);
 		const target = this[TARGET_SYMBOL];
@@ -1093,21 +949,50 @@ const arrayMethods = {
 		addObserver(target, ANY_SYMBOL);
 		return target.forEach((v:any, t:any) => callbackFn(optProxy(v), t));
 	},
-	[Symbol.iterator](): IterableIterator<T> {
+	[Symbol.iterator](): IterableIterator<any> {
 		const target = (this as any)[TARGET_SYMBOL];
 		addObserver(target, ANY_SYMBOL);
 		return target[Symbol.iterator];
+	},
+	map: function(func: (item: any)=>any, thisArg: any) {
+		const target = (this as any)[TARGET_SYMBOL];
+		function obsFunc(item: any) {
+			new SimpleScope(currentScope._getParentElement(), currentScope._lastChild, () => {
+				// Hmm...
+				const newValue = target[index];
+				if(newValue === undefined) delete outProxy[index];
+				else outProxy[index] = obsFunc.apply(thisArg, [newValue]);
+			});
+		} 
+		const outArr = target.map(obsFunc, thisArg);
+		const outProxy = optProxy(outArr);
+		addObserver(target, ANY_SYMBOL, {
+			_onChange(index, newData, oldData) {
+				outProxy[index] = obsFunc.apply(thisArg, [newData]);
+			},
+		})
+		return outProxy;
 	}
 	// TODO: look at jsdocs for more methods?
 };
+
+// wrap result
+'at concat every filter find findIndex findLast findLastIndex includes indexOf join lastIndexOf'.split(' ').forEach(name => {
+	arrayMethods[name] = function(...args: any[]) {
+		const target = (this as any)[TARGET_SYMBOL];
+		addObserver(this, ANY_SYMBOL);
+		return optProxy(target[name](...args));
+	};
+})
+
+
 const arrayHandler: ProxyHandler<any[]> = {
 	get(target: any, prop: any) {
 		if (prop===TARGET_SYMBOL) return target;
 		console.log(`ARRAY prop GET ${String(prop)}`);
 		const method = arrayMethods[prop as keyof typeof arrayMethods];
 		if (method) return method;
-		addObserver(target, prop);
-		return optProxy(target[prop]);
+		throw new Error(`Array proxy doesn't support '${prop}'`)
 	},
 	set(target: any, prop: any, value: any) {
 		console.log(`SET ${String(prop)}:`, value);
@@ -1118,52 +1003,10 @@ const arrayHandler: ProxyHandler<any[]> = {
 				emit(target, i, undefined, target[prop]);
 			}
 		}
-		update(target, prop, value, target[prop], false);
-		return true;
+		throw new Error(`Array proxy doesn't support '${prop}'`)
 	},
 };
 
-class SortedSetProxy<T extends object> {
-	constructor(target: TargetType) {
-		(this as any)[TARGET_SYMBOL] = target;
-	}
-	add(item: T): boolean {
-		const target = (this as any)[TARGET_SYMBOL];
-		let result = target.add(item);
-		if (result) emit(target, (item as any)[target.keyProp], item, undefined);
-		return result;
-	}
-
-	remove(item: T): boolean {
-		const target = (this as any)[TARGET_SYMBOL];
-		let result = target.remove(item);
-		if (result) emit(target, (item as any)[target.keyProp], undefined, item);
-		return result;
-	}
-
-	clear(): void {
-		const target = (this as any)[TARGET_SYMBOL];
-		for(let item of target) emit(target, (item as any)[target.keyProp], undefined, item);
-		target.clear();
-	}
-
-	get(indexValue: string|number): T | undefined {
-		const target = (this as any)[TARGET_SYMBOL];
-		addObserver(target, indexValue);
-		return target.get();
-	}
-
-	[Symbol.iterator](): IterableIterator<T> {
-		const target = (this as any)[TARGET_SYMBOL];
-		addObserver(target, ANY_SYMBOL);
-		return target[Symbol.iterator];
-	}
-
-    next(item: T): T | undefined {
-		// We'd need to do some form of gap observing, or trigger on any change. Both options suck.
-		throw new Error("SortedSet.next() intentionally not implemented by observing proxy");
-	};
-}
 
 const proxyMap = new WeakMap<TargetType, /*Proxy*/TargetType>();
 
@@ -1175,7 +1018,7 @@ function optProxy(value: any): any {
 	let proxied = proxyMap.get(value);
 	if (proxied) return proxied // Only one proxy per target!
 	
-	proxied = value instanceof SortedSet ? new SortedSetProxy(value) : new Proxy(value, value instanceof Array ? arrayHandler : objectHandler);
+	proxied = new Proxy(value, value instanceof Array ? arrayHandler : objectHandler);
 	proxyMap.set(value, proxied as TargetType);
 	return proxied;
 }
@@ -1210,8 +1053,8 @@ function destroyWithClass(element: Element, cls: string) {
 
 
 function addLeafNode(deepEl: Element, node: Node) {
-	if (deepEl === (currentScope as Scope)._parentElement) {
-		currentScope!._addNode(node);
+	if (deepEl === currentScope._getParentElement()) {
+		currentScope._addNode(node);
 	} else {
 		deepEl.appendChild(node);
 	}
@@ -1468,15 +1311,12 @@ const SPECIAL_PROPS: {[key: string]: (el: Element, value: any) => void} = {
 * When *only* a function is given, `$` behaves exactly like {@link Store.observe},
 * except that it will only work when we're inside a `mount`.
 * 
-* @throws {ScopeError} If called outside an observable scope.
 * @throws {Error} If invalid arguments are provided.
 */
 
 function $(...args: (string | (() => void) | false | null | undefined | {[key: string]: any})[]) {
-	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true);
-		
-	let deepEl = currentScope._parentElement;
-	let result
+	let deepEl = currentScope._getParentElement();
+	let result;
 	
 	for(let arg of args) {
 		if (arg == null || arg === false) continue;
@@ -1510,23 +1350,20 @@ function $(...args: (string | (() => void) | false | null | undefined | {[key: s
 				applyArg(deepEl, key, val);
 			}
 		} else if (typeof arg === 'function' && arg === args[args.length-1]) {
-			const order = currentScope._queueOrder + 1
 			let scope
-			if (deepEl === currentScope._parentElement) {
+			if (deepEl === currentScope._getParentElement()) {
 				// We're adding to a pre-existing element, that may already have other observers attached
-				const previousSibling = currentScope._lastChild || currentScope._precedingSibling
+				const prevSibling = currentScope._lastChild;
 				if (args.length===1) {
-					scope = new ResultScope(deepEl, previousSibling, order, arg);
+					scope = new ResultScope(deepEl, prevSibling, arg);
 					result = scope.result
 				} else {
-					scope = new SimpleScope(deepEl, previousSibling, order, arg);
+					scope = new SimpleScope(deepEl, prevSibling, arg);
 				}
-				currentScope._lastChild = scope;		
 			} else {
 				// This is the first scope within a new DOM element
-				scope = new SimpleScope(deepEl, deepEl.lastChild as Node, order, arg);
+				scope = new SimpleScope(deepEl, deepEl.lastChild as Node, arg);
 			}
-			scope._init()
 		} else {
 			throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`);
 		}
@@ -1541,9 +1378,8 @@ function applyArg(deepEl: Element, key: string, value: any) {
 		if (key === 'bind') {
 			applyBind(deepEl, value)
 		} else {
-			let childScope = new SetArgScope(deepEl, deepEl.lastChild as Node, currentScope!._queueOrder+1, key, value)
+			new SetArgScope(deepEl, deepEl.lastChild as Node, key, value)
 			// SetArgScope will (repeatedly) call `applyArg` again with the actual value
-			childScope._init();
 		}
 	} else if (key[0] === '.') { // CSS class(es)
 		const classes = key.substring(1).split('.');
@@ -1613,8 +1449,7 @@ function setErrorHandler(handler?: (error: Error) => boolean | undefined) {
 * terribly surprising. Be careful within the parent element of onEach() though.
 */
 function getParentElement(): Element {
-	if (!currentScope || !currentScope._parentElement) throw new ScopeError(true);
-	return currentScope._parentElement;
+	return currentScope._getParentElement();
 }
 
 
@@ -1624,7 +1459,6 @@ function getParentElement(): Element {
 * @param cleaner - The function to be executed.
 */
 function clean(cleaner: () => void) {
-	if (!currentScope) throw new ScopeError(false);
 	currentScope._cleaners.push({delete: cleaner});
 }
 
@@ -1651,8 +1485,8 @@ function clean(cleaner: () => void) {
 *   console.log(doubled.get())
 * })
 */
-function observe(func: () => void): number | undefined {
-	return _mount(undefined, func, SimpleScope);
+function observe(func: () => void) {
+	new SimpleScope(currentScope._getParentElement(), currentScope._lastChild, func);
 }
 
 /**
@@ -1664,8 +1498,8 @@ function observe(func: () => void): number | undefined {
 * @param func The function to be (repeatedly) executed.
 * @returns The mount id (usable for `unmount`) if this is a top-level observe.
 */
-function immediateObserve(func: () => void): number | undefined {
-	return _mount(undefined, func, ImmediateScope);
+function immediateObserve(func: () => void) {
+	new ImmediateScope(currentScope._getParentElement(), currentScope._getLastNode(), func);
 }
 
 
@@ -1674,7 +1508,6 @@ function immediateObserve(func: () => void): number | undefined {
 
 * @param func - The function to be (repeatedly) executed, possibly adding DOM elements to `parentElement`.
 * @param parentElement - A DOM element that will be used as the parent element for calls to `$`.
-* @returns The mount id (usable for `unmount`) if this is a top-level mount.
 *
 * @example
 * ```
@@ -1710,52 +1543,16 @@ function immediateObserve(func: () => void): number | undefined {
 * })
 * ```
 */
+
 function mount(parentElement: Element, func: () => void) {
-	for(let scope of topScopes.values()) {
-		if (parentElement === scope._parentElement) {
-			throw new Error("Only a single mount per parent element");
-		}
-	}
-	
-	return _mount(parentElement, func, SimpleScope);
-}
-
-let maxTopScopeId = 0
-const topScopes: Map<number, SimpleScope> = new Map();
-
-function _mount(parentElement: Element | undefined, func: () => void, MountScope: typeof SimpleScope): number | undefined {
-	let scope;
-	if (parentElement || !currentScope) {
-		scope = new MountScope(parentElement, undefined, 0, func);
-	} else {
-		scope = new MountScope(currentScope._parentElement, currentScope._lastChild || currentScope._precedingSibling, currentScope._queueOrder+1, func);
-		currentScope._lastChild = scope;
-	}
-	scope._init()
-	
-	// Add it to our list of cleaners. Even if `scope` currently has
-	// no cleaners, it may get them in a future refresh.
-	if (!currentScope) {
-		topScopes.set(++maxTopScopeId, scope);
-		return maxTopScopeId;
-	}
+	new MountScope(parentElement, func);
 }
 
 /**
-* Unmount one specific or all top-level mounts or observes, meaning those that were created outside of the scope 
-* of any other mount or observe.
-* @param id Optional mount number (as returned by `mount`, `observe` or `immediateObserve`). If `undefined`, unmount all.
-*/
-function unmount(id?: number) {
-	if (id == null) {
-		for(let scope of topScopes.values()) scope._remove();
-		topScopes.clear();
-	} else {
-		let scope = topScopes.get(id);
-		if (!scope) throw new Error("No such mount "+id);
-		topScopes.delete(id);
-		scope._remove();
-	}
+ * Stop all observe scopes and remove any created DOM nodes.
+ */
+function deleteAll() {
+	ROOT_SCOPE._remove();
 }
 
 
@@ -1807,8 +1604,7 @@ function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(targ
 function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
 
 function peek(target: TargetType, ...indices: any[]): DatumType | undefined {
-	let savedScope = currentScope;
-	currentScope = undefined;
+	peeking++;
 	try {
 		if (indices.length===0 && typeof target === 'function') return target();
 		let node: any = target;
@@ -1819,18 +1615,119 @@ function peek(target: TargetType, ...indices: any[]): DatumType | undefined {
 		}
 		return node;
 	} finally {
-		currentScope = savedScope;
+		peeking--;
 	}
 
+}
+
+/**
+ * Applies a filter/map function on each item within the provided array or object proxy,
+ * and reactively updated the returned array or object proxy.
+ *
+ * @param target - A proxied array or object.
+ *
+ * @param func - Function that transform the given value (and index) into an output value or
+ * `undefined` in case this value should be skipped.
+ *
+ * @returns - A proxied array or object (matching `target`) with the values returned by `func`
+ * and the corresponding keys from the original map or array.
+ *
+ */
+function map<IN,OUT>(target: Array<IN>, func: (value: IN, index: number) => OUT): Array<OUT>;
+function map<IN,OUT>(target: Record<string|symbol,IN>, func: (value: IN, index: string|symbol) => OUT): Record<string|symbol,OUT>;
+
+function map(target: any, func: (value: DatumType, key: any) => any): any {
+	let out = new Store()
+	observe(() => {
+		let t = this.getType()
+		out.set(t==='array' ? [] : (t==='object' ? {} : new Map()))
+		this.onEach((item: Store) => {
+			let value = func(item)
+			if (value !== undefined) {
+				let key = item.index()
+				const ref = out(key)
+				ref.set(value)
+				clean(() => {
+					ref.delete()
+				})
+			}
+		})
+	})			
+	return out
+}
+
+/**
+ * Applies a filter/map function on each item within the `Store`'s collection,
+ * each of which can deliver any number of key/value pairs, and reactively manages the
+ * returned map `Store` to hold any results.
+ *
+ * @param func - Function that transform the given store into output values
+ * that can take one of the following forms:
+ * - an `Object` or a `Map`: Each key/value pair will be added to the output `Store`.
+ * - anything else: No key/value pairs are added to the output `Store`.
+ *
+ * @returns - A map `Store` with the key/value pairs returned by all `func` invocations.
+ *
+ * When items disappear from the `Store` or are changed in a way that `func` depends
+ * upon, the resulting items are removed from the output `Store` as well. When multiple
+ * input items produce the same output keys, this may lead to unexpected results.
+ */
+function multiMap(func: (store: Store) => any): Store {
+	let out = new Store(new Map())
+	this.onEach((item: Store) => {
+		let result = func(item)
+		let refs: Array<Store> = []
+		if (result.constructor === Object) {
+			for(let key in result) {
+				const ref = out(key)
+				ref.set(result[key])
+				refs.push(ref)
+			}
+		} else if (result instanceof Map) {
+			result.forEach((value: any, key: any) => {
+				const ref = out(key)
+				ref.set(value)
+				refs.push(ref)
+			})
+		} else {
+			return
+		}
+		if (refs.length) {
+			clean(() => {
+				for(let ref of refs) {
+					ref.delete()
+				}
+			})
+		}
+	})
+	return out	
+}
+
+/**
+* Dump a live view of the `Store` tree as HTML text, `ul` and `li` nodes at
+* the current mount position. Meant for debugging purposes.
+* @returns The `Store` itself, for chaining other methods.
+*/
+function dump(): Store {
+	let type = this.getType()
+	if (type === 'array' || type === 'object' || type === 'map') {
+		$({text: `<${type}>`})
+		$('ul', () => {
+			this.onEach((sub: Store) => {
+				$('li:'+JSON.stringify(sub.index())+": ", () => {
+					sub.dump()
+				})
+			})
+		})
+	} else {
+		$({text: JSON.stringify(this.get())})
+	}
+	return this
 }
 
 /*
 * Helper functions
 */
-
-function defaultMakeSortKey(value: DatumType, index: any) {
-	return ''+index
-}
 
 /* c8 ignore start */
 function internalError(code: number) {
@@ -1842,13 +1739,7 @@ function handleError(e: any, showMessage: boolean) {
 	try {
 		if (onError(e) === false) showMessage = false;
 	} catch {}
-	if (showMessage && currentScope?._parentElement) $('.aberdeen-error:Error');
-}
-
-class ScopeError extends Error {
-	constructor(mount: boolean) {
-		super(`Operation not permitted outside of ${mount ? "a mount" : "an observe"}() scope`);
-	}
+	if (showMessage && currentScope._getParentElement()) $('.aberdeen-error:Error');
 }
 
 /** @internal */
@@ -1887,7 +1778,7 @@ $.clean = clean;
 $.observe = observe;
 $.immediateObserve = immediateObserve;
 $.mount = mount;
-$.unmount = unmount;
+$.deleteAll = deleteAll;
 $.peek = peek;
 $.withEmitHandler = withEmitHandler;
 
