@@ -3,31 +3,27 @@ import { assertBody, passTime, assertDomUpdates } from "./helpers";
 import $ from "../src/aberdeen"
 
 test('creates nested nodes', () => {
-	$.mount(document.body, () => {
-		$("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
-	})
+	$("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
 	assertBody(`a{b.cls.second{c{x=y}}}`)
 });
 test('creates elements with text', () => {
-	$.mount(document.body, () => {
-		$('.cls:This is my :-containg text!')
-		$('h2', {text: 'More text...'})
-	})
+	$('.cls:This is my :-containg text!')
+	$('h2', {text: 'More text...'})
 	assertBody(`div.cls{"This is my :-containg text!"} h2{"More text..."}`)
 })
-test('reactively modifies attributes that have stores as values', () => {
+test('reactively modifies attributes that have proxies as values', () => {
 	let cnt = 0
-	let store = $.proxy('initial' as string)
+	let proxy = $.proxy('initial' as string)
 	$.mount(document.body, () => {
 		cnt++
-		$('input', {placeholder:store})
-		$('div', {text:store})
-		$('p', {$color:store})
+		$('input', {placeholder:proxy})
+		$('div', {text:proxy})
+		$('p', {$color:proxy})
 	})
 	assertBody(`input{placeholder=initial} div{"initial"} p{color:initial}`)
 	expect(cnt).toEqual(1)
 
-	store.value = 'modified'
+	proxy.value = 'modified'
 	passTime()
 	assertBody(`input{placeholder=modified} div{"modified"} p{color:modified}`)
 	expect(cnt).toEqual(1)

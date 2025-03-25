@@ -1,5 +1,5 @@
 import { expect } from 'bun:test';
-import * as fakedom from './fakedom.js';
+import * as fakedom from './fakedom';
 
 function toDisplay(value: any) {
 	if (value instanceof Map) {

@@ -1,9 +1,9 @@
-import * as fakedom from './fakedom';
 import { beforeEach, afterEach } from "bun:test";
+import * as fakedom from './fakedom';
 import $ from '../src/aberdeen';
-import {assertBody} from "./helpers"
+import {assertBody} from "./helpers";
 
-Object.assign(global, fakedom)
+Object.assign(global, fakedom);
 
 beforeEach(() => {
 	document.body = document.createElement('body')
@@ -12,7 +12,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-	$.unmount()
+	$.unmountAll()
 	fakedom.passTime(2001) // wait for deletion transitions
 	assertBody(``)
 })
