@@ -28,29 +28,42 @@ test('reactively modifies attributes that have proxies as values', () => {
 	assertBody(`input{placeholder=modified} div{"modified"} p{color:modified}`)
 	expect(cnt).toEqual(1)
 })
+test('returns a reactive value when only a function is given', () => {
+	const data = $.proxy(20);
+	const plus2 = $(() => data.value + 2);
+	$('p', {text: plus2})
+
+	expect(plus2.value).toEqual(22)
+	assertBody(`p{"22"}`)
+
+	data.value *= 2
+	passTime();
+	expect(plus2.value).toEqual(42)
+	assertBody(`p{"42"}`)
+})
 test('reacts to conditions', () => {
-	const store: Record<string,any> = $.proxy({a: true})
-	expect(store.a).toEqual(true)
+	const data: Record<string,any> = $.proxy({a: true})
+	expect(data.a).toEqual(true)
 	let cnt = 0
 	$.mount(document.body, () => {
 		cnt++
-		$("div", {".y": $.ref(store, 'a')}, "span", {".z": $.ref(store, 'b')})
+		$("div", {".y": $.ref(data, 'a')}, "span", {".z": $.ref(data, 'b')})
 		$("input", {
-			value: $(() => store.a ? 'nope' : store.yes)
+			value: $(() => data.a ? 'nope' : data.yes)
 		})
 	})
 	assertBody(`div.y{span} input{value->nope}`)
 	expect(cnt).toEqual(1)
 	assertDomUpdates({new: 3, changed: 5}) // also removes unset classes
 
-	$.set(store, {b: true, yes: "abc"}) // delete 'a'
+	$.set(data, {b: true, yes: "abc"}) // delete 'a'
 	passTime()
 
 	assertBody(`div{span.z} input{value->abc}`)
 	expect(cnt).toEqual(1)
 	assertDomUpdates({new: 3, changed: 5+2})
 
-	store.yes = "def"
+	data.yes = "def"
 	passTime()
 	assertBody(`div{span.z} input{value->def}`)
 	expect(cnt).toEqual(1)

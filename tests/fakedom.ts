@@ -75,9 +75,7 @@ export class Element extends Node {
   }
 
   remove(): void {
-    if (this.parentNode) {
-      this.parentNode.removeChild(this);
-    }
+    this.parentNode?.removeChild(this);
   }
 
   replaceChild(newNode: Node, oldNode: Node): void {
@@ -321,6 +319,10 @@ export class TextNode extends Node {
 
   toString(): string {
     return JSON.stringify(this.textContent);
+  }
+
+  remove() {
+    this.parentNode?.removeChild(this);
   }
 }
 
