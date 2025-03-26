@@ -1159,7 +1159,7 @@ interface RefTarget {
 }
 const refHandler: ProxyHandler<RefTarget> = {
 	get(target: RefTarget, prop: any) {
-		if (prop===TARGET_SYMBOL) return target;
+		if (prop===TARGET_SYMBOL) return this; // This is just to indicate that our underlying value may be observable
 		if (prop==="value") {
 			return (target.proxy as any)[target.index];
 		}
@@ -1184,13 +1184,13 @@ function applyBind(_el: Element, target: any) {
 	let onProxyChange: (value: any) => void;
 	let onInputChange: () => void;
 	let type = el.getAttribute('type');
-	let value = peek(target, index);
+	let value = peek(target, 'value');
 	if (type === 'checkbox') {
 		if (value === undefined) set(target, index, el.checked);
 		onProxyChange = value => el.checked = value;
 		onInputChange = () => set(target, index, el.checked);
 	} else if (type === 'radio') {
-		if (value === undefined && el.checked) set(target, index, el.value);
+		if (value === undefined && el.checked) target.value = el.value;
 		onProxyChange = value => el.checked = (value === el.value);
 		onInputChange = () => {
 			if (el.checked) set(target, index, el.value);
@@ -1626,17 +1626,16 @@ function peek<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1] | 
 function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2] | undefined;
 function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
 
-function peek(target: TargetType, ...indices: any[]): DatumType | undefined {
+function peek(data: TargetType, ...indices: any[]): DatumType | undefined {
 	peeking++;
 	try {
-		if (indices.length===0 && typeof target === 'function') return target();
-		let node: any = target;
+		if (indices.length===0 && typeof data === 'function') return data();
 		for(let index of indices) {
-			if (node==null) return;
-			if (typeof node !== 'object') throw new Error(`Attempting to index primitive type ${node} with ${index}`);
-			node = node[index];
+			if (data==null) return;
+			if (typeof data !== 'object') throw new Error(`Attempting to index primitive type ${data} with ${index}`);
+			data = (data as any)[index];
 		}
-		return node;
+		return data;
 	} finally {
 		peeking--;
 	}
@@ -1795,7 +1794,7 @@ $.peek = peek;
 $.set = set;
 $.merge = merge;
 $.map = map;
-$.multiMap = map;
+$.multiMap = multiMap;
 $.dump = dump;
 
 $.setErrorHandler = setErrorHandler;
