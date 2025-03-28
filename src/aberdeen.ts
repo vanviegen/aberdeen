@@ -77,9 +77,9 @@ let domInReadPhase = false;
 const DOM_READ_PHASE = {
 	then: function(fulfilled: () => void) {
 		if (domInReadPhase) fulfilled();
-			else {
+		else {
 			if (!domWaiters.length) queue(DOM_PHASE_RUNNER);
-				domWaiters.push(fulfilled);
+			domWaiters.push(fulfilled);
 		}
 		return this;
 	}
@@ -104,16 +104,16 @@ const DOM_READ_PHASE = {
 const DOM_WRITE_PHASE = {
 	then: function(fulfilled: () => void) {
 		if (!domInReadPhase) fulfilled();
-			else {
+		else {
 			if (!domWaiters.length) queue(DOM_PHASE_RUNNER);
-				domWaiters.push(fulfilled);
+			domWaiters.push(fulfilled);
 		}
 		return this;
 	}
 }
 
 const DOM_PHASE_RUNNER = {
-	prio: Number.MAX_SAFE_INTEGER,
+	prio: Number.MIN_SAFE_INTEGER, // after everything else is done
 	queueRun: function() {
 		let waiters = domWaiters;
 		domWaiters = [];
@@ -752,6 +752,12 @@ const ANY_SYMBOL = Symbol('any');
  */
 const TARGET_SYMBOL = Symbol('target');
 
+/**
+ * Indicates that an object is a `ref`, meaning its underlying value may be 
+ * an observable.
+ */
+const REF_SYMBOL = Symbol('ref');
+
 const observers = new WeakMap<TargetType, Map<any, Set<Observer>>>;
 let peeking = 0;
 
@@ -1052,9 +1058,9 @@ function optProxy(value: any): any {
 	return proxied;
 }
 
-function proxy<T extends DatumType>(array: Array<T>): Array<T>;
+function proxy<T extends DatumType>(array: Array<T>): Array<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
 function proxy<T extends object>(obj: T): T;
-function proxy<T extends DatumType>(value: T): {value: T};
+function proxy<T extends DatumType>(value: T): {value: T extends number ? number : T extends string ? string : T extends boolean ? boolean : T};
 
 function proxy(target: TargetType): TargetType {
 	return optProxy(typeof target === 'object' && target !== null ? target : {value: target});
@@ -1159,7 +1165,7 @@ interface RefTarget {
 }
 const refHandler: ProxyHandler<RefTarget> = {
 	get(target: RefTarget, prop: any) {
-		if (prop===TARGET_SYMBOL) return this; // This is just to indicate that our underlying value may be observable
+		if (prop===REF_SYMBOL) return true;
 		if (prop==="value") {
 			return (target.proxy as any)[target.index];
 		}
@@ -1179,31 +1185,30 @@ function ref(proxy: TargetType, index: any) {
 
 
 function applyBind(_el: Element, target: any) {
-	const index = 'value'
 	const el = _el as HTMLInputElement;
 	let onProxyChange: (value: any) => void;
 	let onInputChange: () => void;
 	let type = el.getAttribute('type');
 	let value = peek(target, 'value');
 	if (type === 'checkbox') {
-		if (value === undefined) set(target, index, el.checked);
+		if (value === undefined) target.value = el.checked;
 		onProxyChange = value => el.checked = value;
-		onInputChange = () => set(target, index, el.checked);
+		onInputChange = () => target.value = el.checked;
 	} else if (type === 'radio') {
 		if (value === undefined && el.checked) target.value = el.value;
 		onProxyChange = value => el.checked = (value === el.value);
 		onInputChange = () => {
-			if (el.checked) set(target, index, el.value);
+			if (el.checked) target.value = el.value;
 		}
 	} else {
-		onInputChange = () => set(target, index, type==='number' || type==='range' ? (el.value==='' ? null : +el.value) : el.value);
+		onInputChange = () => target.value = type==='number' || type==='range' ? (el.value==='' ? null : +el.value) : el.value;
 		if (value === undefined) onInputChange();
 		onProxyChange = value => {
 			if (el.value !== value) el.value = value;
 		}
 	}
 	observe(() => {
-		onProxyChange(get(target, index));
+		onProxyChange(target.value);
 	});
 	el.addEventListener('input', onInputChange);
 	clean(() => {
@@ -1240,7 +1245,7 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
 		currentScope.addNode(document.createTextNode(value));
 	},
 	element: function(value: any) {
-		if (!(value instanceof Node)) throw new Error(`Unexpect element-argument: ${JSON.parse(value)}`);
+		if (!(value instanceof Node)) throw new Error(`Unexpected element-argument: ${JSON.parse(value)}`);
 		currentScope.addNode(value);
 	},
 }
@@ -1375,7 +1380,10 @@ function $(...args: any) {
 			if (classes) el.className = classes;
 			if (text) el.textContent = text;
 			currentScope.addNode(el);
-			currentScope = new ChainedScope(el, el.lastChild);
+			currentScope = new ChainedScope(el, undefined);
+			currentScope.lastChild = el.lastChild;
+			// Extend topRedrawScope one level deep, so it works for $('div', {create: true})`.
+			if (savedScope === topRedrawScope) topRedrawScope = currentScope;
 		}
 		else if (typeof arg === 'object') {
 			if (arg.constructor !== Object) throw new Error(`Unexpected argument: ${arg}`);
@@ -1397,7 +1405,7 @@ function $(...args: any) {
 
 function applyArg(key: string, value: any) {
 	const el = currentScope.getParentElement();
-	if (typeof value === 'object' && value !== null && value[TARGET_SYMBOL] !== undefined) { // Value is a proxy
+	if (typeof value === 'object' && value !== null && (value[TARGET_SYMBOL] || value[REF_SYMBOL])) { // Value is a proxy
 		if (key === 'bind') {
 			applyBind(el, value)
 		} else {
@@ -1622,9 +1630,9 @@ function peek<T>(func: () => T): T;
 * })
 * ```
 */
-function peek<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1] | undefined;
-function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2] | undefined;
-function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
+function peek<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1];
+function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2];
+function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3];
 
 function peek(data: TargetType, ...indices: any[]): DatumType | undefined {
 	peeking++;
@@ -1745,6 +1753,7 @@ function handleError(e: any, showMessage: boolean) {
 		if (onError(e) === false) showMessage = false;
 	} catch {}
 	try {
+		console.log('handleError', showMessage, ''+currentScope)
 		if (showMessage && currentScope.getParentElement()) $('.aberdeen-error:Error');
 	} catch {
 		// Error while adding the error marker to the DOM. Apparently, we're in

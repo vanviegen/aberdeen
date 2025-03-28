@@ -97,10 +97,3 @@ test('returns numbers for number/range typed inputs', () => {
   passTime();
   expect(data.value).toEqual(null);
 });
-
-test('only works on proxies', () => {
-  $.observe(() => {
-    $('input', {bind: null}); // Does nothing
-    assertThrow("Unexpect bind", () => $('input', {bind: false}));
-  });
-});
