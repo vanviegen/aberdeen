@@ -122,7 +122,7 @@ const DOM_PHASE_RUNNER = {
 			try {
 				waiter();
 			} catch(e) {
-				console.error(e);
+				handleError(e, false);
 			}
 		}
 	}
@@ -130,40 +130,31 @@ const DOM_PHASE_RUNNER = {
 
 
 /** @internal */
-type SortKeyType = number | string | Array<number|string>
+type SortKeyType = number | string | Array<number|string> | undefined;
 
 /**
-* Given an integer number, a string or an array of these, this function returns a string or number
-* that can be used to compare items in a natural sorting order. So `[3, 'ab']` should be smaller
-* than `[3, 'ac']`, while `[20, 'ab']` should be larger than `[3, 'ac]`.
+* Given an integer number or a string, this function returns a string that can be concatenated
+* with other strings to create a composed sort key, that follows natural number ordering.
 */
-function normalizeSortKey(key: SortKeyType): number | string {
-	return key instanceof Array ? key.map(partToStr).join('') : key;
-}
-
 function partToStr(part: number|string): string {
 	if (typeof part === 'string') {
-		return part + '\x01'
-	} else {
-		let result = numToString(Math.abs(Math.round(part)), part<0);
-		// Prefix the number of digits, counting down from 128 for negative and up for positive
-		return String.fromCharCode(128 + (part>0 ? result.length : -result.length)) + result;
+		return part + '\x01';
 	}
-}
-
-function numToString(num: number, neg: boolean): string {
-	let result = ''
+	let result = '';
+	let num = Math.abs(Math.round(part));
+	const negative = part < 0;
 	while(num > 0) {
 		/*
 		* We're reserving a few character codes:
 		* 0 - for compatibility
-		* 1 - separator between array items
+		* 1 - separator between string array items
 		* 65535 - for compatibility
 		*/
-		result += String.fromCharCode(neg ? 65535 - (num % 65533) : 2 + (num % 65533));
+		result += String.fromCharCode(negative ? 65534 - (num % 65533) : 2 + (num % 65533));
 		num = Math.floor(num / 65533);
 	}
-	return result;
+	// Prefix the number of digits, counting down from 128 for negative and up for positive
+	return String.fromCharCode(128 + (negative ? -result.length : result.length)) + result;
 }
 
 /**
@@ -251,9 +242,6 @@ abstract class ContentScope extends Scope {
 	}
 	
 	queueRun() {
-		/* c8 ignore next */
-		if (currentScope !== ROOT_SCOPE) internalError(3);
-			
 		this.remove();
 		
 		topRedrawScope = this
@@ -480,7 +468,7 @@ function runImmediateQueue() {
 	for(let count=0; !immediateQueue.isEmpty() && !immediateQueueRunning; count++) {
 		if (count > 42) {
 			immediateQueue.clear();
-			throw new Error("Too many recursive updates from immediate-mode observes");
+			throw new Error("Too many immediate-mode recursive updates");
 		}
 		immediateQueueRunning = true;
 		let copy = immediateQueue;
@@ -679,9 +667,10 @@ class OnEachItemScope extends ContentScope {
 		currentScope = this;
 		
 		try {
-			let sortKey;
+			let sortKey : undefined | string | number;
 			if (this.parent._makeSortKey) {
-				sortKey = normalizeSortKey(this.parent._makeSortKey(value, this.itemIndex));
+				let rawSortKey = this.parent._makeSortKey(value, this.itemIndex);
+				if (rawSortKey != null) sortKey = rawSortKey instanceof Array ? rawSortKey.map(partToStr).join('') : rawSortKey;
 			} else {
 				sortKey = this.itemIndex;
 			}
@@ -696,8 +685,10 @@ class OnEachItemScope extends ContentScope {
 			// We're not adding `this` to the `sortedSet` (yet), as that may not be needed,
 			// in case no nodes are created. We'll do it just-in-time in `getPrecedingNode`.
 
-			this.parent._renderer(value, this.itemIndex);
+			if (sortKey != null) this.parent._renderer(value, this.itemIndex);
 		} catch(e) {
+			// Assign a default sortKey, so we can insert an error marker
+			if (this.sortKey==null) this.sortKey = this.itemIndex;
 			handleError(e, true);
 		}
 
@@ -705,6 +696,7 @@ class OnEachItemScope extends ContentScope {
 	}
 
 	addNode(node: Node) {
+		if (this.sortKey == null) internalError(1);
 		// Due to the `this` being the first child for `this` hack, this will look
 		// for the preceding node as well, if we don't have nodes ourselves.
 		let prevNode = findLastNodeInPrevSiblings(this.lastChild);
@@ -778,14 +770,14 @@ function addObserver(target: any, index: symbol|string|number, observer: Observe
 	currentScope.cleaners.push(byIndex)
 }
 
-function onEach<T>(target: Array<T>, render: (value: T, index: number) => void, makeKey?: (value: T, index: number) => undefined|string|number): void;
-function onEach<T>(target: Record<string|symbol,T>, render: (value: T, index: string|symbol, makeKey?: (value: T, index: string|symbol) => undefined|string|number) => void): void;
+function onEach<T>(target: Array<T>, render: (value: T, index: number) => void, makeKey?: (value: T, key: any) => SortKeyType): void;
+function onEach<K extends string|number|symbol,T>(target: Record<K,T>, render: (value: T, index: K) => void, makeKey?: (value: T, key: K) => SortKeyType): void;
 
-function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeKey?: Function): void {
+function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeKey?: (value: DatumType, key: any) => SortKeyType): void {
 	if (!target || typeof target !== 'object') throw new Error('onEach requires an object');
 	target = (target as any)[TARGET_SYMBOL] || target;
 
-	new OnEachScope(target, render);
+	new OnEachScope(target, render, makeKey);
 }
 
 function isObjEmpty(obj: object): boolean {
@@ -890,6 +882,7 @@ const objectHandler: ProxyHandler<any> = {
 	set(target: any, prop: any, value: any) {
 		// console.log(`SET ${String(prop)}:`, value);
 		update(target, prop, value, target[prop], false);
+		runImmediateQueue();
 		return true;
 	},
 	deleteProperty(target: any, prop: any) {
@@ -897,6 +890,7 @@ const objectHandler: ProxyHandler<any> = {
 		const old = target[prop];
 		delete target[prop];
 		emit(target, prop, undefined, old);
+		runImmediateQueue();
 		return true;
 	},
 	has(target: any, prop: any) {
@@ -1024,6 +1018,7 @@ function arraySet(target: any, prop: any, value: any) {
 	const intProp = parseInt(prop)
 	if (intProp.toString() === prop) prop = intProp;
 	update(target, prop, value, target[prop], false);
+	runImmediateQueue();
 	return true;
 }
 
@@ -1146,6 +1141,7 @@ function mergeSet(target: TargetType, indicesAndValue: any[], merge: boolean): v
 	} else {
 		update(undefined, undefined, value, target, merge)
 	}
+	runImmediateQueue();
 }
 
 
@@ -1630,6 +1626,7 @@ function peek<T>(func: () => T): T;
 * })
 * ```
 */
+function peek<T extends object>(target: T): T;
 function peek<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1];
 function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2];
 function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3];
@@ -1637,7 +1634,11 @@ function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 e
 function peek(data: TargetType, ...indices: any[]): DatumType | undefined {
 	peeking++;
 	try {
-		if (indices.length===0 && typeof data === 'function') return data();
+		if (indices.length===0) {
+			if (typeof data === 'function') return data();
+			// Return a copy that is (shallowly) unproxied
+			return data instanceof Array ? data.slice(0) : {...data};
+		}
 		for(let index of indices) {
 			if (data==null) return;
 			if (typeof data !== 'object') throw new Error(`Attempting to index primitive type ${data} with ${index}`);
@@ -1647,7 +1648,6 @@ function peek(data: TargetType, ...indices: any[]): DatumType | undefined {
 	} finally {
 		peeking--;
 	}
-
 }
 
 /**
@@ -1665,8 +1665,8 @@ function peek(data: TargetType, ...indices: any[]): DatumType | undefined {
  * and the corresponding keys from the original map or array.
  *
  */
-function map<IN,OUT>(target: Array<IN>, func: (value: IN, index: number) => OUT, thisArg?: object): Array<OUT>;
-function map<IN,OUT>(target: Record<string|symbol,IN>, func: (value: IN, index: string|symbol) => OUT, thisArg?: object): Record<string|symbol,OUT>;
+function map<IN,OUT>(target: Array<IN>, func: (value: IN, index: number) => undefined|OUT, thisArg?: object): Array<OUT>;
+function map<IN,OUT>(target: Record<string|symbol,IN>, func: (value: IN, index: string|symbol) => undefined|OUT, thisArg?: object): Record<string|symbol,OUT>;
 
 function map(proxied: any, func: (value: DatumType, key: any) => any, thisArg?: object): any {
 	let out = optProxy(proxied instanceof Array ? [] : {});
@@ -1700,11 +1700,11 @@ function map(proxied: any, func: (value: DatumType, key: any) => any, thisArg?: 
  * input items produce the same output keys, the results for those keys are undefined.
  */
 
-function multiMap<IN,OUT extends Record<string|symbol,DatumType>>(target: Array<IN>, func: (value: IN, index: number) => OUT | undefined, thisArg?: object): OUT;
-function multiMap<IN,OUT extends Record<string|symbol,DatumType>>(target: Record<string|symbol,IN>, func: (value: IN, index: string|symbol) => OUT | undefined, thisArg?: object): OUT;
+function multiMap<IN,OUT extends {[key: string|symbol]: DatumType}>(target: Array<IN>, func: (value: IN, index: number) => OUT | undefined, thisArg?: object): OUT;
+function multiMap<K extends string|number|symbol,IN,OUT extends {[key: string|symbol]: DatumType}>(target: Record<K,IN>, func: (value: IN, index: K) => OUT | undefined, thisArg?: object): OUT;
 
 function multiMap(proxied: any, func: (value: DatumType, key: any) => Record<string|symbol,DatumType>, thisArg?: object): any {
-	let out = optProxy(proxied instanceof Array ? [] : {});
+	let out = optProxy({});
 	onEach(proxied, (item: DatumType, key: symbol|string|number) => {
 		let pairs = func.call(thisArg, item, key);
 		if (pairs) {
@@ -1753,7 +1753,6 @@ function handleError(e: any, showMessage: boolean) {
 		if (onError(e) === false) showMessage = false;
 	} catch {}
 	try {
-		console.log('handleError', showMessage, ''+currentScope)
 		if (showMessage && currentScope.getParentElement()) $('.aberdeen-error:Error');
 	} catch {
 		// Error while adding the error marker to the DOM. Apparently, we're in
