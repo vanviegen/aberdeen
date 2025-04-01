@@ -191,3 +191,23 @@ test('only unlinks the top parent of the tree being removed', async () => {
   assertBody(``);
   assertDomUpdates({new: 4, changed: 5});
 });
+
+test('merges objects collapsing changes', async () => {
+  const data = $.proxy({a: 1, b: 2, c: 3} as Record<string,number>);
+  let cnt = 0;
+  
+  $.mount(document.body, () => {
+    cnt++;
+    $({text: data.a + data.a + data.b});
+  });
+  
+  assertBody(`"4"`);
+  
+  $.set(data, {a: 3, b: 4});
+  await asyncPassTime();
+  assertBody(`"10"`);
+  expect(cnt).toEqual(2);
+  
+  $.merge(data, {c: 4});
+  expect(cnt).toEqual(2);
+});

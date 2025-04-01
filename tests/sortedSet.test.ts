@@ -1,18 +1,24 @@
 import { expect, test, beforeEach } from "bun:test";
-import { SortedSet, makeKeyBetween } from "../src/sortedSet.ts"
+import { SortedSet, makeKeyBetween } from "../src/sortedSet"
 
 
 expect.extend({
-    toBeBetween: function(actual, floor, ceiling) {
+    toBeBetween: function(actual: any, floor: string, ceiling: string) {
         const pass = actual > floor && actual < ceiling;
         return {
             pass,
-            message: () => `expected ${this.utils.printReceived(actual,)} ${pass ? 'not ' : ''}to be within range ${this.utils.printExpected(`${floor} - ${ceiling}`)}`
+            message: () => `expected ${this.utils.printReceived(actual)} ${pass ? 'not ' : ''}to be within range ${this.utils.printExpected(`${floor} - ${ceiling}`)}`
         }
     }
 });
 
-let list;
+declare module 'bun:test' {
+    interface Matchers<T> {
+        toBeBetween(floor: string, ceiling: string): any;
+    }
+}
+
+let list: SortedSet<{id: number}>;
 beforeEach(() => {
     list = new SortedSet('id');
 });

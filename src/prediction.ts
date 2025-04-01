@@ -1,7 +1,7 @@
-import $ from './aberdeen.js'
+import $ from './aberdeen'
+import type { DatumType, TargetType } from './aberdeen';
 
-type ObsCollection = any
-type Patch = Map<ObsCollection, Map<any, [any, any]>>;
+type Patch = Map<TargetType, Map<any, [DatumType, DatumType]>>;
 
 
 function recordPatch(func: () => void): Patch {
@@ -12,7 +12,7 @@ function recordPatch(func: () => void): Patch {
 	return recordingPatch
 }
 
-function addToPatch(patch: Patch, collection: ObsCollection, index: any, newData: any, oldData: any) {
+function addToPatch(patch: Patch, collection: TargetType, index: any, newData: DatumType, oldData: DatumType) {
 	let collectionMap = patch.get(collection)
 	if (!collectionMap) {
 		collectionMap = new Map()
@@ -27,7 +27,7 @@ function addToPatch(patch: Patch, collection: ObsCollection, index: any, newData
 function emitPatch(patch: Patch) {
 	for(let [collection, collectionMap] of patch) {
 		for(let [index, [newData, oldData]] of collectionMap) {
-			collection.emitChange(index, newData, oldData)
+			$.defaultEmitHandler(collection, index, newData, oldData);
 		}
 	}
 }
@@ -43,7 +43,7 @@ function mergePatch(target: Patch, source: Patch, reverse: boolean = false) {
 function silentlyApplyPatch(patch: Patch, force: boolean = false): boolean {
 	for(let [collection, collectionMap] of patch) {
 		for(let [index, [newData, oldData]] of collectionMap) {
-			let actualData = collection.rawGet(index)
+			let actualData = (collection as any)[index]
 			if (actualData !== oldData) {
 				if (force) setTimeout(() => { throw new Error(`Applying invalid patch: data ${actualData} is unequal to expected old data ${oldData} for index ${index}`)}, 0)
 				else return false
@@ -52,7 +52,7 @@ function silentlyApplyPatch(patch: Patch, force: boolean = false): boolean {
 	}
 	for(let [collection, collectionMap] of patch) {
 		for(let [index, [newData, oldData]] of collectionMap) {
-			collection.rawSet(index, newData)
+			(collection as any)[index] = newData
 		}
 	}
 	return true

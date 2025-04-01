@@ -68,6 +68,14 @@ export class SortedSet<T extends object> {
     }
 
     /**
+     * @param item An object to test for inclusion in the set.
+     * @returns true if this object item is already part of the set.
+     */
+    has(item: T): boolean {
+        return this.symbols[0] in item;
+    }
+
+    /**
      * Remove and return the first item.
      * @returns what was previously the first item in the sorted set, or `undefined` if the set was empty.
      */

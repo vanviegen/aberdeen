@@ -15,8 +15,8 @@ let sortedQueue: ReverseSortedSet<QueueRunner> | undefined; // When set, a runQu
 let runQueueDepth = 0 // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
 let topRedrawScope: Scope | undefined // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 
-type TargetType = any[] | {[key: string]: any};
-type DatumType = TargetType | boolean | number | string | null | undefined;
+export type TargetType = any[] | {[key: string]: any};
+export type DatumType = TargetType | boolean | number | string | null | undefined;
 
 /** @internal */
 export type Patch = Map<TargetType, Record<string|symbol|number, [any, any]>>;
@@ -138,7 +138,7 @@ type SortKeyType = number | string | Array<number|string> | undefined;
 */
 function partToStr(part: number|string): string {
 	if (typeof part === 'string') {
-		return part + '\x01';
+		return part + '\x01'; // end-of-string
 	}
 	let result = '';
 	let num = Math.abs(Math.round(part));
@@ -170,16 +170,12 @@ function partToStr(part: number|string): string {
 // }
 
 
-/** @internal */
-interface Observer {
-	onChange(index: any, newData: DatumType, oldData: DatumType): void;
-}
 
 // Each new scope gets a lower prio than all scopes before it, by decrementing
 // this counter.
 let lastPrio = 0;
 
-abstract class Scope implements QueueRunner, Observer {
+abstract class Scope implements QueueRunner {
 	// Scopes are to be handled in creation order. This will make sure that parents are
 	// handled before their children (as they should), and observes are executed in the
 	// order of the source code.
@@ -213,7 +209,7 @@ abstract class Scope implements QueueRunner, Observer {
 abstract class ContentScope extends Scope {
 	// The list of clean functions to be called when this scope is cleaned. These can
 	// be for child scopes, subscriptions as well as `clean(..)` hooks.
-	cleaners: Array<{delete: (scope: Scope) => void}> = [];
+	cleaners: Array<{delete: (scope: Scope) => void} | (() => void)> = [];
 
 	lastChild: Node | Scope | undefined;
 
@@ -232,7 +228,8 @@ abstract class ContentScope extends Scope {
 	 */
 	delete(/* ignore observer argument */) {
 		for(let cleaner of this.cleaners) {
-			cleaner.delete(this); // pass in observer argument, in case `cleaner` is a `Set`
+			if (typeof cleaner === 'function') cleaner();
+			else cleaner.delete(this); // pass in observer argument, in case `cleaner` is a `Set`
 		}
 		this.cleaners.length = 0;
 		sortedQueue?.remove(this); // This is very fast and O(1) when not queued
@@ -252,7 +249,6 @@ abstract class ContentScope extends Scope {
 	addNode(node: Node) {
 		const parentEl = this.getParentElement();
 		const prevEl = this.getLastNode() || this.getPrecedingNode();
-		// console.log(`addNode parent=${parentEl} prevEl=${prevEl} lastChild=${this.lastChild} node=${node}`)
 
 		parentEl.insertBefore(node, prevEl ? prevEl.nextSibling : parentEl.firstChild);
 		this.lastChild = node;
@@ -265,15 +261,19 @@ abstract class ContentScope extends Scope {
 
 
 class ChainedScope extends ContentScope {
+	// The node or scope right before this scope that has the same `parentElement`.
+	public prevSibling: Node | Scope | undefined;
 
 	constructor(
 		// The parent DOM element we'll add our child nodes to.
 		public parentElement: Element,
-		// The node or scope right before this scope that has the same `parentElement`.
-		public prevSibling: Node | Scope | undefined,
 	) {
 		super();
-		if (parentElement === currentScope.getParentElement()) currentScope.lastChild = this;
+		if (parentElement === currentScope.getParentElement()) {
+			// If `currentScope` is not actually a ChainedScope, prevSibling will be undefined, as intended
+			this.prevSibling = currentScope.lastChild || (currentScope as ChainedScope).prevSibling;
+			currentScope.lastChild = this;
+		}
 
 		// We're always adding ourselve as a cleaner, in order to run our own cleaners
 		// and to remove ourselve from the queue (if we happen to be in there).
@@ -301,12 +301,11 @@ class ChainedScope extends ContentScope {
 class RegularScope extends ChainedScope {
 	constructor(
 		parentElement: Element,
-		prevSibling: Node | Scope | undefined,
 		// The function that will be reactively called. Elements it creates using `$` are 
 		// added to the appropriate position within `parentElement`.
 		public renderer: () => any,
 	) {
-		super(parentElement, prevSibling);
+		super(parentElement);
 
 		// Do the initial run
 		this.redraw();
@@ -410,10 +409,9 @@ class ResultScope extends ChainedScope {
 
 	constructor(
 		parentElement: Element,
-		prevSibling: Node | Scope | undefined,
 		public renderer: () => DatumType,
 	) {
-		super(parentElement, prevSibling);
+		super(parentElement);
 
 		this.redraw();
 	}
@@ -439,11 +437,10 @@ class ResultScope extends ChainedScope {
 class SetArgScope extends ChainedScope {
 	constructor(
 		parentElement: Element,
-		prevSibling: Node | Scope | undefined,
 		public key: string,
 		public target: {value: DatumType},
 	) {
-		super(parentElement, prevSibling);
+		super(parentElement);
 		this.redraw();
 	}
 	redraw() {
@@ -492,6 +489,9 @@ class OnEachScope extends Scope {
 	parentElement: Element = currentScope.getParentElement();
 	prevSibling: Node | Scope | undefined;
 
+	/** For making sure the types are not mixed: */
+	sortKeyType: 'string' | 'number' | undefined;
+
 	/** The data structure we are iterating */
 	target: TargetType;
 	
@@ -508,16 +508,18 @@ class OnEachScope extends Scope {
 	constructor(
 		proxy: TargetType,
 		/** A function that renders an item */
-		public _renderer: (value: DatumType, key: any, ) => void,
+		public renderer: (value: DatumType, key: any, ) => void,
 		/** A function returning a number/string/array that defines the position of an item */
-		public _makeSortKey?: (value: DatumType, key: any) => SortKeyType,
+		public makeSortKey?: (value: DatumType, key: any) => SortKeyType,
 	) {
 		super();
 		const target: TargetType = this.target = (proxy as any)[TARGET_SYMBOL] || proxy;
 
-		addObserver(target, ANY_SYMBOL, this);
-		this.prevSibling = currentScope.lastChild;
+		subscribe(target, ANY_SYMBOL, this);
+		this.prevSibling = currentScope.lastChild || (currentScope as ChainedScope).prevSibling;
 		currentScope.lastChild = this;
+
+		currentScope.cleaners.push(this);
 
 		// Do _addChild() calls for initial items
 		if (target instanceof Array) {
@@ -558,7 +560,7 @@ class OnEachScope extends Scope {
 			if ((this.target as any)[index] === undefined) {
 				this.byIndex.delete(index);
 			} else {
-				const newScope = new OnEachItemScope(this, index, true);
+				new OnEachItemScope(this, index, true);
 			}
 		}
 		topRedrawScope = undefined;
@@ -611,13 +613,15 @@ class OnEachItemScope extends ContentScope {
 		// As apparently we're interested in the node insert position, we'll need to become part
 		// of the sortedSet now (if we weren't already).
 		// This will do nothing and barely take any time of `this` is already part of the set:
+		if (this.sortKey == null) throw new Error('xxx')
 		this.parent.sortedSet.add(this);
 		
 		const preScope = this.parent.sortedSet.prev(this);
-		// As preScope should has inserted itself as its first child, this should
+		// As preScope should have inserted itself as its first child, this should
 		// recursively call getPrecedingNode() on preScope in case it doesn't
 		// have any actual nodes as children yet.
 		if (preScope) return findLastNodeInPrevSiblings(preScope.lastChild);
+		return this.parent.getPrecedingNode();
 	}
 
 	getLastNode(): Node | undefined {
@@ -627,7 +631,14 @@ class OnEachItemScope extends ContentScope {
 	}
 
 	getActualLastNode(): Node | undefined {
-		return findLastNodeInPrevSiblings(this.lastChild)
+		let child = this.lastChild;
+
+		while(child && child !== this) {
+			if (child instanceof Node) return child;
+			const node = child.getLastNode();
+			if (node) return node;
+			child = child.getPrecedingNode();
+		}
 	}
 
 	// toString(): string {
@@ -657,7 +668,7 @@ class OnEachItemScope extends ContentScope {
 		// Have the makeSortKey function return an ordering int/string/array.
 
 		// Note that we're NOT subscribing on target[itemIndex], as the OnEachScope uses
-		// a wildcard subscription to delete/recreate scopes when that changes.
+		// a wildcard subscription to delete/recreaanyte scopes when that changes.
 		// We ARE creating a proxy around the value though (in case its an object/array),
 		// so we'll have our own scope subscribe to changes on that.
 		const value: DatumType = optProxy((this.parent.target as any)[this.itemIndex]);
@@ -668,8 +679,8 @@ class OnEachItemScope extends ContentScope {
 		
 		try {
 			let sortKey : undefined | string | number;
-			if (this.parent._makeSortKey) {
-				let rawSortKey = this.parent._makeSortKey(value, this.itemIndex);
+			if (this.parent.makeSortKey) {
+				let rawSortKey = this.parent.makeSortKey(value, this.itemIndex);
 				if (rawSortKey != null) sortKey = rawSortKey instanceof Array ? rawSortKey.map(partToStr).join('') : rawSortKey;
 			} else {
 				sortKey = this.itemIndex;
@@ -680,12 +691,18 @@ class OnEachItemScope extends ContentScope {
 				// set before setting the new sortKey to it.
 				this.parent.sortedSet.remove(this); // Very fast if `this` is not in the set
 				this.sortKey = sortKey;
+
+				if (sortKey != null) {
+					const sortKeyType = this.parent.sortKeyType;
+					if (!sortKeyType) this.parent.sortKeyType = typeof sortKey as 'number' | 'string';
+					else if (typeof sortKey !== sortKeyType) throw new Error(`Cannot mix sortKeys types ${typeof sortKey} and ${sortKeyType}`);	
+				}
 			}
 
 			// We're not adding `this` to the `sortedSet` (yet), as that may not be needed,
 			// in case no nodes are created. We'll do it just-in-time in `getPrecedingNode`.
 
-			if (sortKey != null) this.parent._renderer(value, this.itemIndex);
+			if (sortKey != null) this.parent.renderer(value, this.itemIndex);
 		} catch(e) {
 			// Assign a default sortKey, so we can insert an error marker
 			if (this.sortKey==null) this.sortKey = this.itemIndex;
@@ -709,10 +726,10 @@ class OnEachItemScope extends ContentScope {
 	remove() {
 		// We can't use getLastNode here, as we've hacked it to return the preceding
 		// node instead.
-		const lastNode = this.getActualLastNode();
-		if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
-
 		if (this.sortKey !== undefined) {
+			const lastNode = this.getActualLastNode();
+			if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
+
 			this.parent.sortedSet.remove(this);
 			this.sortKey = undefined;
 		}
@@ -750,14 +767,14 @@ const TARGET_SYMBOL = Symbol('target');
  */
 const REF_SYMBOL = Symbol('ref');
 
-const observers = new WeakMap<TargetType, Map<any, Set<Observer>>>;
-let peeking = 0;
+const subscribers = new WeakMap<TargetType, Map<any, Set<Scope | ((index: any, newData: DatumType, oldData: DatumType) => void)>>>;
+let peeking = 0; // When > 0, we're not subscribing to any changes
 
-function addObserver(target: any, index: symbol|string|number, observer: Observer = currentScope) {
+function subscribe(target: any, index: symbol|string|number, observer: Scope | ((index: any, newData: DatumType, oldData: DatumType) => void) = currentScope) {
 	if (peeking || observer === ROOT_SCOPE) return;
 
-	let byTarget = observers.get(target);
-	if (!byTarget) observers.set(target, byTarget = new Map());
+	let byTarget = subscribers.get(target);
+	if (!byTarget) subscribers.set(target, byTarget = new Map());
 	let byIndex = byTarget.get(index);
 	if (!byIndex) byTarget.set(index, byIndex = new Set());
 
@@ -765,13 +782,17 @@ function addObserver(target: any, index: symbol|string|number, observer: Observe
 
 	byIndex.add(observer);
 	
-	// Note that we're adding the cleaner to `currentScope` instead of `observer`,
-	// as `observer` is not necessarily a `ContentScope`.
-	currentScope.cleaners.push(byIndex)
+	if (observer === currentScope) {
+		currentScope.cleaners.push(byIndex);
+	} else {
+		currentScope.cleaners.push(function() {
+			byIndex.delete(observer);
+		});
+	}
 }
 
-function onEach<T>(target: Array<T>, render: (value: T, index: number) => void, makeKey?: (value: T, key: any) => SortKeyType): void;
-function onEach<K extends string|number|symbol,T>(target: Record<K,T>, render: (value: T, index: K) => void, makeKey?: (value: T, key: K) => SortKeyType): void;
+function onEach<T>(target: Array<undefined|T>, render: (value: T, index: number) => void, makeKey?: (value: T, key: any) => SortKeyType): void;
+function onEach<K extends string|number|symbol,T>(target: Record<K,undefined|T>, render: (value: T, index: K) => void, makeKey?: (value: T, key: K) => SortKeyType): void;
 
 function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeKey?: (value: DatumType, key: any) => SortKeyType): void {
 	if (!target || typeof target !== 'object') throw new Error('onEach requires an object');
@@ -790,20 +811,16 @@ function isEmpty(proxied: TargetType): boolean {
 	const scope = currentScope;
 
 	if (target instanceof Array) {
-		addObserver(target, 'length', {
-			onChange(index: any, newData: DatumType, oldData: DatumType) {
-				if (!newData !== !oldData) queue(scope);
-			}
-		})
+		subscribe(target, 'length', function(index: any, newData: DatumType, oldData: DatumType) {
+			if (!newData !== !oldData) queue(scope);
+		});
 		return !target.length;
 	} else {
 		const result = isObjEmpty(target);
-		addObserver(target, ANY_SYMBOL, {
-			onChange(index: any, newData: DatumType, oldData: DatumType) {
-				if (result ? oldData===undefined : newData===undefined) queue(scope);
-			}
-		})
-		return result
+		subscribe(target, ANY_SYMBOL, function(index: any, newData: DatumType, oldData: DatumType) {
+			if (result ? oldData===undefined : newData===undefined) queue(scope);
+		});
+		return result;
 	}
 }
 
@@ -851,42 +868,39 @@ function update(target: TargetType | undefined, index: any, newData: DatumType, 
 	}
 }
 
-let emit = function(target: TargetType, index: string|symbol|number, newData: DatumType, oldData: DatumType) {
+function defaultEmitHandler(target: TargetType, index: string|symbol|number, newData: DatumType, oldData: DatumType) {
 	if (newData === oldData) return;
 	
-	const byTarget = observers.get(target);
+	const byTarget = subscribers.get(target);
 	if (byTarget===undefined) return;
 
-	let byIndex = byTarget.get(index);
-	if (byIndex) {
-		for(let observer of byIndex) {
-			observer.onChange(index, newData, oldData)	
-		}
-	}
-	byIndex = byTarget.get(ANY_SYMBOL);
-	if (byIndex) {
-		for(let observer of byIndex) {
-			observer.onChange(index, newData, oldData)	
+	for(const what of [index, ANY_SYMBOL]) {
+		let byIndex = byTarget.get(what);
+		if (byIndex) {
+			for(let observer of byIndex) {
+				if (typeof observer === 'function') observer(index, newData, oldData);
+				else observer.onChange(index, newData, oldData)	
+			}
 		}
 	}
 }
+let emit = defaultEmitHandler;
 
 
 const objectHandler: ProxyHandler<any> = {
 	get(target: any, prop: any) {
 		if (prop===TARGET_SYMBOL) return target;
-		// console.log(`OBJECT prop GET ${String(prop)}`);
-		addObserver(target, prop);
+		// l(`OBJECT prop GET ${String(prop)}`);
+		subscribe(target, prop);
 		return optProxy(target[prop]);
 	},
 	set(target: any, prop: any, value: any) {
-		// console.log(`SET ${String(prop)}:`, value);
 		update(target, prop, value, target[prop], false);
 		runImmediateQueue();
 		return true;
 	},
 	deleteProperty(target: any, prop: any) {
-		// console.log(`DELETE ${String(prop)}`);
+		// l(`DELETE ${String(prop)}`);
 		const old = target[prop];
 		delete target[prop];
 		emit(target, prop, undefined, old);
@@ -895,15 +909,24 @@ const objectHandler: ProxyHandler<any> = {
 	},
 	has(target: any, prop: any) {
 		const result = prop in target;
-		// console.log(`HAS ${String(prop)}:`, result);
-		addObserver(target, prop);
+		// l(`HAS ${String(prop)}:`, result);
+		subscribe(target, prop);
 		return result;
 	},
 };
 
 const arrayMethods: Record<string,Function> = {
+	at: function(this: any, index: number) {
+		const target = this[TARGET_SYMBOL];
+		if (index < 0) {
+			subscribe(target, 'length');
+			index = target.length + index;
+		}
+		subscribe(target, index);
+		return optProxy(target[index]);
+	},
 	push: function(this: any, ...items: any[]) {
-		// console.log('ARRAY push:', items);
+		// l('ARRAY push:', items);
 		const target = this[TARGET_SYMBOL];
 		for(let item of items.map(optProxy)) {
 			target.push(item);
@@ -914,7 +937,7 @@ const arrayMethods: Record<string,Function> = {
 		return target.length;
 	},
 	pop: function(this: any) {
-		// console.log('ARRAY pop');
+		// l('ARRAY pop');
 		const target = this[TARGET_SYMBOL];
 		if (target.length > 0) {
 			const value = target.pop();
@@ -927,7 +950,7 @@ const arrayMethods: Record<string,Function> = {
 		}
 	},
 	shift: function(this: any) {
-		// console.log('ARRAY shift');
+		// l('ARRAY shift');
 		const target = this[TARGET_SYMBOL];
 		if (target.length > 0) {
 			const value = target.shift();
@@ -943,7 +966,7 @@ const arrayMethods: Record<string,Function> = {
 		}
 	},
 	unshift: function(this: any, ...items: any[]) {
-		// console.log('ARRAY unshift:', items);
+		// l('ARRAY unshift:', items);
 		const target = this[TARGET_SYMBOL];
 		const result = target.unshift(...items.map(optProxy));
 		for(let i=0; i<target.length; i++) {
@@ -955,7 +978,7 @@ const arrayMethods: Record<string,Function> = {
 	},
 	splice: function(this: any, start: number, deleteCount: number = 0, ...items: any[]) {
 		const target = this[TARGET_SYMBOL];
-		// console.log('ARRAY splice:', start, deleteCount, items);
+		// l('ARRAY splice:', start, deleteCount, items);
 		items = items.map(optProxy);
 		const oldLength = target.length;
 		const result = target.splice(
@@ -974,41 +997,38 @@ const arrayMethods: Record<string,Function> = {
 		return result;
 	},
 	slice: function(this: any, start: number = 0, end: number = this.length) {
-		// console.log('ARRAY slice:', start, end);
+		// l('ARRAY slice:', start, end);
 		const target = this[TARGET_SYMBOL];
 		for(let i=start; i<end; i++) {
-			addObserver(target, i);
+			subscribe(target, i);
 		}
 		return target.slice(start, end);
 	},
 	forEach: function(this: any, callbackFn: Function) {
 		const target = this[TARGET_SYMBOL];
-		// console.log('ARRAY forEach');
-		addObserver(target, ANY_SYMBOL);
+		// l('ARRAY forEach');
+		subscribe(target, ANY_SYMBOL);
 		return target.forEach((v:any, t:any) => callbackFn(optProxy(v), t));
 	},
 	[Symbol.iterator](this: any): IterableIterator<any> {
 		const target = (this as any)[TARGET_SYMBOL];
-		addObserver(target, ANY_SYMBOL);
+		subscribe(target, ANY_SYMBOL);
 		return target[Symbol.iterator]();
-	},
-	map: function(func: (item: any)=>any, thisArg: any) {
-		return map(this, func, thisArg);
 	}
 };
 
-// wrap result
-'at concat every filter find findIndex findLast findLastIndex includes indexOf join lastIndexOf'.split(' ').forEach(name => {
+// Read-only array methods that subscribe to the entire array 
+'concat every filter find findIndex findLast findLastIndex includes indexOf join lastIndexOf map'.split(' ').forEach(name => {
 	arrayMethods[name] = function(...args: any[]) {
 		const target = (this as any)[TARGET_SYMBOL];
-		addObserver(this, ANY_SYMBOL);
+		subscribe(this, ANY_SYMBOL);
 		return optProxy(target[name](...args));
 	};
 })
 
 
 function arraySet(target: any, prop: any, value: any) {
-	// console.log(`SET ${String(prop)}:`, value);
+	// l(`SET ${String(prop)}:`, value);
 	if (prop === 'length') {
 		// We only need to emit for shrinking, as growing just adds undefineds
 		for(let i=value; i<target.length; i++) {
@@ -1025,11 +1045,11 @@ function arraySet(target: any, prop: any, value: any) {
 const arrayHandler: ProxyHandler<any[]> = {
 	get(target: any, prop: any) {
 		if (prop===TARGET_SYMBOL) return target;
-		// console.log(`ARRAY prop GET ${String(prop)}`);
+		// l(`ARRAY prop GET ${String(prop)}`);
 		const method = arrayMethods[prop as keyof typeof arrayMethods];
 		if (method) return method;
 		const intProp = parseInt(prop)
-		addObserver(target, intProp.toString() === prop ? intProp : prop);
+		subscribe(target, intProp.toString() === prop ? intProp : prop);
 		return optProxy(target[prop]);
 	},
 	set: arraySet,
@@ -1348,7 +1368,7 @@ function $<T>(...args: [...DollarArg[], (() => void)]): void;
 function $(...args: any) {
 
 	if (args.length === 1 && typeof args[0] === 'function') {
-		return (new ResultScope(currentScope.getParentElement(), currentScope.lastChild, args[0])).result;
+		return (new ResultScope(currentScope.getParentElement(), args[0])).result;
 	}
 
 	let savedScope = currentScope;
@@ -1376,7 +1396,7 @@ function $(...args: any) {
 			if (classes) el.className = classes;
 			if (text) el.textContent = text;
 			currentScope.addNode(el);
-			currentScope = new ChainedScope(el, undefined);
+			currentScope = new ChainedScope(el);
 			currentScope.lastChild = el.lastChild;
 			// Extend topRedrawScope one level deep, so it works for $('div', {create: true})`.
 			if (savedScope === topRedrawScope) topRedrawScope = currentScope;
@@ -1388,7 +1408,7 @@ function $(...args: any) {
 				applyArg(key, val);
 			}
 		} else if (typeof arg === 'function' && arg === args[args.length-1]) {
-			new RegularScope(currentScope.getParentElement(), currentScope.lastChild, arg);
+			new RegularScope(currentScope.getParentElement(), arg);
 		} else {
 			currentScope = savedScope;
 			throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`);
@@ -1405,7 +1425,7 @@ function applyArg(key: string, value: any) {
 		if (key === 'bind') {
 			applyBind(el, value)
 		} else {
-			new SetArgScope(el, currentScope.lastChild, key, value)
+			new SetArgScope(el, key, value)
 			// SetArgScope will (repeatedly) call `applyArg` again with the actual value
 		}
 	} else if (key[0] === '.') { // CSS class(es)
@@ -1486,7 +1506,7 @@ function getParentElement(): Element {
 * @param cleaner - The function to be executed.
 */
 function clean(cleaner: () => void) {
-	currentScope.cleaners.push({delete: cleaner});
+	currentScope.cleaners.push(cleaner);
 }
 
 
@@ -1509,11 +1529,11 @@ function clean(cleaner: () => void) {
 * })
 *
 * observe(() => {
-*   console.log(doubled.get())
+*   l(doubled.get())
 * })
 */
 function observe(func: () => void) {
-	new RegularScope(currentScope.getParentElement(), currentScope.lastChild, func);
+	new RegularScope(currentScope.getParentElement(), func);
 }
 
 /**
@@ -1526,7 +1546,7 @@ function observe(func: () => void) {
 * @returns The mount id (usable for `unmount`) if this is a top-level observe.
 */
 function immediateObserve(func: () => void) {
-	new ImmediateScope(currentScope.getParentElement(), currentScope.getLastNode(), func);
+	new ImmediateScope(currentScope.getParentElement(), func);
 }
 
 
@@ -1806,8 +1826,11 @@ $.multiMap = multiMap;
 $.dump = dump;
 
 $.setErrorHandler = setErrorHandler;
-$.withEmitHandler = withEmitHandler;
 $.runQueue = runQueue;
+/** @internal */
+$.withEmitHandler = withEmitHandler;
+/** @internal */
+$.defaultEmitHandler = defaultEmitHandler;
 
 $.DOM_READ_PHASE = DOM_READ_PHASE;
 $.DOM_WRITE_PHASE = DOM_WRITE_PHASE;
