@@ -1,4 +1,4 @@
-import $ from './aberdeen.js'
+import $ from './aberdeen'
 
 /**
  * A `Store` object that holds the following keys:

@@ -9,7 +9,8 @@
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/prulloac/devcontainer-features/bun:1": {}
-	}
+	},
+	"postCreateCommand": "bun install"
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],

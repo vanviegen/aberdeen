@@ -1,5 +1,5 @@
 import { expect, test, beforeEach } from "bun:test";
-import { SortedSet, makeKeyBetween } from "../src/sortedSet"
+import { SortedSet, makeKeyBetween } from "../src/helpers/sortedSet"
 
 
 expect.extend({

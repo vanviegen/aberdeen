@@ -1,4 +1,4 @@
-import $ from './aberdeen.js'
+import $ from './aberdeen'
 
 const FADE_TIME = 400
 const GROW_SHRINK_TRANSITION = `margin ${FADE_TIME}ms ease-out, transform ${FADE_TIME}ms ease-out`

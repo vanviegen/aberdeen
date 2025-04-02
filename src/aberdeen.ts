@@ -1,4 +1,4 @@
-import { ReverseSortedSet } from "./reverseSortedSet";
+import { ReverseSortedSet } from "./helpers/reverseSortedSet";
 
 /*
 * QueueRunner
