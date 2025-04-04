@@ -1,5 +1,5 @@
-import $ from './aberdeen'
-import type { DatumType, TargetType } from './aberdeen';
+import $ from './aberdeen.js'
+import type { DatumType, TargetType } from './aberdeen.js';
 
 type Patch = Map<TargetType, Map<any, [DatumType, DatumType]>>;
 

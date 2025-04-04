@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime, assertDomUpdates, assertThrow } from "./helpers";
+import { assertBody, asyncPassTime, assertDomUpdates, assertThrow, assert } from "./helpers";
 import $ from "../src/aberdeen";
 
 test('map transforms arrays to arrays', async () => {
@@ -124,3 +124,80 @@ test('can create reactive computations with the $ function', async () => {
   await asyncPassTime();
   expect(double.value).toEqual(200);
 });
+
+test('isEmpty works on arrays', async () => {
+  let data = $.proxy([] as number[]);
+  let cnt = 0;
+  $.observe(() => {
+    cnt++;
+    $($.isEmpty(data,) ? ":empty" : ":not empty");
+  })
+  assertBody(`"empty"`);
+  expect(cnt).toBe(1);
+
+  data[1] = 3;
+  await asyncPassTime();
+  assertBody(`"not empty"`);
+  expect(cnt).toBe(2);
+
+  data.pop();
+  await asyncPassTime();
+  assertBody(`"not empty"`);
+  expect(cnt).toBe(2);
+
+  data.pop();
+  await asyncPassTime();
+  assertBody(`"empty"`);
+  expect(cnt).toBe(3);
+
+  data.push(42);
+  await asyncPassTime();
+  assertBody(`"not empty"`);
+  expect(cnt).toBe(4);
+
+  data.push(123);
+  await asyncPassTime();
+  assertBody(`"not empty"`);
+  expect(cnt).toBe(4);
+
+  $.unmountAll();
+  $.observe(() => { // test initial value for isEmpty
+    $($.isEmpty(data,) ? ":empty2" : ":not empty2");
+  })
+  assertBody(`"not empty2"`);
+})
+
+
+test('isEmpty works on objects', async () => {
+  let data = $.proxy({} as Record<string,number|undefined>);
+  let cnt = 0;
+  $.observe(() => {
+    cnt++;
+    $($.isEmpty(data,) ? ":empty" : ":not empty");
+  })
+  assertBody(`"empty"`);
+  expect(cnt).toBe(1);
+
+  data.x = 3;
+  await asyncPassTime();
+  assertBody(`"not empty"`);
+  expect(cnt).toBe(2);
+
+  delete data.x;
+  await asyncPassTime();
+  assertBody(`"empty"`);
+  expect(cnt).toBe(3);
+
+  data.y = undefined;
+  await asyncPassTime();
+  assertBody(`"empty"`);
+  expect(cnt).toBe(3);
+
+  $.unmountAll();
+
+  data.x = 1;
+  $.observe(() => { // test initial value for isEmpty
+    $($.isEmpty(data,) ? ":empty2" : ":not empty2");
+  })
+  assertBody(`"not empty2"`);
+})

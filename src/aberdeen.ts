@@ -1,4 +1,4 @@
-import { ReverseSortedSet } from "./helpers/reverseSortedSet";
+import { ReverseSortedSet } from "./helpers/reverseSortedSet.js";
 
 /*
 * QueueRunner
@@ -197,9 +197,9 @@ abstract class Scope implements QueueRunner {
 		this.delete();
 	}
 
-	toString(): string {
-		return `${this.constructor.name}`
-	}
+	// toString(): string {
+	// 	return `${this.constructor.name}`
+	// }
 }
 
 /**
@@ -541,10 +541,6 @@ class OnEachScope extends Scope {
 		return findLastNodeInPrevSiblings(this.prevSibling);
 	}
 	
-	// toString(): string {
-	// 	return `OnEachScope(collection=${this.collection})`
-	// }
-	
 	onChange(index: any, newData: DatumType, oldData: DatumType) {
 		if (!(this.target instanceof Array) || typeof index === 'number') this.changedIndexes.add(index);
 		queue(this);
@@ -641,10 +637,6 @@ class OnEachItemScope extends ContentScope {
 		}
 	}
 
-	// toString(): string {
-	// 	return `OnEachItemScope(itemIndex=${this.itemIndex} parentElement=${this.parentElement} parent=${this.parent} precedingSibling=${this.precedingSibling} lastChild=${this.lastChild})`
-	// }
-	
 	queueRun() {
 		/* c8 ignore next */
 		if (currentScope !== ROOT_SCOPE) internalError(4);
@@ -653,11 +645,13 @@ class OnEachItemScope extends ContentScope {
 		// the sorted set. `redraw` will take care of that, if needed.
 		// Also, we can't use `getLastNode` here, as we've hacked it to return the
 		// preceding node instead.
-		const lastNode = findLastNodeInPrevSiblings(this.lastChild);
-		if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
-		this.lastChild = this;
+		if (this.sortKey !== undefined) {
+			const lastNode = this.getActualLastNode();
+			if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
+		}
 
 		this.delete();
+		this.lastChild = this; // apply the hack (see constructor) again
 		
 		topRedrawScope = this;
 		this.redraw();
@@ -869,7 +863,9 @@ function update(target: TargetType | undefined, index: any, newData: DatumType, 
 }
 
 function defaultEmitHandler(target: TargetType, index: string|symbol|number, newData: DatumType, oldData: DatumType) {
-	if (newData === oldData) return;
+	// We're triggering for values changing from undefined to undefined, as this *may*
+	// indicate a change from or to `[empty]` (such as `[,1][0]`).
+	if (newData === oldData && newData !== undefined) return;
 	
 	const byTarget = subscribers.get(target);
 	if (byTarget===undefined) return;
@@ -890,7 +886,6 @@ let emit = defaultEmitHandler;
 const objectHandler: ProxyHandler<any> = {
 	get(target: any, prop: any) {
 		if (prop===TARGET_SYMBOL) return target;
-		// l(`OBJECT prop GET ${String(prop)}`);
 		subscribe(target, prop);
 		return optProxy(target[prop]);
 	},
@@ -900,7 +895,6 @@ const objectHandler: ProxyHandler<any> = {
 		return true;
 	},
 	deleteProperty(target: any, prop: any) {
-		// l(`DELETE ${String(prop)}`);
 		const old = target[prop];
 		delete target[prop];
 		emit(target, prop, undefined, old);
@@ -909,7 +903,6 @@ const objectHandler: ProxyHandler<any> = {
 	},
 	has(target: any, prop: any) {
 		const result = prop in target;
-		// l(`HAS ${String(prop)}:`, result);
 		subscribe(target, prop);
 		return result;
 	},
@@ -926,7 +919,6 @@ const arrayMethods: Record<string,Function> = {
 		return optProxy(target[index]);
 	},
 	push: function(this: any, ...items: any[]) {
-		// l('ARRAY push:', items);
 		const target = this[TARGET_SYMBOL];
 		for(let item of items.map(optProxy)) {
 			target.push(item);
@@ -937,7 +929,6 @@ const arrayMethods: Record<string,Function> = {
 		return target.length;
 	},
 	pop: function(this: any) {
-		// l('ARRAY pop');
 		const target = this[TARGET_SYMBOL];
 		if (target.length > 0) {
 			const value = target.pop();
@@ -950,35 +941,15 @@ const arrayMethods: Record<string,Function> = {
 		}
 	},
 	shift: function(this: any) {
-		// l('ARRAY shift');
-		const target = this[TARGET_SYMBOL];
-		if (target.length > 0) {
-			const value = target.shift();
-			emit(target, 0, target[0], value);
-			for(let i=0; i<target.length; i++) {
-				emit(target, i+1, target[i], value);
-			}
-			emit(target, 'length', target.length, target.length + 1);
-			runImmediateQueue();
-			// We don't need to subscribe to changes, as the data we read is no longer
-			// there, so cannot change.
-			return value;
-		}
+		return this.splice(0, 1)[0];
 	},
 	unshift: function(this: any, ...items: any[]) {
-		// l('ARRAY unshift:', items);
-		const target = this[TARGET_SYMBOL];
-		const result = target.unshift(...items.map(optProxy));
-		for(let i=0; i<target.length; i++) {
-			emit(target, i+1, target[i], target[i+items.length]);
-		}
-		emit(target, 'length', target.length, target.length - items.length);
-		runImmediateQueue();
-		return result;
+		this.splice(0, 0, ...items);
+		const target = this[TARGET_SYMBOL]; // I don't think it makes sense to subscribe to `length` here
+		return target.length;
 	},
 	splice: function(this: any, start: number, deleteCount: number = 0, ...items: any[]) {
 		const target = this[TARGET_SYMBOL];
-		// l('ARRAY splice:', start, deleteCount, items);
 		items = items.map(optProxy);
 		const oldLength = target.length;
 		const result = target.splice(
@@ -997,7 +968,6 @@ const arrayMethods: Record<string,Function> = {
 		return result;
 	},
 	slice: function(this: any, start: number = 0, end: number = this.length) {
-		// l('ARRAY slice:', start, end);
 		const target = this[TARGET_SYMBOL];
 		for(let i=start; i<end; i++) {
 			subscribe(target, i);
@@ -1006,7 +976,6 @@ const arrayMethods: Record<string,Function> = {
 	},
 	forEach: function(this: any, callbackFn: Function) {
 		const target = this[TARGET_SYMBOL];
-		// l('ARRAY forEach');
 		subscribe(target, ANY_SYMBOL);
 		return target.forEach((v:any, t:any) => callbackFn(optProxy(v), t));
 	},
@@ -1017,18 +986,18 @@ const arrayMethods: Record<string,Function> = {
 	}
 };
 
-// Read-only array methods that subscribe to the entire array 
+// Read-only array methods that subscribe to the entire array, and proxy any
+// nested result data.
 'concat every filter find findIndex findLast findLastIndex includes indexOf join lastIndexOf map'.split(' ').forEach(name => {
-	arrayMethods[name] = function(...args: any[]) {
+	arrayMethods[name] = function(this: TargetType, ...args: any[]) {
 		const target = (this as any)[TARGET_SYMBOL];
 		subscribe(this, ANY_SYMBOL);
-		return optProxy(target[name](...args));
+		return optProxy(target[name](...args)); // optProxy is for: filter, concat, every, map, ...
 	};
 })
 
 
 function arraySet(target: any, prop: any, value: any) {
-	// l(`SET ${String(prop)}:`, value);
 	if (prop === 'length') {
 		// We only need to emit for shrinking, as growing just adds undefineds
 		for(let i=value; i<target.length; i++) {
@@ -1045,11 +1014,14 @@ function arraySet(target: any, prop: any, value: any) {
 const arrayHandler: ProxyHandler<any[]> = {
 	get(target: any, prop: any) {
 		if (prop===TARGET_SYMBOL) return target;
-		// l(`ARRAY prop GET ${String(prop)}`);
 		const method = arrayMethods[prop as keyof typeof arrayMethods];
 		if (method) return method;
-		const intProp = parseInt(prop)
-		subscribe(target, intProp.toString() === prop ? intProp : prop);
+		let subProp = prop;
+		if (typeof prop !== 'symbol') {
+			const intProp = parseInt(prop);
+			if (intProp.toString() === prop) subProp = intProp;
+		}
+		subscribe(target, subProp);
 		return optProxy(target[prop]);
 	},
 	set: arraySet,
@@ -1529,7 +1501,7 @@ function clean(cleaner: () => void) {
 * })
 *
 * observe(() => {
-*   l(doubled.get())
+*   console.log(doubled.get())
 * })
 */
 function observe(func: () => void) {

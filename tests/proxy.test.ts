@@ -247,45 +247,23 @@ test('proxy supports array methods', () => {
   expect([...arr]).toEqual([1, 10, 20, 4, 5]);
 });
 
-test('proxy onEach iterates over arrays', async () => {
-  const arr = $.proxy([1, 2, 3]);
-  
-  $.onEach(arr, (value, index) => {
-    $('span', {text: `Item ${index}: ${value}`});
-  });
-  
-  await asyncPassTime();
-  expect(getBody()).toContain('Item 0: 1');
-  expect(getBody()).toContain('Item 1: 2');
-  expect(getBody()).toContain('Item 2: 3');
-  
-  arr.push(4);
-  await asyncPassTime();
-  expect(getBody()).toContain('Item 3: 4');
-  
-  arr[1] = 22;
-  await asyncPassTime();
-  expect(getBody()).toContain('Item 1: 22');
-});
+test(`proxy 'has'`, async () => {
+  const data = $.proxy({x: 3, y: undefined} as Record<string,number|undefined>);
+  let cnt = 0;
+  $.observe(function() { cnt++; $(`:x=${"x" in data}`); })
+  $.observe(function() { cnt++; $(`:y=${"y" in data}`); })
+  $.observe(function() { cnt++; $(`:z=${"z" in data}`); })
+  assertBody('"x=true" "y=true" "z=false"')
+  expect(cnt).toEqual(3);
 
-test('proxy onEach iterates over objects', async () => {
-  const obj = $.proxy({a: 1, b: 2, c: 3} as Record<string, number>);
-  
-  $.onEach(obj, (value, key) => {
-    $('div', {text: `${key}: ${value}`});
-  });
-  
+  delete data.x;
   await asyncPassTime();
-  expect(getBody()).toContain('a: 1');
-  expect(getBody()).toContain('b: 2');
-  expect(getBody()).toContain('c: 3');
-  
-  obj.d = 4;
-  await asyncPassTime();
-  expect(getBody()).toContain('d: 4');
-  
-  obj.b = 22;
-  await asyncPassTime();
-  expect(getBody()).toContain('b: 22');
-});
+  assertBody('"x=false" "y=true" "z=false"')
+  expect(cnt).toEqual(4);
 
+  delete data.y;
+  data.z = 42;
+  await asyncPassTime();
+  assertBody('"x=false" "y=false" "z=true"')
+  expect(cnt).toEqual(6);
+})

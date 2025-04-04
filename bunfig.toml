@@ -1,4 +1,5 @@
 [test]
 preload = ["./tests/setup.js"]
-coverageReporter  = ["text", "lcov"]
+coverageReporter  = ["text"]
 coverageSkipTestFiles = true
+coverage = true

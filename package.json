@@ -30,10 +30,9 @@
   },
   "scripts": {
     "build": "bun run build:dist && bun run build:docs",
-    "build:dist": "rm -rf dist dist-min && bun build src/*.ts --sourcemap --target browser --external '*' --outdir dist/ && bun build src/*.ts --minify --sourcemap --target browser --external '*/aberdeen' --outdir dist-min/ && npx tsc --emitDeclarationOnly && cd dist-min && ln -s ../dist/*.d.ts .",
+    "build:dist": "rm -rf dist dist-min && bun build src/*.ts --sourcemap --target browser --external '*/aberdeen' --outdir dist/ && bun build src/*.ts --minify --sourcemap --target browser --external '*/aberdeen' --outdir dist-min/ && npx tsc --emitDeclarationOnly && cd dist-min && ln -s ../dist/*.d.ts .",
     "build:docs": "typedoc --excludePrivate --excludeInternal src/*.ts",
-    "test": "bun test --coverage",
-    "coverage": "rm -rf coverage ; bun test --coverage && genhtml --quiet --legend -o coverage/ coverage/lcov.info",
+    "test": "bun test --bail",
     "prepack": "bun test && bun run build"
   },
   "author": "Frank van Viegen",
@@ -41,8 +40,7 @@
   "devDependencies": {
     "@types/bun": "latest",
     "typedoc": "^0.23.28",
-    "typescript": "^5.8.2",
-    "undici-types": "^7.5.0"
+    "typescript": "^5.8.2"
   },
   "files": [
     "dist",

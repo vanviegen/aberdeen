@@ -57,6 +57,26 @@ test('onEach adds multiple items to the DOM in default order', () => {
   assertBody(`p{"a"} p{"b"} p{"c"}`);
 });
 
+test('onEach rerenders items on unrelated observable changes', async () => {
+  let data = $.proxy([
+    {id: 42, name: 'Pete'},
+    {id: 1, name: 'Hank'},
+    {id: 123, name: 'Jack'},
+  ]);
+  let cnt = 0;
+  $.onEach(data, function(item) {
+    $(`div:${item.id}=${item.name}`)
+    cnt++;
+  })
+  expect(cnt).toEqual(3);
+  assertBody(`div{"42=Pete"} div{"1=Hank"} div{"123=Jack"}`);
+  
+  data[1].name = "Hack";
+  await asyncPassTime();
+  expect(cnt).toEqual(4);
+  assertBody(`div{"42=Pete"} div{"1=Hack"} div{"123=Jack"}`);
+})
+
 test('onEach maintains the last-element marker', () => {
   $.observe(() => {
     let data = $.proxy({c: 3, a: 1, b: 2});
