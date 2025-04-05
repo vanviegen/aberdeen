@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
-import { assertBody, passTime, assertThrow } from "./helpers";
-import $ from "../src/aberdeen";
+import { assertBody, passTime } from "./helpers";
+import { $, proxy, observe, set, onEach, mount, isEmpty, merge } from "../src/aberdeen";
 import { asyncPassTime } from "./fakedom";
 
 test('fires higher-scope isEmpty before getting to content', () => {
-	let data = $.proxy<string[]>(['a']);
+	let data = proxy<string[]>(['a']);
 	let cnt1 = 0, cnt2 = 0;
 	$(() => {
 		cnt1++;
-		if (!$.isEmpty(data)) {
+		if (!isEmpty(data)) {
 			$('div', () => {
 				// TODO: this runs after the parent has been removed. Is something missing in cleaners?
 				// Or is some delete function not removing the scope from the queue?
@@ -27,7 +27,7 @@ test('fires higher-scope isEmpty before getting to content', () => {
 	expect([cnt1, cnt2]).toEqual([1, 2]);
 
 	// Clear the array
-	$.set(data, [] as string[]);
+	set(data, [] as string[]);
 
 	passTime();
 	assertBody(``);
@@ -35,8 +35,8 @@ test('fires higher-scope isEmpty before getting to content', () => {
 });
 
 test('reactively get full array', () => {
-	let data = $.proxy<any[]>([3, 4, [5, 6]]);
-	$.mount(document.body, () => {
+	let data = proxy<any[]>([3, 4, [5, 6]]);
+	mount(document.body, () => {
 		$({text: JSON.stringify(data)});
 		$({text: JSON.stringify(data[2])});
 	});
@@ -57,10 +57,10 @@ test('reactively get full array', () => {
 
 test('merges', () => {
 	let cnt1 = 0, cnt2 = 0;
-	let data = $.proxy([1, undefined, 3] as (number|string|undefined)[]);
-	$.mount(document.body, () => {
+	let data = proxy([1, undefined, 3] as (number|string|undefined)[]);
+	mount(document.body, () => {
 		cnt1++;
-		$.onEach(data, (item, index) => {
+		onEach(data, (item, index) => {
 			cnt2++;
 			$('div:' + item);
 		});
@@ -75,7 +75,7 @@ test('merges', () => {
 	expect([cnt1, cnt2]).toEqual([1, 3]);
 
 	// Merging just replace the entire array
-	$.merge(data, [1, "two"]);
+	merge(data, [1, "two"]);
 	passTime();
 	assertBody(`div{"1"} div{"two"}`);
 	expect([cnt1, cnt2]).toEqual([1, 4]);
@@ -104,21 +104,21 @@ test('merges', () => {
 	assertBody(`div{"1"} div{"five"} div{"six"}`);
 	expect([cnt1, cnt2]).toEqual([1, 7]);
 
-	$.set(data, [1, undefined, 3]);
+	set(data, [1, undefined, 3]);
 	passTime();
 	assertBody(`div{"1"} div{"3"}`);
 	expect([cnt1, cnt2]).toEqual([1, 8]);
 });
 
 test('array at()', async function() {
-	let arr = $.proxy([2,4,6]);
+	let arr = proxy([2,4,6]);
 	expect(arr.at(0)).toEqual(2);
 	expect(arr.at(2)).toEqual(6);
 	expect(arr.at(-1)).toEqual(6);
 	expect(arr.at(-2)).toEqual(4);
 
 	let value;
-	$.observe(() => {
+	observe(() => {
 		value = arr.at(-2);
 	})
 	expect(value).toEqual(4);
@@ -133,10 +133,10 @@ test('array at()', async function() {
 });
 
 test('proxy supports array shift and unshift', async () => {
-	const arr = $.proxy([1, 2, 3, 4]);
+	const arr = proxy([1, 2, 3, 4]);
 	let value: any;
 	
-	$.observe(() => {
+	observe(() => {
 	  value = [...arr];
 	});
 	
@@ -154,7 +154,7 @@ test('proxy supports array shift and unshift', async () => {
   });
   
   test('proxy supports array forEach', async () => {
-	const arr = $.proxy([1, 2, 3]);
+	const arr = proxy([1, 2, 3]);
 	const results: number[] = [];
 	
 	arr.forEach((item, index) => {
@@ -165,7 +165,7 @@ test('proxy supports array shift and unshift', async () => {
 	
 	// Test reactivity
 	let sum = 0;
-	$.observe(() => {
+	observe(() => {
 	  sum = 0;
 	  arr.forEach(item => {
 		sum += item;
@@ -181,11 +181,11 @@ test('proxy supports array shift and unshift', async () => {
   });
   
   test('proxy supports array concat', async () => {
-	const arr1 = $.proxy([1, 2]);
-	const arr2 = $.proxy([3, 4]);
+	const arr1 = proxy([1, 2]);
+	const arr2 = proxy([3, 4]);
 	let result: any;
 	
-	$.observe(() => {
+	observe(() => {
 	  result = [...arr1.concat(arr2)];
 	});
 	expect(result).toEqual([1, 2, 3, 4]);
@@ -200,13 +200,13 @@ test('proxy supports array shift and unshift', async () => {
   });
   
   test('proxy supports array predicates (every, filter, find, includes)', async () => {
-	const arr = $.proxy([10, 20, 30, 40, 50]);
+	const arr = proxy([10, 20, 30, 40, 50]);
 	let everyResult: boolean = false;
 	let filterResult: number[] = [];
 	let findResult: number | undefined;
 	let includesResult: boolean = false;
 	
-	$.observe(() => {
+	observe(() => {
 	  everyResult = arr.every(item => item >= 10);
 	  filterResult = [...arr.filter(item => item > 20)];
 	  findResult = arr.find(item => item > 25);
@@ -243,7 +243,7 @@ test('proxy supports array shift and unshift', async () => {
   });
   
   test('proxy supports array index methods', async () => {
-	const arr = $.proxy([10, 20, 30, 20, 40]);
+	const arr = proxy([10, 20, 30, 20, 40]);
 	
 	// Test all index methods at once
 	const testIndexMethods = (array: any, value: any, expectedIndex: number, expectedLastIndex: number) => {
@@ -261,7 +261,7 @@ test('proxy supports array shift and unshift', async () => {
 	let foundIndex: number = -1;
 	let foundLastIndex: number = -1;
 	
-	$.observe(() => {
+	observe(() => {
 	  foundIndex = arr.findIndex(item => item > 25);
 	  foundLastIndex = arr.findLastIndex(item => item > 25);
 	});
@@ -282,10 +282,10 @@ test('proxy supports array shift and unshift', async () => {
   });
   
   test('proxy supports array join', async () => {
-	const arr = $.proxy(['a', 'b', 'c']);
-	let joined: string;
+	const arr = proxy(['a', 'b', 'c']);
+	let joined = '';
 	
-	$.observe(() => {
+	observe(() => {
 	  joined = arr.join('-');
 	});
 	
@@ -302,10 +302,10 @@ test('proxy supports array shift and unshift', async () => {
   });
   
   test('proxy supports array map with reactivity', async () => {
-	const arr = $.proxy([1, 2, 3]);
-	let mappedValues: number[];
+	const arr = proxy([1, 2, 3]);
+	let mappedValues: number[] = [];
 	
-	$.observe(() => {
+	observe(() => {
 	  mappedValues = [...arr.map(item => item * 10)];
 	});
 	
@@ -326,7 +326,7 @@ test('proxy supports array shift and unshift', async () => {
   });
   
   test('proxy supports array find and findLast', async () => {
-	const arr = $.proxy([
+	const arr = proxy([
 	  { id: 1, value: 'a' },
 	  { id: 2, value: 'b' },
 	  { id: 3, value: 'c' },
@@ -336,7 +336,7 @@ test('proxy supports array shift and unshift', async () => {
 	let firstB: any;
 	let lastB: any;
 	
-	$.observe(() => {
+	observe(() => {
 	  firstB = arr.find(item => item.value === 'b');
 	  lastB = arr.findLast(item => item.value === 'b');
 	});

@@ -1,15 +1,15 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime, getBody, assertDomUpdates, assertThrow, passTime } from "./helpers";
-import $ from "../src/aberdeen";
+import { assertBody, asyncPassTime } from "./helpers";
+import { $, proxy, observe, getParentElement, mount, merge } from "../src/aberdeen";
 
 test('Sets and unsets classes', async () => {
     let cnt1 = 0, cnt2 = 0, cnt3 = 0;
-    let classObj = $.proxy({".a": false, ".b": true, ".c": undefined} as any);
-    $.mount(document.body, () => {
+    let classObj = proxy({".a": false, ".b": true, ".c": undefined} as any);
+    mount(document.body, () => {
         cnt1++;
         $('div', () => {
             cnt2++;
-            $.observe(() => {
+            observe(() => {
                 cnt3++;
                 $(classObj);
             });
@@ -18,11 +18,11 @@ test('Sets and unsets classes', async () => {
     await asyncPassTime();
     assertBody(`div.b`);
     
-    $.merge(classObj, {".a": true, ".d": true});
+    merge(classObj, {".a": true, ".d": true});
     await asyncPassTime();
     assertBody(`div.a.b.d`);
     
-    $.merge(classObj, {".a": null}); // Removed from div
+    merge(classObj, {".a": null}); // Removed from div
     delete classObj[".b"]; // Won't disappear
     await asyncPassTime();
     assertBody(`div.b.d`);
@@ -31,13 +31,13 @@ test('Sets and unsets classes', async () => {
 });
 
 test('Defines and removes event listeners', async () => {
-    let data = $.proxy(true);
+    let data = proxy(true);
     let el;
     let myFunc = () => {};
     
-    $.mount(document.body, () => {
+    mount(document.body, () => {
         $('div', () => {
-            el = $.getParentElement();
+            el = getParentElement();
             if (data.value) $({click: myFunc});
         });
     });
@@ -51,10 +51,10 @@ test('Defines and removes event listeners', async () => {
 });
 
 test('Styles elements', async () => {
-    const colorData = $.proxy('blue');
+    const colorData = proxy('blue');
     let count = 0;
     
-    $.mount(document.body, () => {
+    mount(document.body, () => {
         count++;
         $('.', {
             $margin: 10+'px',

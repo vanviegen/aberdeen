@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import { asyncPassTime, assertThrow } from "./helpers";
-import $ from "../src/aberdeen";
+import { asyncPassTime } from "./helpers";
+import { setErrorHandler, proxy, observe, peek, immediateObserve } from "../src/aberdeen";
 
 test('immediateObserve runs immediately', async () => {
-    const data = $.proxy({ a: 1, b: 0 });
+    const data = proxy({ a: 1, b: 0 });
     let count = 0;
-    $.immediateObserve(() => {
+    immediateObserve(() => {
         data.b = data.a * 2;
         count++;
     });
@@ -22,9 +22,9 @@ test('immediateObserve runs immediately', async () => {
 });
 
 test('immediateObserve stabilizes dependent values', () => {
-    const data = $.proxy({ num: 1 as number | string, str: '' as string | number });
+    const data = proxy({ num: 1 as number | string, str: '' as string | number });
 
-    $.immediateObserve(() => { // num to str
+    immediateObserve(() => { // num to str
         const num = data.num;
         if (typeof num === 'number') {
             data.str = "x".repeat(num);
@@ -33,7 +33,7 @@ test('immediateObserve stabilizes dependent values', () => {
         }
     });
 
-    $.immediateObserve(() => {  // str to num
+    immediateObserve(() => {  // str to num
         const str = data.str;
         if (typeof str === 'string') {
             if (!/^x*$/.test(str)) { // Only update if str contains non-'x' characters
@@ -45,25 +45,25 @@ test('immediateObserve stabilizes dependent values', () => {
         }
     });
 
-    expect($.peek(data)).toEqual({ num: 1, str: 'x' });
+    expect(peek(data)).toEqual({ num: 1, str: 'x' });
 
     data.num = 3;
-    expect($.peek(data)).toEqual({ num: 3, str: 'xxx' });
+    expect(peek(data)).toEqual({ num: 3, str: 'xxx' });
 
     data.num = ''; // This triggers the first observer's else branch
-    expect($.peek(data)).toEqual({ num: 0, str: '' });
+    expect(peek(data)).toEqual({ num: 0, str: '' });
 
     data.str = 'af123'; // This triggers the second observer
-    expect($.peek(data)).toEqual({ num: 5, str: 'xxxxx' });
+    expect(peek(data)).toEqual({ num: 5, str: 'xxxxx' });
 });
 
 test('immediateObserve stops when its containing scope re-runs and removes it', async () => {
-    const data = $.proxy({ a: 1, b: 0, stop: false });
+    const data = proxy({ a: 1, b: 0, stop: false });
 
-    $.observe(() => {
+    observe(() => {
         if (data.stop) return;
         // This immediateObserve is cleaned up when the outer observe re-runs
-        $.immediateObserve(() => {
+        immediateObserve(() => {
             data.b = data.a * 2;
         });
     });
@@ -75,7 +75,7 @@ test('immediateObserve stops when its containing scope re-runs and removes it', 
     expect(data.b).toEqual(6);
 
     data.stop = true;
-    await asyncPassTime(); // Allow the outer $.observe to rerun, which will *not* re-create the immediateObserve
+    await asyncPassTime(); // Allow the outer observe to rerun, which will *not* re-create the immediateObserve
 
     data.a = 5;
     // The immediateObserve is gone, so 'b' is not updated
@@ -84,23 +84,23 @@ test('immediateObserve stops when its containing scope re-runs and removes it', 
 
 function captureOnError(message: string, func: () => void, showMsg: boolean = true) {
     let lastErr: Error | undefined;
-    $.setErrorHandler(err => {lastErr = err; return showMsg; });
+    setErrorHandler(err => {lastErr = err; return showMsg; });
     func();
-    $.setErrorHandler();
+    setErrorHandler();
     expect(lastErr).toBeTruthy();
     expect(lastErr!.toString()).toContain(message);
 }
 
 test('immediateObserve throws an error if a loop does not stabilize', () => {
-    const data = $.proxy({ a: 1, b: 0 });
+    const data = proxy({ a: 1, b: 0 });
 
-    $.immediateObserve(() => {
+    immediateObserve(() => {
         data.b = data.a + 1;
     });
 
     captureOnError('recursive updates', () => {
         // This will start an infinite recursion, which should be caught.
-        $.immediateObserve(() => {
+        immediateObserve(() => {
             data.a = data.b + 1;
         });
     });

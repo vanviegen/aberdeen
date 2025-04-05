@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime, getBody, assertDomUpdates, assertThrow } from "./helpers";
-import $ from "../src/aberdeen";
+import { assertBody, asyncPassTime, getBody } from "./helpers";
+import { $, proxy, observe, set, onEach, clean, unmountAll, map } from "../src/aberdeen";
 
 test('onEach does nothing for an empty object', () => {
   let cnt = 0;
-  $.observe(() => {
-    let data = $.proxy({});
-    $.onEach(data, function() {
+  observe(() => {
+    let data = proxy({});
+    onEach(data, function() {
       cnt++;
     });
   });
@@ -15,9 +15,9 @@ test('onEach does nothing for an empty object', () => {
 
 test('onEach emits a single entry', () => {
   let result: [string, number][] = [];
-  $.observe(() => {
-    let data = $.proxy({x: 3});
-    $.onEach(data, function(value, key) {
+  observe(() => {
+    let data = proxy({x: 3});
+    onEach(data, function(value, key) {
       result.push([key, value]);
     });
   });
@@ -26,9 +26,9 @@ test('onEach emits a single entry', () => {
 
 test('onEach emits multiple entries', () => {
   let result: [string, number][] = [];
-  $.observe(() => {
-    let data = $.proxy({x: 3, y: 4, z: 5});
-    $.onEach(data, function(value, key) {
+  observe(() => {
+    let data = proxy({x: 3, y: 4, z: 5});
+    onEach(data, function(value, key) {
       result.push([key, value]);
     });
     // The order is undefined, so we'll sort it
@@ -38,9 +38,9 @@ test('onEach emits multiple entries', () => {
 });
 
 test('onEach adds a single item to the DOM', () => {
-  $.observe(() => {
-    let data = $.proxy({x: 3});
-    $.onEach(data, function(value, key) {
+  observe(() => {
+    let data = proxy({x: 3});
+    onEach(data, function(value, key) {
       $('p', {class: key, text: value});
     });
   });
@@ -48,9 +48,9 @@ test('onEach adds a single item to the DOM', () => {
 });
 
 test('onEach adds multiple items to the DOM in default order', () => {
-  $.observe(() => {
-    let data = $.proxy({c: 3, a: 1, b: 2});
-    $.onEach(data, function(value, key) {
+  observe(() => {
+    let data = proxy({c: 3, a: 1, b: 2});
+    onEach(data, function(value, key) {
       $('p', {text: key});
     });
   });
@@ -58,13 +58,13 @@ test('onEach adds multiple items to the DOM in default order', () => {
 });
 
 test('onEach rerenders items on unrelated observable changes', async () => {
-  let data = $.proxy([
+  let data = proxy([
     {id: 42, name: 'Pete'},
     {id: 1, name: 'Hank'},
     {id: 123, name: 'Jack'},
   ]);
   let cnt = 0;
-  $.onEach(data, function(item) {
+  onEach(data, function(item) {
     $(`div:${item.id}=${item.name}`)
     cnt++;
   })
@@ -78,9 +78,9 @@ test('onEach rerenders items on unrelated observable changes', async () => {
 })
 
 test('onEach maintains the last-element marker', () => {
-  $.observe(() => {
-    let data = $.proxy({c: 3, a: 1, b: 2});
-    $.onEach(data, function(value, key) {
+  observe(() => {
+    let data = proxy({c: 3, a: 1, b: 2});
+    onEach(data, function(value, key) {
       $('p', {text: key});
     });
     $('div');
@@ -89,10 +89,10 @@ test('onEach maintains the last-element marker', () => {
 });
 
 test('onEach maintains position for items', async () => {
-  let data = $.proxy({0: false, 1: false, 2: false, 3: false});
+  let data = proxy({0: false, 1: false, 2: false, 3: false});
   let cnts = [0, 0, 0, 0];
-  $.observe(() => {
-    $.onEach(data, (value, index) => {
+  observe(() => {
+    onEach(data, (value, index) => {
       cnts[Number(index)]++;
       if (value) $('p', {id: index});
     });
@@ -114,9 +114,9 @@ test('onEach maintains position for items', async () => {
 });
 
 test('onEach adds items in the right position', async () => {
-  let data = $.proxy({} as Record<string, boolean>);
-  $.observe(() => {
-    $.onEach(data, (value, key) => {
+  let data = proxy({} as Record<string, boolean>);
+  observe(() => {
+    onEach(data, (value, key) => {
       $(key);
     });
   });
@@ -134,16 +134,16 @@ test('onEach adds items in the right position', async () => {
 
 test('onEach removes items and calls cleaners', async () => {
   let items = ['d', 'a', 'b', 'f', 'c', 'e'];
-  let data = $.proxy({} as Record<string, boolean>);
+  let data = proxy({} as Record<string, boolean>);
   for(let item of items) {
     data[item] = true;
   }
   
   let cleaned: string[] = [];
-  $.observe(() => {
-    $.onEach(data, (value, key) => {
+  observe(() => {
+    onEach(data, (value, key) => {
       $(key);
-      $.clean(() => {
+      clean(() => {
         cleaned.push(key);
       });
     });
@@ -164,16 +164,16 @@ test('onEach removes items and calls cleaners', async () => {
 
 test('onEach removes an entire object and calls cleaners', async () => {
   let cleaned: Record<string, boolean> = {};
-  let data = $.proxy({b: 2, c: 3, a: 1});
-  let showOnEach = $.proxy(true);
+  let data = proxy({b: 2, c: 3, a: 1});
+  let showOnEach = proxy(true);
   let cnt = 0;
   
-  $.observe(() => {
+  observe(() => {
     if (showOnEach.value) {
-      $.onEach(data, (value, key) => {
+      onEach(data, (value, key) => {
         cnt++;
         $(key);
-        $.clean(() => {
+        clean(() => {
           cleaned[key] = true;
         });
       });
@@ -190,11 +190,11 @@ test('onEach removes an entire object and calls cleaners', async () => {
 });
 
 test('onEach should ignore on delete followed by set', async () => {
-  let data = $.proxy({a: 1, b: 2} as Record<string,number>);
+  let data = proxy({a: 1, b: 2} as Record<string,number>);
   let cnt = 0;
   
-  $.observe(() => {
-    $.onEach(data, (value, key) => {
+  observe(() => {
+    onEach(data, (value, key) => {
       $(key);
       cnt++;
     });
@@ -213,11 +213,11 @@ test('onEach should ignore on delete followed by set', async () => {
 });
 
 test('onEach should do nothing on set followed by delete', async () => {
-  let data = $.proxy({a: 1} as Record<string,number>);
+  let data = proxy({a: 1} as Record<string,number>);
   let cnt = 0;
   
-  $.observe(() => {
-    $.onEach(data, (value, key) => {
+  observe(() => {
+    onEach(data, (value, key) => {
       $(key);
       cnt++;
     });
@@ -236,10 +236,10 @@ test('onEach should do nothing on set followed by delete', async () => {
 });
 
 test('onEach should handle items with identical sort keys', async () => {
-  let data = $.proxy({a: 1, b: 1, c: 1, d: 1} as Record<string,number>);
+  let data = proxy({a: 1, b: 1, c: 1, d: 1} as Record<string,number>);
   
-  $.observe(() => {
-    $.onEach(data, (value, key) => {
+  observe(() => {
+    onEach(data, (value, key) => {
       $(key);
     }, value => value);
   });
@@ -260,13 +260,13 @@ test('onEach should handle items with identical sort keys', async () => {
 });
 
 test('onEach keeps two onEaches in order', async () => {
-  let data1 = $.proxy(['c1']);
-  let data2 = $.proxy(['c2']);
+  let data1 = proxy(['c1']);
+  let data2 = proxy(['c2']);
   
-  $.onEach(data1, (value) => {
+  onEach(data1, (value) => {
     $(value);
   });
-  $.onEach(data2, (value) => {
+  onEach(data2, (value) => {
     $(value);
   }, value => value);
   
@@ -276,35 +276,35 @@ test('onEach keeps two onEaches in order', async () => {
   await asyncPassTime();
   assertBody(`c1 b1 c2`);
   
-  $.set(data2, ['b2', 'c2', 'd2']);
+  set(data2, ['b2', 'c2', 'd2']);
   await asyncPassTime();
   assertBody(`c1 b1 b2 c2 d2`);
   
-  $.set(data1, []);
+  set(data1, []);
   await asyncPassTime();
   assertBody(`b2 c2 d2`);
   
-  $.set(data2, []);
+  set(data2, []);
   await asyncPassTime();
   assertBody(``);
   
-  $.set(data2, ['c2', 'b2']);
+  set(data2, ['c2', 'b2']);
   await asyncPassTime();
   assertBody(`b2 c2`);
   
-  $.set(data1, ['c1', 'b1']);
+  set(data1, ['c1', 'b1']);
   await asyncPassTime();
   assertBody(`c1 b1 b2 c2`);
 });
 
 test('onEach iterates arrays', async () => {
-  let data = $.proxy(['e', 'b', 'a', 'd']);
+  let data = proxy(['e', 'b', 'a', 'd']);
   
-  $.observe(() => {
-    $.onEach(data, (value, index) => {
+  observe(() => {
+    onEach(data, (value, index) => {
       $('h' + index);
     });
-    $.onEach(data, (value, index) => {
+    onEach(data, (value, index) => {
       $('i' + index);
     }, value => value);
   });
@@ -317,13 +317,13 @@ test('onEach iterates arrays', async () => {
 });
 
 test('onEach iterates arrays that are pushed into', async () => {
-  let data = $.proxy(['e', 'b', 'a', 'd']);
+  let data = proxy(['e', 'b', 'a', 'd']);
   
-  $.observe(() => {
-    $.onEach(data, (value, index) => {
+  observe(() => {
+    onEach(data, (value, index) => {
       $('h' + index);
     });
-    $.onEach(data, (value, index) => {
+    onEach(data, (value, index) => {
       $('i' + index);
     }, value => value);
   });
@@ -335,12 +335,12 @@ test('onEach iterates arrays that are pushed into', async () => {
 });
 
 test('onEach removes all children before redrawing', async () => {
-  let data = $.proxy({a: 1, b: 2});
-  let select = $.proxy(1);
+  let data = proxy({a: 1, b: 2});
+  let select = proxy(1);
   
-  $.observe(() => {
+  observe(() => {
     const selectedValue = select.value;
-    $.onEach(data, (value, key) => {
+    onEach(data, (value, key) => {
       $(key);
     }, (value, key) => {
       if (selectedValue == value) {
@@ -358,9 +358,9 @@ test('onEach removes all children before redrawing', async () => {
 });
 
 test('onEach should handle items that don\'t create DOM elements', async () => {
-  let data = $.proxy("b0 b1 c1 b2 c0 a1 a0 a2".split(" ")) as (string|undefined)[];
+  let data = proxy("b0 b1 c1 b2 c0 a1 a0 a2".split(" ")) as (string|undefined)[];
   
-  $.onEach(data, (item, index) => {
+  onEach(data, (item, index) => {
     let letter = item[0];
     let count = parseInt(item[1]);
     for(let i = 0; i < count; i++) {
@@ -383,25 +383,25 @@ test('onEach should handle items that don\'t create DOM elements', async () => {
 });
 
 test('onEach filters when there is no sort key', async () => {
-  let data = $.proxy(['a', 'b', 'c']);
+  let data = proxy(['a', 'b', 'c']);
   
-  $.observe(() => {
-    $.onEach(data, (item) => {
+  observe(() => {
+    onEach(data, (item) => {
       $(item);
     }, item => item == 'b' ? undefined : item);
   });
   
   assertBody(`a c`);
   
-  $.set(data, []);
+  set(data, []);
   await asyncPassTime();
   assertBody(``);
 });
 
 test('onEach can run outside of any scope with map', async () => {
-  let data = $.proxy([3, 7] as any[]);
+  let data = proxy([3, 7] as any[]);
   
-  const incr = $.map(data, x => x + 1);
+  const incr = map(data, x => x + 1);
   expect([...incr]).toEqual([4, 8]);
   
   data.push(11);
@@ -412,7 +412,7 @@ test('onEach can run outside of any scope with map', async () => {
   await asyncPassTime();
   expect([...incr]).toEqual([4, 1, 12]);
   
-  $.unmountAll();
+  unmountAll();
   data.push(19);
   await asyncPassTime();
   expect([...incr]).toEqual([undefined, undefined, undefined]); // map() should have stopped!

@@ -1,4 +1,4 @@
-import $ from './aberdeen.js'
+import {withEmitHandler, defaultEmitHandler} from './aberdeen.js'
 import type { DatumType, TargetType } from './aberdeen.js';
 
 type Patch = Map<TargetType, Map<any, [DatumType, DatumType]>>;
@@ -6,7 +6,7 @@ type Patch = Map<TargetType, Map<any, [DatumType, DatumType]>>;
 
 function recordPatch(func: () => void): Patch {
 	const recordingPatch = new Map()
-	$.withEmitHandler(function(target, index, newData, oldData) {
+	withEmitHandler(function(target, index, newData, oldData) {
 		addToPatch(recordingPatch, target, index, newData, oldData)
 	}, func)
 	return recordingPatch
@@ -27,7 +27,7 @@ function addToPatch(patch: Patch, collection: TargetType, index: any, newData: D
 function emitPatch(patch: Patch) {
 	for(let [collection, collectionMap] of patch) {
 		for(let [index, [newData, oldData]] of collectionMap) {
-			$.defaultEmitHandler(collection, index, newData, oldData);
+			defaultEmitHandler(collection, index, newData, oldData);
 		}
 	}
 }

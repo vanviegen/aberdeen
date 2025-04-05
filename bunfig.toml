@@ -1,5 +1,5 @@
 [test]
-preload = ["./tests/setup.js"]
+preload = ["./tests/setup.ts"]
 coverageReporter  = ["text"]
 coverageSkipTestFiles = true
 coverage = true

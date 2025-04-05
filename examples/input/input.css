@@ -17,19 +17,20 @@ input, textarea, label, fieldset {
 	width: 100%;
 }
 
-input, textarea {
+input, textarea, fieldset, select, pre {
 	padding: 0.5rem;
-	border: 1px solid #ccc;
+	border: 1px solid #ddd;
 	outline: none;
+	border-radius: 4px;
+}
+
+input[type=number], input:not([type]), textarea, fieldset, select, pre {
+	box-shadow: 0 4px 8px #0002;
+	background-color: white;
 }
 
 textarea {
 	min-height: 8rem;
-}
-
-fieldset {
-	padding: 0;
-	border: none;
 }
 
 fieldset > * {

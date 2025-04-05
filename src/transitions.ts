@@ -1,4 +1,4 @@
-import $ from './aberdeen.js'
+import {DOM_READ_PHASE, DOM_WRITE_PHASE} from './aberdeen.js'
 
 const FADE_TIME = 400
 const GROW_SHRINK_TRANSITION = `margin ${FADE_TIME}ms ease-out, transform ${FADE_TIME}ms ease-out`
@@ -22,20 +22,20 @@ function getGrowShrinkProps(el: HTMLElement) {
 */
 export async function grow(el: HTMLElement) {
 	// Wait until all DOM updates have been done. Then get info from the computed layout.
-	await $.DOM_READ_PHASE
+	await DOM_READ_PHASE
 	let props = getGrowShrinkProps(el)
 
 	// In the write phase, make the element size 0 using transforms and negative margins.
-	await $.DOM_WRITE_PHASE
+	await DOM_WRITE_PHASE
 	Object.assign(el.style, props)
 	
 	// Await read phase, to combine multiple transitions into a single browser layout
-	await $.DOM_READ_PHASE
+	await DOM_READ_PHASE
 	// Make sure the layouting has been performed, to cause transitions to trigger
 	el.offsetHeight
 
 	// In the next write phase, do the transitions
-	await $.DOM_WRITE_PHASE
+	await DOM_WRITE_PHASE
 	el.style.transition = GROW_SHRINK_TRANSITION
 	for(let prop in props) el.style[prop as any] = ''
 	setTimeout(() => {
@@ -54,11 +54,11 @@ export async function grow(el: HTMLElement) {
 */
 export async function shrink(el: HTMLElement) {
 	// Wait until all DOM updates have been done. Then get info from the computed layout.
-	await $.DOM_READ_PHASE
+	await DOM_READ_PHASE
 	const props = getGrowShrinkProps(el)
 
 	// Batch starting transitions in the write phase.
-	await $.DOM_WRITE_PHASE
+	await DOM_WRITE_PHASE
 	el.style.transition = GROW_SHRINK_TRANSITION
 	Object.assign(el.style, props)
 	

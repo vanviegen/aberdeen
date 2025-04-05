@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime, assertThrow, passTime } from "./helpers";
-import $ from "../src/aberdeen";
+import { $, proxy, observe, mount, merge } from "../src/aberdeen";
 import { applyPrediction, applyCanon } from "../src/prediction";
 
 test('Prediction reverts', async () => {
-    let data = $.proxy('a');
-    $.observe(() => {
+    let data = proxy('a');
+    observe(() => {
         $(data.value);
     });
     assertBody(`a`);
@@ -25,8 +25,8 @@ test('Prediction reverts', async () => {
 });
 
 test('Prediction reverts entire patch when it can no longer apply', async () => {
-    let data = $.proxy({1: 'a', 2: 'x', 3: 'm'} as Record<number,string>);
-    $.observe(() => {
+    let data = proxy({1: 'a', 2: 'x', 3: 'm'} as Record<number,string>);
+    observe(() => {
         $(data[1]);
         $(data[2]);
         $(data[3]);
@@ -34,7 +34,7 @@ test('Prediction reverts entire patch when it can no longer apply', async () => 
     assertBody(`a x m`);
     
     // This prediction should be flushed out due to conflict
-    applyPrediction(() => $.merge(data, {1: 'b', 2: 'y'}));
+    applyPrediction(() => merge(data, {1: 'b', 2: 'y'}));
     await asyncPassTime();
     assertBody(`b y m`);
     
@@ -56,8 +56,8 @@ test('Prediction reverts entire patch when it can no longer apply', async () => 
 });
 
 test('Prediction forcibly reverts to canon state', async () => {
-    let data = $.proxy('a');
-    $.observe(() => {
+    let data = proxy('a');
+    observe(() => {
         $(data.value);
     });
     assertBody(`a`);
@@ -77,9 +77,9 @@ test('Prediction forcibly reverts to canon state', async () => {
 });
 
 test('Prediction does not cause redraw when it comes true', async () => {
-    let data = $.proxy('a');
+    let data = proxy('a');
     let draws = 0;
-    $.mount(document.body, () => {
+    mount(document.body, () => {
         $(data.value);
         draws++;
     });

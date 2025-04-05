@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime } from "./helpers";
-import $ from "../src/aberdeen";
+import { $, proxy, observe, onEach, mount } from "../src/aberdeen";
 
 test('uses custom sort orders', async () => {
-  const data = $.proxy({
+  const data = proxy({
     c: { x: 2, y: 3, z: -2 },
     a: { x: 4, y: 2, z: -500000 },
     b: { x: 5, y: 1, z: 3 },
@@ -11,10 +11,10 @@ test('uses custom sort orders', async () => {
     d: { x: 3, y: 3, z: +500000 },
   });
   
-  let sortFunc: any = $.proxy(undefined);
+  let sortFunc: any = proxy(undefined);
   
-  $.observe(() => {
-    $.onEach(data, (item, key) => {
+  observe(() => {
+    onEach(data, (item, key) => {
       $(key);
     }, sortFunc.value);
   });
@@ -36,7 +36,7 @@ test('uses custom sort orders', async () => {
 });
 
 test('changes position when sort key changes', async () => {
-  const data = $.proxy({
+  const data = proxy({
     a: 5,
     b: 3,
     c: 1,
@@ -46,9 +46,9 @@ test('changes position when sort key changes', async () => {
   
   let p = 0, c = 0;
   
-  $.mount(document.body, () => {
+  mount(document.body, () => {
     p++;
-    $.onEach(data, (item, key) => {
+    onEach(data, (item, key) => {
       c++;
       $(key);
     }, item => item);
@@ -72,12 +72,12 @@ test('changes position when sort key changes', async () => {
 });
 
 test('have items disappear when the sort key is null', async () => {
-  const data = $.proxy({a: true, b: false, c: true, d: false});
+  const data = proxy({a: true, b: false, c: true, d: false});
   let p = 0, c = 0;
   
-  $.mount(document.body, () => {
+  mount(document.body, () => {
     p++;
-    $.onEach(data, (item, key) => {
+    onEach(data, (item, key) => {
       c++;
       $(key);
     }, (item, key) => item ? key : undefined);

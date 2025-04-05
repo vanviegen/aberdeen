@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, assertDomUpdates } from "./helpers";
-import $ from "../src/aberdeen"
+import { $, proxy, ref, set, mount } from "../src/aberdeen";
 
 test('creates nested nodes', () => {
 	$("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
@@ -13,23 +13,23 @@ test('creates elements with text', () => {
 })
 test('reactively modifies attributes that have proxies as values', () => {
 	let cnt = 0
-	let proxy = $.proxy('initial' as string)
-	$.mount(document.body, () => {
+	let data = proxy('initial' as string)
+	mount(document.body, () => {
 		cnt++
-		$('input', {placeholder:proxy})
-		$('div', {text:proxy})
-		$('p', {$color:proxy})
+		$('input', {placeholder:data})
+		$('div', {text:data})
+		$('p', {$color:data})
 	})
 	assertBody(`input{placeholder=initial} div{"initial"} p{color:initial}`)
 	expect(cnt).toEqual(1)
 
-	proxy.value = 'modified'
+	data.value = 'modified'
 	passTime()
 	assertBody(`input{placeholder=modified} div{"modified"} p{color:modified}`)
 	expect(cnt).toEqual(1)
 })
 test('returns a reactive value when only a function is given', () => {
-	const data = $.proxy(20);
+	const data = proxy(20);
 	const plus2 = $(() => data.value + 2);
 	$('p', {text: plus2})
 
@@ -42,12 +42,12 @@ test('returns a reactive value when only a function is given', () => {
 	assertBody(`p{"42"}`)
 })
 test('reacts to conditions', () => {
-	const data: Record<string,any> = $.proxy({a: true})
+	const data: Record<string,any> = proxy({a: true})
 	expect(data.a).toEqual(true)
 	let cnt = 0
-	$.mount(document.body, () => {
+	mount(document.body, () => {
 		cnt++
-		$("div", {".y": $.ref(data, 'a')}, "span", {".z": $.ref(data, 'b')})
+		$("div", {".y": ref(data, 'a')}, "span", {".z": ref(data, 'b')})
 		$("input", {
 			value: $(() => data.a ? 'nope' : data.yes)
 		})
@@ -56,7 +56,7 @@ test('reacts to conditions', () => {
 	expect(cnt).toEqual(1)
 	assertDomUpdates({new: 3, changed: 5}) // also removes unset classes
 
-	$.set(data, {b: true, yes: "abc"}) // delete 'a'
+	set(data, {b: true, yes: "abc"}) // delete 'a'
 	passTime()
 
 	assertBody(`div{span.z} input{value->abc}`)

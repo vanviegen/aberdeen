@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
-import { assertBody, passTime, assertThrow, assertDomUpdates } from "./helpers";
-import $ from "../src/aberdeen";
+import { assertBody, passTime } from "./helpers";
+import { $, proxy, ref, observe, getParentElement } from "../src/aberdeen";
 
 test('binds input values', () => {
-  let data = $.proxy('test');
+  let data = proxy('test');
   let inputElement;
-  $.observe(() => {
+  observe(() => {
     $('input', {bind: data}, () => {
-      inputElement = $.getParentElement();
+      inputElement = getParentElement();
       $({".correct": data.value.length >= 5});
     });
   });
@@ -19,11 +19,11 @@ test('binds input values', () => {
 });
 
 test('binds checkboxes', () => {
-  let data = $.proxy(true);
+  let data = proxy(true);
   let inputElement;
-  $.observe(() => {
+  observe(() => {
     $('input', {type: 'checkbox', bind: data}, () => {
-      inputElement = $.getParentElement();
+      inputElement = getParentElement();
     });
   });
   assertBody(`input{type=checkbox checked->true}`);
@@ -34,14 +34,14 @@ test('binds checkboxes', () => {
 });
 
 test('binds radio buttons', () => {
-  let data = $.proxy('woman' as string);
+  let data = proxy('woman' as string);
   let inputElement1, inputElement2;
-  $.observe(() => {
+  observe(() => {
     $('input', {type: 'radio', name: 'gender', value: 'man', bind: data}, () => {
-      inputElement1 = $.getParentElement();
+      inputElement1 = getParentElement();
     });
     $('input', {type: 'radio', name: 'gender', value: 'woman', bind: data}, () => {
-      inputElement2 = $.getParentElement();
+      inputElement2 = getParentElement();
     });
   });
   assertBody(`input{name=gender type=radio checked->false value->man} input{name=gender type=radio checked->true value->woman}`);
@@ -54,21 +54,21 @@ test('binds radio buttons', () => {
 });
 
 test('reads initial value when proxy is undefined', () => {
-  let data = $.proxy({} as Record<string, any>);
-  $.observe(() => {
-    $('input', {value: 'a', bind: $.ref(data, 'input')});
-    $('input', {type: 'checkbox', checked: true, bind: $.ref(data, 'checkbox')});
-    $('input', {type: 'radio', name: 'abc', value: 'x', checked: false, bind: $.ref(data, 'radio')});
-    $('input', {type: 'radio', name: 'abc', value: 'y', checked: true, bind: $.ref(data, 'radio')});
-    $('input', {type: 'radio', name: 'abc', value: 'z', checked: false, bind: $.ref(data, 'radio')});
+  let data = proxy({} as Record<string, any>);
+  observe(() => {
+    $('input', {value: 'a', bind: ref(data, 'input')});
+    $('input', {type: 'checkbox', checked: true, bind: ref(data, 'checkbox')});
+    $('input', {type: 'radio', name: 'abc', value: 'x', checked: false, bind: ref(data, 'radio')});
+    $('input', {type: 'radio', name: 'abc', value: 'y', checked: true, bind: ref(data, 'radio')});
+    $('input', {type: 'radio', name: 'abc', value: 'z', checked: false, bind: ref(data, 'radio')});
   });
   expect(data).toEqual({input: 'a', checkbox: true, radio: 'y'});
 });
 
 test('changes DOM when proxy value is updated', () => {
-  let data = $.proxy("test" as string);
-  let toggle = $.proxy(true as boolean);
-  $.observe(() => {
+  let data = proxy("test" as string);
+  let toggle = proxy(true as boolean);
+  observe(() => {
     $('input', {bind: data});
     $('input', {type: 'checkbox', bind: toggle});
   });
@@ -80,11 +80,11 @@ test('changes DOM when proxy value is updated', () => {
 });
 
 test('returns numbers for number/range typed inputs', () => {
-  let data = $.proxy("" as any);
+  let data = proxy("" as any);
   let inputElement;
-  $.observe(() => {
+  observe(() => {
     $('input', {type: 'number', bind: data}, () => {
-      inputElement = $.getParentElement();
+      inputElement = getParentElement();
     });
   });
   assertBody(`input{type=number value->""}`);

@@ -1,4 +1,4 @@
-import $ from './aberdeen.js'
+import {getParentElement, runQueue, clean, proxy, observe, peek, immediateObserve} from './aberdeen.js'
 
 /**
  * A `Store` object that holds the following keys:
@@ -51,7 +51,7 @@ export class Route {
 	mode: 'push' | 'replace' | 'back' | undefined
 }
 
-export const route = $.proxy(new Route())
+export const route = proxy(new Route())
 
 let stateRoute = {
 	nonce: -1,
@@ -73,7 +73,7 @@ function handleLocationUpdate(event?: PopStateEvent) {
 	}
 	stateRoute = state.route
 
-	if ($.peek(route, 'mode') === 'back') {
+	if (peek(route, 'mode') === 'back') {
 		route.depth = stateRoute.depth
 		// We are still in the process of searching for a page in our navigation history..
 		updateHistory()
@@ -95,7 +95,7 @@ function handleLocationUpdate(event?: PopStateEvent) {
 	route.nav = nav
 
 	// Forward or back event. Redraw synchronously, because we can!
-	if (event) $.runQueue();
+	if (event) runQueue();
 }
 handleLocationUpdate()
 window.addEventListener("popstate", handleLocationUpdate);
@@ -106,7 +106,7 @@ window.addEventListener("popstate", handleLocationUpdate);
 // or crashing due to non-canonical data).
 function updatePath(): void {
 	let path = route.path
-	if (path == null && $.peek(route, 'p')) {
+	if (path == null && peek(route, 'p')) {
 		return updateP();
 	} 
 	path = ''+path
@@ -114,11 +114,11 @@ function updatePath(): void {
 	route.path = path
 	route.p = path.slice(1).split('/')
 }
-$.immediateObserve(updatePath)
+immediateObserve(updatePath)
 
 function updateP(): void {
 	const p = route.p
-	if (p == null && $.peek(route, 'path')) {
+	if (p == null && peek(route, 'path')) {
 		return updatePath()
 	}
 	if (!(p instanceof Array)) {
@@ -130,21 +130,21 @@ function updateP(): void {
 		route.path = '/' + p.join('/')
 	}
 }
-$.immediateObserve(updateP)
+immediateObserve(updateP)
 
-$.immediateObserve(() => {
+immediateObserve(() => {
 	if (!route.search || typeof route.search !== 'object') route.search = {}
 })
 
-$.immediateObserve(() => {
+immediateObserve(() => {
 	if (!route.id || typeof route.id !== 'object') route.id = {}
 })
 
-$.immediateObserve(() => {
+immediateObserve(() => {
 	if (!route.aux || typeof route.aux !== 'object') route.aux = {}
 })
 
-$.immediateObserve(() => {
+immediateObserve(() => {
 	let hash = ''+(route.hash || '')
 	if (hash && !hash.startsWith('#')) hash = '#'+hash
 	route.hash = hash
@@ -194,7 +194,7 @@ function updateHistory() {
 }
 
 // This deferred-mode observer will update the URL and history based on `route` changes.
-$.observe(updateHistory)
+observe(updateHistory)
 
 
 /**
@@ -207,11 +207,11 @@ $.observe(updateHistory)
  * The scroll position will be persisted in `route.aux.scroll.<name>`.
  */
 export function persistScroll(name: string = 'main') {
-	const el = $.getParentElement()
+	const el = getParentElement()
 	el.addEventListener('scroll', onScroll)
-	$.clean(() => el.removeEventListener('scroll', onScroll))
+	clean(() => el.removeEventListener('scroll', onScroll))
 
-	let restore = $.peek(route, 'aux', 'scroll', name)
+	let restore = peek(route, 'aux', 'scroll', name)
 	if (restore) {
 		Object.assign(el, restore)
 	}

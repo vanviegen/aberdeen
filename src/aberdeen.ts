@@ -43,7 +43,7 @@ function queue(runner: QueueRunner) {
 * This function is re-entrant, meaning it is safe to call `runQueue` from a
 * function that is called due to another (automatic) invocation of `runQueue`.
 */
-function runQueue(): void {
+export function runQueue(): void {
 	while(true) {
 		const runner = sortedQueue!.fetchLast();
 		if (!runner) break;
@@ -74,7 +74,7 @@ let domInReadPhase = false;
 * See `transitions.js` for some examples.
 */
 
-const DOM_READ_PHASE = {
+export const DOM_READ_PHASE = {
 	then: function(fulfilled: () => void) {
 		if (domInReadPhase) fulfilled();
 		else {
@@ -101,7 +101,7 @@ const DOM_READ_PHASE = {
 * See `transitions.js` for some examples.
 */
 
-const DOM_WRITE_PHASE = {
+export const DOM_WRITE_PHASE = {
 	then: function(fulfilled: () => void) {
 		if (!domInReadPhase) fulfilled();
 		else {
@@ -785,10 +785,10 @@ function subscribe(target: any, index: symbol|string|number, observer: Scope | (
 	}
 }
 
-function onEach<T>(target: Array<undefined|T>, render: (value: T, index: number) => void, makeKey?: (value: T, key: any) => SortKeyType): void;
-function onEach<K extends string|number|symbol,T>(target: Record<K,undefined|T>, render: (value: T, index: K) => void, makeKey?: (value: T, key: K) => SortKeyType): void;
+export function onEach<T>(target: Array<undefined|T>, render: (value: T, index: number) => void, makeKey?: (value: T, key: any) => SortKeyType): void;
+export function onEach<K extends string|number|symbol,T>(target: Record<K,undefined|T>, render: (value: T, index: K) => void, makeKey?: (value: T, key: K) => SortKeyType): void;
 
-function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeKey?: (value: DatumType, key: any) => SortKeyType): void {
+export function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeKey?: (value: DatumType, key: any) => SortKeyType): void {
 	if (!target || typeof target !== 'object') throw new Error('onEach requires an object');
 	target = (target as any)[TARGET_SYMBOL] || target;
 
@@ -800,7 +800,7 @@ function isObjEmpty(obj: object): boolean {
 	return true;
 }
 
-function isEmpty(proxied: TargetType): boolean {
+export function isEmpty(proxied: TargetType): boolean {
 	const target = (proxied as any)[TARGET_SYMBOL] || proxied;
 	const scope = currentScope;
 
@@ -862,7 +862,8 @@ function update(target: TargetType | undefined, index: any, newData: DatumType, 
 	}
 }
 
-function defaultEmitHandler(target: TargetType, index: string|symbol|number, newData: DatumType, oldData: DatumType) {
+//* @internal */
+export function defaultEmitHandler(target: TargetType, index: string|symbol|number, newData: DatumType, oldData: DatumType) {
 	// We're triggering for values changing from undefined to undefined, as this *may*
 	// indicate a change from or to `[empty]` (such as `[,1][0]`).
 	if (newData === oldData && newData !== undefined) return;
@@ -908,95 +909,6 @@ const objectHandler: ProxyHandler<any> = {
 	},
 };
 
-const arrayMethods: Record<string,Function> = {
-	at: function(this: any, index: number) {
-		const target = this[TARGET_SYMBOL];
-		if (index < 0) {
-			subscribe(target, 'length');
-			index = target.length + index;
-		}
-		subscribe(target, index);
-		return optProxy(target[index]);
-	},
-	push: function(this: any, ...items: any[]) {
-		const target = this[TARGET_SYMBOL];
-		for(let item of items.map(optProxy)) {
-			target.push(item);
-			emit(target, target.length-1, item, undefined);
-		}
-		emit(target, 'length', target.length, target.length - items.length);
-		runImmediateQueue();
-		return target.length;
-	},
-	pop: function(this: any) {
-		const target = this[TARGET_SYMBOL];
-		if (target.length > 0) {
-			const value = target.pop();
-			emit(target, target.length, undefined, value);
-			emit(target, 'length', target.length, target.length + 1);
-			runImmediateQueue();
-			// We don't need to subscribe to changes, as the data we read is no longer
-			// there, so cannot change.
-			return value;
-		}
-	},
-	shift: function(this: any) {
-		return this.splice(0, 1)[0];
-	},
-	unshift: function(this: any, ...items: any[]) {
-		this.splice(0, 0, ...items);
-		const target = this[TARGET_SYMBOL]; // I don't think it makes sense to subscribe to `length` here
-		return target.length;
-	},
-	splice: function(this: any, start: number, deleteCount: number = 0, ...items: any[]) {
-		const target = this[TARGET_SYMBOL];
-		items = items.map(optProxy);
-		const oldLength = target.length;
-		const result = target.splice(
-			start, 
-			deleteCount,
-			...items,
-		);
-		const end = deleteCount === items.length ? start+deleteCount : Math.max(target.length, oldLength);
-		for(let i=start; i<end; i++) {
-			emit(target, i+1, target[i], target[i+deleteCount]);
-		}
-		emit(target, 'length', target.length, oldLength);
-		runImmediateQueue();
-		// We don't need to subscribe to changes, as the data we read is no longer
-		// there, so cannot change.
-		return result;
-	},
-	slice: function(this: any, start: number = 0, end: number = this.length) {
-		const target = this[TARGET_SYMBOL];
-		for(let i=start; i<end; i++) {
-			subscribe(target, i);
-		}
-		return target.slice(start, end);
-	},
-	forEach: function(this: any, callbackFn: Function) {
-		const target = this[TARGET_SYMBOL];
-		subscribe(target, ANY_SYMBOL);
-		return target.forEach((v:any, t:any) => callbackFn(optProxy(v), t));
-	},
-	[Symbol.iterator](this: any): IterableIterator<any> {
-		const target = (this as any)[TARGET_SYMBOL];
-		subscribe(target, ANY_SYMBOL);
-		return target[Symbol.iterator]();
-	}
-};
-
-// Read-only array methods that subscribe to the entire array, and proxy any
-// nested result data.
-'concat every filter find findIndex findLast findLastIndex includes indexOf join lastIndexOf map'.split(' ').forEach(name => {
-	arrayMethods[name] = function(this: TargetType, ...args: any[]) {
-		const target = (this as any)[TARGET_SYMBOL];
-		subscribe(this, ANY_SYMBOL);
-		return optProxy(target[name](...args)); // optProxy is for: filter, concat, every, map, ...
-	};
-})
-
-
 function arraySet(target: any, prop: any, value: any) {
 	if (prop === 'length') {
 		// We only need to emit for shrinking, as growing just adds undefineds
@@ -1014,8 +926,6 @@ function arraySet(target: any, prop: any, value: any) {
 const arrayHandler: ProxyHandler<any[]> = {
 	get(target: any, prop: any) {
 		if (prop===TARGET_SYMBOL) return target;
-		const method = arrayMethods[prop as keyof typeof arrayMethods];
-		if (method) return method;
 		let subProp = prop;
 		if (typeof prop !== 'symbol') {
 			const intProp = parseInt(prop);
@@ -1045,15 +955,15 @@ function optProxy(value: any): any {
 	return proxied;
 }
 
-function proxy<T extends DatumType>(array: Array<T>): Array<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
-function proxy<T extends object>(obj: T): T;
-function proxy<T extends DatumType>(value: T): {value: T extends number ? number : T extends string ? string : T extends boolean ? boolean : T};
+export function proxy<T extends DatumType>(array: Array<T>): Array<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
+export function proxy<T extends object>(obj: T): T;
+export function proxy<T extends DatumType>(value: T): {value: T extends number ? number : T extends string ? string : T extends boolean ? boolean : T};
 
-function proxy(target: TargetType): TargetType {
+export function proxy(target: TargetType): TargetType {
 	return optProxy(typeof target === 'object' && target !== null ? target : {value: target});
 }
 
-function isProxied(target: TargetType): boolean {
+export function isProxied(target: TargetType): boolean {
 	return typeof target === 'object' && target !== null && (target as any)[TARGET_SYMBOL] !== undefined;
 }
 
@@ -1093,11 +1003,11 @@ function destroyWithClass(element: Element, cls: string) {
 * })
 * ```
 */
-function get<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1] | undefined;
-function get<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2] | undefined;
-function get<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
+export function get<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1] | undefined;
+export function get<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2] | undefined;
+export function get<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
 
-function get(target: TargetType, ...indices: any[]): DatumType | undefined {
+export function get(target: TargetType, ...indices: any[]): DatumType | undefined {
 	// We'll work on the proxied object, subscribing to reads
 	let node: any = target;
 	for(let index of indices) {
@@ -1109,12 +1019,12 @@ function get(target: TargetType, ...indices: any[]): DatumType | undefined {
 }
 
 
-function set<T extends object>(target: T, value: T): void;
-function set<T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
-function set<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
-function set<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
+export function set<T extends object>(target: T, value: T): void;
+export function set<T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
+export function set<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
+export function set<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
 
-function set(target: TargetType, ...indicesAndValue: any[]): void {
+export function set(target: TargetType, ...indicesAndValue: any[]): void {
 	mergeSet(target, indicesAndValue, false)
 }
 
@@ -1137,12 +1047,12 @@ function mergeSet(target: TargetType, indicesAndValue: any[], merge: boolean): v
 }
 
 
-function merge<T extends object>(target: T, value: T): void;
-function merge<T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
-function merge<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
-function merge<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
+export function merge<T extends object>(target: T, value: T): void;
+export function merge<T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
+export function merge<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
+export function merge<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
 
-function merge(target: TargetType, ...indicesAndValue: any[]): void {
+export function merge(target: TargetType, ...indicesAndValue: any[]): void {
 	mergeSet(target, indicesAndValue, true)
 }
 
@@ -1167,7 +1077,7 @@ const refHandler: ProxyHandler<RefTarget> = {
 	},
 };
 
-function ref(proxy: TargetType, index: any) {
+export function ref(proxy: TargetType, index: any) {
 	return new Proxy({proxy, index}, refHandler);
 }
 
@@ -1332,12 +1242,12 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
 
 type DollarArg = string | null | undefined | false | Record<string,any>;
 // When only a function is passed in, $ will return a proxied reference of its observed return value.
-function $<T>(func: () => T): {value: T};
-function $<T>(...args: DollarArg[]): void;
+export function $<T>(func: () => T): {value: T};
+export function $<T>(...args: DollarArg[]): void;
 // Only the last argument can be a function.
-function $<T>(...args: [...DollarArg[], (() => void)]): void;
+export function $<T>(...args: [...DollarArg[], (() => void)]): void;
 
-function $(...args: any) {
+export function $(...args: any) {
 
 	if (args.length === 1 && typeof args[0] === 'function') {
 		return (new ResultScope(currentScope.getParentElement(), args[0])).result;
@@ -1383,7 +1293,7 @@ function $(...args: any) {
 			new RegularScope(currentScope.getParentElement(), arg);
 		} else {
 			currentScope = savedScope;
-			throw new Error(`Unexpected argument: ${JSON.stringify(arg)}`);
+			throw new Error(`Unexpected argument: ${arg}`);
 		}
 	}
 	
@@ -1455,7 +1365,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
 * })
 * ```
 */
-function setErrorHandler(handler?: (error: Error) => boolean | undefined) {
+export function setErrorHandler(handler?: (error: Error) => boolean | undefined) {
 	onError = handler || defaultOnError;
 }
 
@@ -1467,7 +1377,7 @@ function setErrorHandler(handler?: (error: Error) => boolean | undefined) {
 * how your changes interact with Aberdeen, in most cases results will not be
 * terribly surprising. Be careful within the parent element of onEach() though.
 */
-function getParentElement(): Element {
+export function getParentElement(): Element {
 	return currentScope.getParentElement();
 }
 
@@ -1477,7 +1387,7 @@ function getParentElement(): Element {
 * disappears or redraws.
 * @param cleaner - The function to be executed.
 */
-function clean(cleaner: () => void) {
+export function clean(cleaner: () => void) {
 	currentScope.cleaners.push(cleaner);
 }
 
@@ -1504,7 +1414,7 @@ function clean(cleaner: () => void) {
 *   console.log(doubled.get())
 * })
 */
-function observe(func: () => void) {
+export function observe(func: () => void) {
 	new RegularScope(currentScope.getParentElement(), func);
 }
 
@@ -1517,7 +1427,7 @@ function observe(func: () => void) {
 * @param func The function to be (repeatedly) executed.
 * @returns The mount id (usable for `unmount`) if this is a top-level observe.
 */
-function immediateObserve(func: () => void) {
+export function immediateObserve(func: () => void) {
 	new ImmediateScope(currentScope.getParentElement(), func);
 }
 
@@ -1563,14 +1473,14 @@ function immediateObserve(func: () => void) {
 * ```
 */
 
-function mount(parentElement: Element, func: () => void) {
+export function mount(parentElement: Element, func: () => void) {
 	new MountScope(parentElement, func);
 }
 
 /**
  * Stop all observe scopes and remove any created DOM nodes.
  */
-function unmountAll() {
+export function unmountAll() {
 	ROOT_SCOPE.remove();
 }
 
@@ -1597,7 +1507,7 @@ function unmountAll() {
 * for `count()` however.
 */
 
-function peek<T>(func: () => T): T;
+export function peek<T>(func: () => T): T;
 /** Alternatively `peek` can behave like {@link get}, only without subscribing to reads.
 *
 * @param target A (possibly proxied) object, `Map` or `Array`.
@@ -1618,12 +1528,12 @@ function peek<T>(func: () => T): T;
 * })
 * ```
 */
-function peek<T extends object>(target: T): T;
-function peek<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1];
-function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2];
-function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3];
+export function peek<T extends object>(target: T): T;
+export function peek<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1];
+export function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2];
+export function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3];
 
-function peek(data: TargetType, ...indices: any[]): DatumType | undefined {
+export function peek(data: TargetType, ...indices: any[]): DatumType | undefined {
 	peeking++;
 	try {
 		if (indices.length===0) {
@@ -1657,10 +1567,10 @@ function peek(data: TargetType, ...indices: any[]): DatumType | undefined {
  * and the corresponding keys from the original map or array.
  *
  */
-function map<IN,OUT>(target: Array<IN>, func: (value: IN, index: number) => undefined|OUT, thisArg?: object): Array<OUT>;
-function map<IN,OUT>(target: Record<string|symbol,IN>, func: (value: IN, index: string|symbol) => undefined|OUT, thisArg?: object): Record<string|symbol,OUT>;
+export function map<IN,OUT>(target: Array<IN>, func: (value: IN, index: number) => undefined|OUT, thisArg?: object): Array<OUT>;
+export function map<IN,OUT>(target: Record<string|symbol,IN>, func: (value: IN, index: string|symbol) => undefined|OUT, thisArg?: object): Record<string|symbol,OUT>;
 
-function map(proxied: any, func: (value: DatumType, key: any) => any, thisArg?: object): any {
+export function map(proxied: any, func: (value: DatumType, key: any) => any, thisArg?: object): any {
 	let out = optProxy(proxied instanceof Array ? [] : {});
 	onEach(proxied, (item: DatumType, key: symbol|string|number) => {
 		let value = func.call(thisArg, item, key);
@@ -1692,10 +1602,10 @@ function map(proxied: any, func: (value: DatumType, key: any) => any, thisArg?: 
  * input items produce the same output keys, the results for those keys are undefined.
  */
 
-function multiMap<IN,OUT extends {[key: string|symbol]: DatumType}>(target: Array<IN>, func: (value: IN, index: number) => OUT | undefined, thisArg?: object): OUT;
-function multiMap<K extends string|number|symbol,IN,OUT extends {[key: string|symbol]: DatumType}>(target: Record<K,IN>, func: (value: IN, index: K) => OUT | undefined, thisArg?: object): OUT;
+export function multiMap<IN,OUT extends {[key: string|symbol]: DatumType}>(target: Array<IN>, func: (value: IN, index: number) => OUT | undefined, thisArg?: object): OUT;
+export function multiMap<K extends string|number|symbol,IN,OUT extends {[key: string|symbol]: DatumType}>(target: Record<K,IN>, func: (value: IN, index: K) => OUT | undefined, thisArg?: object): OUT;
 
-function multiMap(proxied: any, func: (value: DatumType, key: any) => Record<string|symbol,DatumType>, thisArg?: object): any {
+export function multiMap(proxied: any, func: (value: DatumType, key: any) => Record<string|symbol,DatumType>, thisArg?: object): any {
 	let out = optProxy({});
 	onEach(proxied, (item: DatumType, key: symbol|string|number) => {
 		let pairs = func.call(thisArg, item, key);
@@ -1714,7 +1624,7 @@ function multiMap(proxied: any, func: (value: DatumType, key: any) => Record<str
 * `ul` and `li` nodes at the current mount position. Meant for debugging purposes.
 * @returns The array/object itself, for chaining other methods.
 */
-function dump<T>(proxied: T): T {
+export function dump<T>(proxied: T): T {
 	if (proxied && typeof proxied === 'object') {
 		$({text: proxied instanceof Array ? "<array>" : "<object>"});
 		$('ul', () => {
@@ -1751,11 +1661,10 @@ function handleError(e: any, showMessage: boolean) {
 		// an awkward context. The error should already have been logged by
 		// onError, so let's not confuse things by generating more errors.
 	}
-
 }
 
 /** @internal */
-function withEmitHandler(handler: (target: TargetType, index: any, newData: DatumType, oldData: DatumType) => void, func: ()=>void) {
+export function withEmitHandler(handler: (target: TargetType, index: any, newData: DatumType, oldData: DatumType) => void, func: ()=>void) {
 	const oldEmitHandler = emit;
 	emit = handler;
 	try {
@@ -1773,38 +1682,3 @@ declare global {
 		replaceAll(from: string, to: string): string;
 	}
 }
-
-// Expose all public methods on our default export `$`.
-$.mount = mount;
-$.observe = observe;
-$.immediateObserve = immediateObserve;
-$.unmountAll = unmountAll;
-
-$.proxy = proxy;
-$.isProxied = isProxied;
-$.ref = ref;
-
-$.getParentElement = getParentElement;
-$.clean = clean;
-
-$.onEach = onEach;
-$.isEmpty = isEmpty;
-$.get = get;
-$.peek = peek;
-$.set = set;
-$.merge = merge;
-$.map = map;
-$.multiMap = multiMap;
-$.dump = dump;
-
-$.setErrorHandler = setErrorHandler;
-$.runQueue = runQueue;
-/** @internal */
-$.withEmitHandler = withEmitHandler;
-/** @internal */
-$.defaultEmitHandler = defaultEmitHandler;
-
-$.DOM_READ_PHASE = DOM_READ_PHASE;
-$.DOM_WRITE_PHASE = DOM_WRITE_PHASE;
-
-export default $;

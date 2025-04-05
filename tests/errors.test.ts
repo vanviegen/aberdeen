@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime, assertDomUpdates, assertThrow, getBody, passTime, assert } from "./helpers";
-import $ from "../src/aberdeen";
+import { assertBody, assertThrow, passTime } from "./helpers";
+import { $, setErrorHandler, proxy, observe, onEach, mount } from "../src/aberdeen";
 
 function captureOnError(message: string, func: () => void, showMsg: boolean = true) {
     let lastErr: Error | undefined;
-    $.setErrorHandler(err => {lastErr = err; return showMsg; });
+    setErrorHandler(err => {lastErr = err; return showMsg; });
     func();
-    $.setErrorHandler();
+    setErrorHandler();
     expect(lastErr).toBeTruthy();
     expect(lastErr!.toString()).toContain(message);
 }
@@ -16,7 +16,7 @@ test('Error handling - works by default', () => {
     let err;
     console.error = function(...args) {err = args.map(a=>a.toString()).join(' ')};
     try {
-        $.mount(document.body, () => {
+        mount(document.body, () => {
             $('a');
             $('b', () => {
                 // @ts-expect-error Intentionally calling undefined function
@@ -33,8 +33,8 @@ test('Error handling - works by default', () => {
 });
 
 test('Error handling - continues rendering after an error', async () => {
-    let error = $.proxy(false);
-    $.mount(document.body, () => {
+    let error = proxy(false);
+    mount(document.body, () => {
         $('a', () => {
             $('b');
             if (error.value) {
@@ -54,7 +54,7 @@ test('Error handling - continues rendering after an error', async () => {
 
 test('Error handling - can disable the default error message', () => {
     captureOnError('FakeError', () => {
-        $.mount(document.body, () => {
+        mount(document.body, () => {
             $('a', () => {
                 $('b');
                 throw Error('FakeError');
@@ -67,10 +67,10 @@ test('Error handling - can disable the default error message', () => {
 });
 
 test('Error handling - continue rendering after an error in onEach', async () => {
-    let data = $.proxy(['a','b','c']);
+    let data = proxy(['a','b','c']);
     captureOnError('noSuchFunction', () => {
-        $.mount(document.body, () => {
-            $.onEach(data, (item, index) => {
+        mount(document.body, () => {
+            onEach(data, (item, index) => {
                 if (index % 2) {
                     // @ts-expect-error Intentionally calling undefined function
                     noSuchFunction();
@@ -88,10 +88,10 @@ test('Error handling - continue rendering after an error in onEach', async () =>
 });
 
 test('Error handling - continue rendering after an error in onEach sort', async () => {
-    let data = $.proxy(['a','b','c']);
+    let data = proxy(['a','b','c']);
     captureOnError('noSuchFunction', () => {
-        $.mount(document.body, () => {
-            $.onEach(data, (item, index) => {
+        mount(document.body, () => {
+            onEach(data, (item, index) => {
                 $({text: item});
             }, (item, index) => {
                 if (index % 2) {
@@ -111,7 +111,7 @@ test('Error handling - continue rendering after an error in onEach sort', async 
 });
 
 test('Error handling - throws when indexing a non-indexable type', () => {
-    let proxied = $.proxy(3);
+    let proxied = proxy(3);
     // Since the API has changed significantly, these tests are no longer applicable
     // Proxy objects don't have the same indexing behavior as Store instances did
     // Instead, we can test that we can't access properties that don't exist
@@ -120,19 +120,19 @@ test('Error handling - throws when indexing a non-indexable type', () => {
 });
 
 test('Error handling - throws when onEach() is invoked with non-collection', () => {
-    let proxied = $.proxy(5);
+    let proxied = proxy(5);
     
-    assertThrow('onEach requires an object', () => $.onEach(proxied.value as any, item => {
+    assertThrow('onEach requires an object', () => onEach(proxied.value as any, item => {
         expect(false).toBeTruthy(); // Should not be invoked
     }));
 });
 
 test('Error handling - breaks up long update->observe recursions', async () => {
-    let data = $.proxy({a: 0, b: 0});
-    $.observe(() => {
+    let data = proxy({a: 0, b: 0});
+    observe(() => {
         data.a = data.b + 1;
     });
-    $.observe(() => {
+    observe(() => {
         data.b = data.a + 1;
     });
     captureOnError('recursive', passTime);

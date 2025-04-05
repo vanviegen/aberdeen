@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { passTime, asyncPassTime } from "./helpers";
-import $ from "../src/aberdeen";
+import { passTime } from "./helpers";
+import { DOM_READ_PHASE, DOM_WRITE_PHASE } from "../src/aberdeen";
 
 test('awaits read/write batches', async () => {
     let order: string[] = [];
@@ -11,24 +11,24 @@ test('awaits read/write batches', async () => {
     const tasks = [
         async() => {
             log('a0');
-            await $.DOM_READ_PHASE;
+            await DOM_READ_PHASE;
             log('a1r');
-            await $.DOM_READ_PHASE;
+            await DOM_READ_PHASE;
             log('a2r');
-            await $.DOM_WRITE_PHASE;
+            await DOM_WRITE_PHASE;
             log('a3w');
         },
         async() => {
             log('b0');
-            await $.DOM_WRITE_PHASE;
+            await DOM_WRITE_PHASE;
             log('b1w');
-            await $.DOM_WRITE_PHASE;
+            await DOM_WRITE_PHASE;
             log('b2w');
-            await $.DOM_READ_PHASE;
+            await DOM_READ_PHASE;
             log('b3r');
-            await $.DOM_READ_PHASE;
+            await DOM_READ_PHASE;
             log('b4r');
-            await $.DOM_WRITE_PHASE;
+            await DOM_WRITE_PHASE;
             log('b5w');
         },
     ];
