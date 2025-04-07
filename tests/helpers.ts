@@ -34,9 +34,22 @@ export function getBody(): string {
 }
 
 export function assertBody(expected: string): void {
-	let actual = getBody()
-	if (actual !== expected) throw new AssertError(`assertBody failed`, actual, expected)
+	let actual = getBody();
+	if (actual !== expected) throw new Error(`assertBody failed\nActual:   ${actual}\nExpected: ${expected}`)
 }
+
+export function assertCss(...expected: string[]) {
+	const found: string[] = [];
+	(document.body as any).visit(el => {
+		if (el.tag === 'style') {
+			for(let style of el.textContent.trim().split("\n")) {
+				found.push(style);
+			}
+		}
+	})
+	expect(found.toSorted()).toEqual(expected.toSorted());
+}
+
 
 export function assertThrow(what: string, func: ()=>void): void;
 export function assertThrow(func: ()=>void): void;

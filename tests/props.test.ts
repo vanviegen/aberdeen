@@ -56,7 +56,7 @@ test('Styles elements', async () => {
     
     mount(document.body, () => {
         count++;
-        $('.', {
+        $('div', {
             $margin: 10+'px',
             $padding: null, // ignore
             $border: false, // ignore as well

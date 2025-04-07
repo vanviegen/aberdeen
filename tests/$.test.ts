@@ -7,7 +7,7 @@ test('creates nested nodes', () => {
 	assertBody(`a{b.cls.second{c{x=y}}}`)
 });
 test('creates elements with text', () => {
-	$('.cls:This is my :-containg text!')
+	$('div.cls:This is my :-containg text!')
 	$('h2', {text: 'More text...'})
 	assertBody(`div.cls{"This is my :-containg text!"} h2{"More text..."}`)
 })

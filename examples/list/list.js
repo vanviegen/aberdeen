@@ -1,4 +1,4 @@
-import { $, proxy, onEach, ref } from '../../dist/aberdeen.js';
+import { $, proxy, onEach, ref, insertCss } from '../../dist/aberdeen.js';
 
 // Create observable data structures using proxy
 const items = proxy([]);
@@ -28,7 +28,17 @@ $('button:Add 100', { click: () => addItems(100) });
 $('button:Add 1000', { click: () => addItems(1000) });
 $('input', { placeholder: 'Search first name', autofocus: true, bind: ref(search, 'value') });
 
-$('table.game', () => {
+const gameStyle = insertCss({
+	color: 'red',
+	tr: {
+		transition: 'opacity 1s',
+		'&.hidden': {
+			opacity: 0
+		}
+	}
+})
+
+$('table.game', gameStyle, () => {
 	$('tr', () => {
 		for (let i = 0; i < COLUMN_NAMES.length; i++) {
 			$('th', {click: () => orderIndex.value = i}, () => {
@@ -36,8 +46,11 @@ $('table.game', () => {
 				$(':' + COLUMN_NAMES[i] + (orderIndex.value === i ? ' ▼' : ''));
 			});
 		}
+		$('th:Delete')
 	});
 
+	// The second argument is the render function, the third argument returns the
+	// order key (or undefined if we don't need to run render).
 	onEach(items, (item, index) => {
 		$('tr', () => {
 			// Nested onEach for each field in the item
@@ -51,11 +64,10 @@ $('table.game', () => {
 					delete items[index];
 				}
 			});
+
+			$(() => {
+				$({".hidden": !item[0].toLowerCase().includes(search.value.toLowerCase())})
+			})
 		});
-	}, (item) => {
-		// Filter and sort based on search and orderIndex
-		return item[0].toLowerCase().startsWith(search.value.toLowerCase()) 
-			? item[orderIndex.value] 
-			: undefined;
-	});
+	}, (item) => item[orderIndex.value]);
 });

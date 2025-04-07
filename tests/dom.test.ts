@@ -123,9 +123,9 @@ test('adds preexisting elements to the DOM', () => {
 
 test('handles nontypical options well', () => {
   let cases: Array<[string,()=>void]> = [
-    [`div`, () => $("")],
-    [`div`, () => $(".")],
-    [`div.a.b.c`, () => $(".a.b.c")],
+    [`div`, () => $("div")],
+    [`div`, () => $("div.")],
+    [`div.a.b.c`, () => $("div.a.b.c")],
     [`"1234"`, () => $(undefined, {text:1234})],
     [`_!@#*{"first" "1234" "last"}`, () => $("_!@#*", null, undefined, {}, {text: "first"}, {text: 1234}, {text: "last"})],
   ];

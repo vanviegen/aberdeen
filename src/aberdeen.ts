@@ -661,7 +661,7 @@ class OnEachItemScope extends ContentScope {
 		// Have the makeSortKey function return an ordering int/string/array.
 
 		// Note that we're NOT subscribing on target[itemIndex], as the OnEachScope uses
-		// a wildcard subscription to delete/recreaanyte scopes when that changes.
+		// a wildcard subscription to delete/recreate any scopes when that changes.
 		// We ARE creating a proxy around the value though (in case its an object/array),
 		// so we'll have our own scope subscribe to changes on that.
 		const value: DatumType = optProxy((this.parent.target as any)[this.itemIndex]);
@@ -1272,30 +1272,36 @@ export function $(...args: any) {
 	for(let arg of args) {
 		if (arg == null || arg === false) continue;
 		if (typeof arg === 'string') {
-			let text, classes;
+			let text, classes: undefined | string;
 			const textPos = arg.indexOf(':');
 			if (textPos >= 0) {
 				text = arg.substring(textPos+1);
-				if (textPos === 0) { // Just a string to add as text, no new node
-					currentScope.addNode(document.createTextNode(text));
-					continue;
-				}
 				arg = arg.substring(0,textPos);
 			}
 			const classPos = arg.indexOf('.');
 			if (classPos >= 0) {
-				classes = arg.substring(classPos+1).replaceAll('.', ' ');
+				classes = arg.substring(classPos+1);
 				arg = arg.substring(0, classPos);
 			}
-			if (arg.indexOf(' ') >= 0) throw new Error(`Tag '${arg}' cannot contain space`);
-			const el = document.createElement(arg || 'div');
-			if (classes) el.className = classes;
-			if (text) el.textContent = text;
-			currentScope.addNode(el);
-			currentScope = new ChainedScope(el);
-			currentScope.lastChild = el.lastChild;
-			// Extend topRedrawScope one level deep, so it works for $('div', {create: true})`.
-			if (savedScope === topRedrawScope) topRedrawScope = currentScope;
+			if (arg === '') { // Add text or classes to parent
+				if (text) currentScope.addNode(document.createTextNode(text));
+				if (classes) {
+					const el = currentScope.getParentElement();
+					el.classList.add(...classes.split('.'));
+					clean(() => el.classList.remove(...classes.split('.')));
+				}
+			} else if (arg.indexOf(' ') >= 0) {
+				throw new Error(`Tag '${arg}' cannot contain space`);
+			} else {
+				const el = document.createElement(arg);
+				if (classes) el.className = classes.replaceAll('.', ' ');
+				if (text) el.textContent = text;
+				currentScope.addNode(el);
+				currentScope = new ChainedScope(el);
+				currentScope.lastChild = el.lastChild;
+				// Extend topRedrawScope one level deep, so it works for $('div', {create: true})`.
+				if (savedScope === topRedrawScope) topRedrawScope = currentScope;
+			}
 		}
 		else if (typeof arg === 'object') {
 			if (arg.constructor !== Object) throw new Error(`Unexpected argument: ${arg}`);
@@ -1314,6 +1320,25 @@ export function $(...args: any) {
 	currentScope = savedScope;
 }
 
+let cssCount = 0;
+export function insertCss(style: object, global: boolean = false): string {
+	const prefix = global ? "" : ".AbdStl" + ++cssCount;
+	let css = styleToCss(style, prefix);
+	if (css) $('style:'+css);
+	return prefix;
+}
+
+function styleToCss(style: object, prefix: string): string {
+	let props = '';
+	let rules = '';
+	for(const k in style) {
+		const v = (style as any)[k];
+		if (v && typeof v === 'object') rules += styleToCss(v, k.includes('&') ? k.replace(/&/g, prefix) : prefix+' '+k);
+		else props += k.replace(/[A-Z]/g, letter => '-'+letter.toLowerCase()) +":"+v+";";
+	}
+	if (props) rules = (prefix.trimStart() || '*') + '{'+props+'}\n' + rules;
+	return rules;
+}
 
 function applyArg(key: string, value: any) {
 	const el = currentScope.getParentElement();
@@ -1496,6 +1521,7 @@ export function mount(parentElement: Element, func: () => void) {
  */
 export function unmountAll() {
 	ROOT_SCOPE.remove();
+	cssCount = 0;
 }
 
 
@@ -1669,7 +1695,7 @@ function handleError(e: any, showMessage: boolean) {
 		if (onError(e) === false) showMessage = false;
 	} catch {}
 	try {
-		if (showMessage && currentScope.getParentElement()) $('.aberdeen-error:Error');
+		if (showMessage && currentScope.getParentElement()) $('div.aberdeen-error:Error');
 	} catch {
 		// Error while adding the error marker to the DOM. Apparently, we're in
 		// an awkward context. The error should already have been logged by

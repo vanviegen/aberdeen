@@ -25,6 +25,13 @@ export class Node {
     if (idx < 0) throw new Error("not part of siblings!?");
     return siblings[idx + delta];
   }
+
+  visit(visitor: (Element) => void) {
+    visitor(this);
+    for(let c of this.childNodes) {
+      c.visit(visitor);
+    }
+  }
 }
 
 export class Element extends Node {
@@ -37,10 +44,6 @@ export class Element extends Node {
     remove: (name: string) => void;
     toggle: (name: string, force?: boolean) => void;
   };
-  _innerText?: string;
-  set innerText(value: string) {
-    this._innerText = value
-  }
 
   constructor(tag: string) {
     super();
@@ -144,6 +147,16 @@ export class Element extends Node {
 
   set textContent(text: string) {
     this.childNodes = [new TextNode(text)];
+  }
+  
+  get textContent() {
+    let text = '';
+    for(let child of this.childNodes) {
+      if (child instanceof TextNode) {
+        text += child.textContent;
+      }
+    }
+    return text;
   }
 
   set innerHTML(html: string) {
@@ -252,7 +265,7 @@ export const document = {
       if (el.tag !== 'style') {
         throw new Error("only <style> inserts in head can be emulated");
       }
-      insertedCss += el._innerText || '';
+      insertedCss += el.textContent;
     }
   },
   body: new Element('body')
