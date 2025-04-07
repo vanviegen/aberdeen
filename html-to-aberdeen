@@ -1,0 +1,354 @@
+#!/usr/bin/env node
+
+// WARNING: This script was created by Claude Sonnet 3.7, and hasn't
+// received any human code review. It seems to do the job though!
+
+export function parseHTML(html) {
+  const result = {
+    body: []
+  };
+  
+  let currentPosition = 0;
+  let currentParent = result;
+  const stack = [];
+  
+  while (currentPosition < html.length) {
+    // Skip whitespace
+    while (currentPosition < html.length && /\s/.test(html[currentPosition])) {
+      currentPosition++;
+    }
+    
+    if (currentPosition >= html.length) break;
+    
+    // Check for comment
+    if (html.substring(currentPosition, currentPosition + 4) === '<!--') {
+      const endComment = html.indexOf('-->', currentPosition);
+      if (endComment === -1) break;
+      
+      const commentContent = html.substring(currentPosition + 4, endComment);
+      currentParent.children = currentParent.children || [];
+      currentParent.children.push({
+        type: 'comment',
+        content: commentContent
+      });
+      
+      currentPosition = endComment + 3;
+      continue;
+    }
+    
+    // Check for tag
+    if (html[currentPosition] === '<') {
+      // Check if it's a closing tag
+      if (html[currentPosition + 1] === '/') {
+        const endTag = html.indexOf('>', currentPosition);
+        if (endTag === -1) break;
+        
+        const tagName = html.substring(currentPosition + 2, endTag).trim().toLowerCase();
+        
+        // Pop from stack
+        if (stack.length > 0) {
+          currentParent = stack.pop();
+        }
+        
+        currentPosition = endTag + 1;
+        continue;
+      }
+      
+      // It's an opening tag
+      const endTag = html.indexOf('>', currentPosition);
+      if (endTag === -1) break;
+      
+      const selfClosing = html[endTag - 1] === '/';
+      const tagContent = html.substring(currentPosition + 1, selfClosing ? endTag - 1 : endTag).trim();
+      const spaceIndex = tagContent.search(/\s/);
+      
+      let tagName, attributesStr;
+      if (spaceIndex === -1) {
+        tagName = tagContent;
+        attributesStr = '';
+      } else {
+        tagName = tagContent.substring(0, spaceIndex);
+        attributesStr = tagContent.substring(spaceIndex + 1);
+      }
+      
+      tagName = tagName.toLowerCase();
+      
+      // Parse attributes
+      const attributes = [];
+      let attrMatch;
+      const attrRegex = /([\w-]+)(?:=(?:"([^"]*)"|'([^']*)'|(\S+)))?/g;
+      
+      while ((attrMatch = attrRegex.exec(attributesStr)) !== null) {
+        const name = attrMatch[1];
+        const value = attrMatch[2] || attrMatch[3] || attrMatch[4] || '';
+        attributes.push({ name, value });
+      }
+      
+      const newElement = {
+        type: 'element',
+        tagName,
+        attributes,
+        children: []
+      };
+      
+      // Add to current parent
+      if (currentParent === result) {
+        currentParent.body = currentParent.body || [];
+        currentParent.body.push(newElement);
+      } else {
+        currentParent.children = currentParent.children || [];
+        currentParent.children.push(newElement);
+      }
+      
+      if (!selfClosing && !['br', 'hr', 'img', 'input', 'link', 'meta'].includes(tagName)) {
+        stack.push(currentParent);
+        currentParent = newElement;
+      }
+      
+      currentPosition = endTag + 1;
+      continue;
+    }
+    
+    // It's text content
+    let endText = html.indexOf('<', currentPosition);
+    if (endText === -1) endText = html.length;
+    
+    const textContent = html.substring(currentPosition, endText);
+    if (textContent.trim()) {
+      if (currentParent === result) {
+        currentParent.body = currentParent.body || [];
+        currentParent.body.push({
+          type: 'text',
+          content: textContent
+        });
+      } else {
+        currentParent.children = currentParent.children || [];
+        currentParent.children.push({
+          type: 'text',
+          content: textContent
+        });
+      }
+    }
+    
+    currentPosition = endText;
+  }
+  
+  return result;
+}
+
+// Read from stdin
+let html = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => {
+  html += chunk;
+});
+process.stdin.on('end', () => {
+  // Convert HTML to Aberdeen code
+  const aberdeenCode = convertHTMLToAberdeen(html);
+  
+  // Output to stdout
+  process.stdout.write(aberdeenCode);
+});
+
+// Main conversion function
+function convertHTMLToAberdeen(html) {
+  // Parse HTML into a simple AST
+  const ast = parseHTML(html);
+  
+  // Generate the Aberdeen code
+  let aberdeenCode = ``;
+  
+  // Process the body's children
+  for (const node of ast.body) {
+    aberdeenCode += processNode(node);
+  }
+  
+  return aberdeenCode;
+}
+
+// Process a node and return Aberdeen code
+function processNode(node, indentLevel = 0) {
+  const indent = '    '.repeat(indentLevel);
+  
+  if (node.type === 'text') {
+    const text = node.content.trim();
+    if (text) {
+      return `${indent}$(':${escapeString(text)}');\n`;
+    }
+    return '';
+  }
+  
+  if (node.type === 'comment') {
+    return `${indent}// ${node.content.trim()}\n`;
+  }
+  
+  if (node.type === 'element') {
+    // Get tag name
+    const tagName = node.tagName.toLowerCase();
+    
+    // Get classes
+    const classAttr = node.attributes.find(attr => attr.name === 'class');
+    const classes = classAttr 
+      ? classAttr.value.split(/\s+/).filter(Boolean).join('.')
+      : '';
+    
+    // Get other attributes
+    const attributes = {};
+    for (const attr of node.attributes) {
+      if (attr.name !== 'class') {
+        attributes[attr.name] = attr.value;
+      }
+    }
+    
+    // Check if node has only text content
+    const hasOnlyTextContent = 
+      node.children.length === 1 && 
+      node.children[0].type === 'text' && 
+      node.children[0].content.trim();
+    
+    // Build the tag string
+    let tagString = tagName;
+    if (classes) {
+      tagString += `.${classes}`;
+    }
+    
+    if (hasOnlyTextContent) {
+      tagString += `:${escapeString(node.children[0].content.trim())}`;
+    }
+    
+    let result = `${indent}$('${tagString}'`;
+    
+    // Add attributes if any
+    if (Object.keys(attributes).length > 0) {
+      result += `, ${formatAttributes(attributes, indent)}`;
+    }
+    
+    // Process child nodes
+    const childNodes = node.children.filter(child => 
+      child.type === 'element' || 
+      (child.type === 'text' && child.content.trim())
+    );
+    
+    if (childNodes.length > 0 && !hasOnlyTextContent) {
+      // Get all descendants in a single-child chain
+      const singleChildChain = getSingleChildChain(node);
+      
+      if (singleChildChain.length > 1) {
+        // We have a chain of single children, add them all on the same line
+        for (let i = 1; i < singleChildChain.length; i++) {
+          const chainNode = singleChildChain[i];
+          
+          // Get tag name
+          const chainTagName = chainNode.tagName.toLowerCase();
+          
+          // Get classes
+          const chainClassAttr = chainNode.attributes.find(attr => attr.name === 'class');
+          const chainClasses = chainClassAttr 
+            ? chainClassAttr.value.split(/\s+/).filter(Boolean).join('.')
+            : '';
+          
+          // Build the tag string
+          let chainTagString = chainTagName;
+          if (chainClasses) {
+            chainTagString += `.${chainClasses}`;
+          }
+          
+          // Check if node has only text content
+          const chainHasOnlyTextContent = 
+            chainNode.children.length === 1 && 
+            chainNode.children[0].type === 'text' && 
+            chainNode.children[0].content.trim();
+          
+          if (chainHasOnlyTextContent) {
+            chainTagString += `:${escapeString(chainNode.children[0].content.trim())}`;
+          }
+          
+          result += `, '${chainTagString}'`;
+          
+          // Add attributes if any
+          const chainAttributes = {};
+          for (const attr of chainNode.attributes) {
+            if (attr.name !== 'class') {
+              chainAttributes[attr.name] = attr.value;
+            }
+          }
+          
+          if (Object.keys(chainAttributes).length > 0) {
+            result += `, ${formatAttributes(chainAttributes, indent)}`;
+          }
+        }
+        
+        // Check if the last node in the chain has any non-text children
+        const lastNode = singleChildChain[singleChildChain.length - 1];
+        const lastNodeChildren = lastNode.children.filter(child => 
+          child.type === 'element' || 
+          (child.type === 'text' && child.content.trim() && 
+           !(lastNode.children.length === 1 && lastNode.children[0].type === 'text'))
+        );
+        
+        if (lastNodeChildren.length > 0) {
+          result += `, () => {\n`;
+          for (const child of lastNodeChildren) {
+            result += processNode(child, indentLevel + 1);
+          }
+          result += `${indent}}`;
+        }
+      } else {
+        // Multiple children, use a content function
+        result += `, () => {\n`;
+        for (const child of childNodes) {
+          result += processNode(child, indentLevel + 1);
+        }
+        result += `${indent}}`;
+      }
+    }
+    
+    result += `);\n`;
+    return result;
+  }
+  
+  return '';
+}
+
+// Get a chain of nodes where each node has exactly one element child
+function getSingleChildChain(node) {
+  const chain = [node];
+  let current = node;
+  
+  while (true) {
+    // Get element children
+    const elementChildren = current.children.filter(child => child.type === 'element');
+    
+    // If there's exactly one element child, add it to the chain
+    if (elementChildren.length === 1) {
+      current = elementChildren[0];
+      chain.push(current);
+    } else {
+      break;
+    }
+  }
+  
+  return chain;
+}
+
+// Format attributes object with proper indentation
+function formatAttributes(attributes, indent) {
+    const attrLines = JSON.stringify(attributes, null, 4).split('\n');
+    
+    if (attrLines.length <= 1) {
+        return JSON.stringify(attributes);
+    }
+    
+    return attrLines.map((line, i) => {
+        if (i === 0) return line;
+        return indent + line;
+    }).join('\n');
+}
+
+// Escape special characters in strings
+function escapeString(str) {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n');
+}
