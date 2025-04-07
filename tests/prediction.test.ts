@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime, assertThrow, passTime } from "./helpers";
-import { $, proxy, observe, mount, merge } from "../src/aberdeen";
+import { $, proxy, observe, mount } from "../src/aberdeen";
+import { merge } from "../src/merge";
 import { applyPrediction, applyCanon } from "../src/prediction";
 
 test('Prediction reverts', async () => {

@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime } from "./helpers";
-import { $, proxy, observe, getParentElement, mount, merge } from "../src/aberdeen";
+import { $, proxy, observe, getParentElement, mount } from "../src/aberdeen";
+import { merge } from "../src/merge";
+
 
 test('Sets and unsets classes', async () => {
     let cnt1 = 0, cnt2 = 0, cnt3 = 0;

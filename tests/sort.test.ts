@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime } from "./helpers";
-import { $, proxy, observe, onEach, mount } from "../src/aberdeen";
+import { $, proxy, observe, onEach, mount, invertString } from "../src/aberdeen";
 
 test('uses custom sort orders', async () => {
   const data = proxy({
-    c: { x: 2, y: 3, z: -2 },
-    a: { x: 4, y: 2, z: -500000 },
-    b: { x: 5, y: 1, z: 3 },
-    e: { x: 'a', y: 1, z: 5 },
-    d: { x: 3, y: 3, z: +500000 },
+    c: { x: 2, y: 3, z: -2, name: 'Bob' },
+    a: { x: 4, y: 2, z: -500000, name: 'Charly' },
+    b: { x: 5, y: 1, z: 3, name: 'Chomsky' },
+    e: { x: 'a', y: 1, z: 5, name: 'Crook' },
+    d: { x: 3, y: 3, z: +500000, name: 'Alice' },
   });
   
   let sortFunc: any = proxy(undefined);
@@ -31,6 +31,14 @@ test('uses custom sort orders', async () => {
   assertBody(`a c b e d`);
   
   sortFunc.value = (item: any) => [item.y, item.x];
+  await asyncPassTime();
+  assertBody(`e b a c d`);
+
+  sortFunc.value = (item: any) => item.name;
+  await asyncPassTime();
+  assertBody(`d c a b e`);
+
+  sortFunc.value = (item: any) => [123, invertString(item.name), "dummy"];
   await asyncPassTime();
   assertBody(`e b a c d`);
 });

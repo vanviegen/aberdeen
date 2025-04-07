@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime } from "./helpers";
-import { $, proxy, observe, set, mount, merge } from "../src/aberdeen";
+import { $, proxy, observe, merge, mount } from "../src/aberdeen";
+import { merge } from "../src/merge";
 
 test('proxy holds basic types', async () => {
   let proxied = proxy(undefined as any);
@@ -43,13 +44,13 @@ test('proxy stores nested objects', () => {
   expect(data).toEqual(obj);
   
   let data2 = proxy(obj);
-  set(data2, obj);
+  merge(data2, obj);
   expect(data2).toEqual(obj);
 });
 
 test('proxy replaces object values on set', () => {
   let data = proxy({a: 1, b: 2} as Record<string, number>);
-  set(data, {b: 3, c: 4});
+  merge(data, {b: 3, c: 4});
   expect(data).toEqual({b: 3, c: 4});
 });
 
@@ -78,23 +79,26 @@ test('proxy stores and retrieves deep trees', async () => {
   let result: any;
   let cnt = 0;
   
-  mount(document.body, () => {
+  $(() => {
+    console.log('run')
     result = {...data};
     cnt++;
   });
   
   expect(result).toEqual(obj);
   
-  set(data, {});
+  merge(data, {});
   await asyncPassTime();
   expect(result).toEqual({});
   
-  set(data, {...obj});
+  console.log('set')
+  merge(data, obj);
   await asyncPassTime();
+  console.log(result, data)
   expect(result).toEqual(obj);
   expect(cnt).toEqual(3);
   
-  set(data, {...obj}); // no change!
+  merge(data, {...obj}); // no change!
   await asyncPassTime();
   expect(result).toEqual(obj);
   expect(cnt).toEqual(3); // should not have fired again
@@ -108,7 +112,7 @@ test('proxy merges deep trees', () => {
   merge(data, {d: 10, b: {k: 11, i: {o: 12}}});
   expect(data).toEqual({a: 3, c: 7, d: 10, b: {h: 4, j: 8, k: 11, i: {l: 5, n: 9, o: 12, m: 6}}});
   
-  set(data, {b: {}});
+  merge(data, {b: {}});
   expect(data).toEqual({b: {}});
 });
 
@@ -146,7 +150,7 @@ test('proxy reactively links objects to each other', async () => {
   data1.b = 200;
   expect(data2).toEqual({x: {a: 1, b: 200}, y: 3});
   
-  set(data1, {});
+  merge(data1, {});
   await asyncPassTime();
   expect(data2).toEqual({x: {}, y: 3});
 });
@@ -266,4 +270,12 @@ test(`proxy 'has'`, async () => {
   await asyncPassTime();
   assertBody('"x=false" "y=false" "z=true"')
   expect(cnt).toEqual(6);
+})
+
+test(`proxy maintains source object identity when assigning`, () => {
+  const proxied = proxy([{name: 'Alice'}]);
+  const bob = {name: 'Bob'}
+  merge(proxied[0], bob);
+  bob.name = 'Bobby';
+  expect(proxied[0].name).toEqual('Bobby');
 })

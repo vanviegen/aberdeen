@@ -103,11 +103,11 @@ test('Error handling - continue rendering after an error in onEach sort', async 
         });
         passTime();
     });
-    assertBody(`"c" "a" div.aberdeen-error{"Error"}`);
+    assertBody(`"c" "a"`);
     data.push('d');
     data.push('e');
     captureOnError('noSuchFunction', passTime);
-    assertBody(`"e" "c" "a" div.aberdeen-error{"Error"} div.aberdeen-error{"Error"}`);
+    assertBody(`"e" "c" "a"`);
 });
 
 test('Error handling - throws when indexing a non-indexable type', () => {

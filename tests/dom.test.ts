@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime, assertDomUpdates, assertThrow } from "./helpers";
-import { $, proxy, observe, peek, set, dump, mount, unmountAll, merge } from "../src/aberdeen";
+import { $, proxy, observe, peek, set, dump, mount, unmountAll } from "../src/aberdeen";
+import { merge } from "../src/merge";
 
 test('adds nodes', async () => {
   $('p');

@@ -157,18 +157,21 @@ function partToStr(part: number|string): string {
 	return String.fromCharCode(128 + (negative ? -result.length : result.length)) + result;
 }
 
-/**
- * Basically flips the bits on a key, in order to sort in the reverse direction.
- */
-// function invertSortKey(key: number | string) {
-// 	if (typeof key === 'number') return -key;
-// 	let result = '';
-// 	for (let i = 0; i < key.length; i++) {
-// 		result += String.fromCodePoint(65535 - key.charCodeAt(i));
-// 	}
-// 	return result;
-// }
 
+/**
+ * Creates a new string that has the opposite sort order as the input string, by flipping
+ * all its bits. This is useful for specifying a reverse ordering to `onEach`.
+ * @param input The string to invert.
+ * @returns A new string that has the opposite sort order as `input`. It will contain
+ * gibberish, so don't display it.
+ */
+export function invertString(input: string): string {
+	let result = '';
+	for (let i = 0; i < input.length; i++) {
+		result += String.fromCodePoint(65535 - input.charCodeAt(i));
+	}
+	return result;
+}
 
 
 // Each new scope gets a lower prio than all scopes before it, by decrementing
@@ -489,9 +492,6 @@ class OnEachScope extends Scope {
 	parentElement: Element = currentScope.getParentElement();
 	prevSibling: Node | Scope | undefined;
 
-	/** For making sure the types are not mixed: */
-	sortKeyType: 'string' | 'number' | undefined;
-
 	/** The data structure we are iterating */
 	target: TargetType;
 	
@@ -609,7 +609,6 @@ class OnEachItemScope extends ContentScope {
 		// As apparently we're interested in the node insert position, we'll need to become part
 		// of the sortedSet now (if we weren't already).
 		// This will do nothing and barely take any time of `this` is already part of the set:
-		if (this.sortKey == null) throw new Error('xxx')
 		this.parent.sortedSet.add(this);
 		
 		const preScope = this.parent.sortedSet.prev(this);
@@ -671,26 +670,21 @@ class OnEachItemScope extends ContentScope {
 		let savedScope = currentScope;
 		currentScope = this;
 		
+		let sortKey : undefined | string | number;
 		try {
-			let sortKey : undefined | string | number;
 			if (this.parent.makeSortKey) {
 				let rawSortKey = this.parent.makeSortKey(value, this.itemIndex);
 				if (rawSortKey != null) sortKey = rawSortKey instanceof Array ? rawSortKey.map(partToStr).join('') : rawSortKey;
 			} else {
 				sortKey = this.itemIndex;
 			}
+			if (typeof sortKey === 'number') sortKey = partToStr(sortKey);
 			
 			if (this.sortKey !== sortKey) {
 				// If the sortKey is changed, make sure `this` is removed from the
 				// set before setting the new sortKey to it.
 				this.parent.sortedSet.remove(this); // Very fast if `this` is not in the set
 				this.sortKey = sortKey;
-
-				if (sortKey != null) {
-					const sortKeyType = this.parent.sortKeyType;
-					if (!sortKeyType) this.parent.sortKeyType = typeof sortKey as 'number' | 'string';
-					else if (typeof sortKey !== sortKeyType) throw new Error(`Cannot mix sortKeys types ${typeof sortKey} and ${sortKeyType}`);	
-				}
 			}
 
 			// We're not adding `this` to the `sortedSet` (yet), as that may not be needed,
@@ -698,9 +692,7 @@ class OnEachItemScope extends ContentScope {
 
 			if (sortKey != null) this.parent.renderer(value, this.itemIndex);
 		} catch(e) {
-			// Assign a default sortKey, so we can insert an error marker
-			if (this.sortKey==null) this.sortKey = this.itemIndex;
-			handleError(e, true);
+			handleError(e, sortKey!=null);
 		}
 
 		currentScope = savedScope;
@@ -765,7 +757,7 @@ const subscribers = new WeakMap<TargetType, Map<any, Set<Scope | ((index: any, n
 let peeking = 0; // When > 0, we're not subscribing to any changes
 
 function subscribe(target: any, index: symbol|string|number, observer: Scope | ((index: any, newData: DatumType, oldData: DatumType) => void) = currentScope) {
-	if (peeking || observer === ROOT_SCOPE) return;
+	if (observer === ROOT_SCOPE || peeking) return;
 
 	let byTarget = subscribers.get(target);
 	if (!byTarget) subscribers.set(target, byTarget = new Map());
@@ -818,50 +810,6 @@ export function isEmpty(proxied: TargetType): boolean {
 	}
 }
 
-function update(target: TargetType | undefined, index: any, newData: DatumType, oldData: DatumType, merge: boolean) {
-	if (newData === oldData) return;
-	if (typeof newData === 'object' && newData && typeof oldData === 'object' && oldData && newData.constructor === oldData.constructor) {
-		if (newData instanceof Array) {
-			let oldLength = oldData.length;
-			for(let i=0; i<newData.length; i++) {
-				update(oldData, i, newData[i], (oldData as any[])[i], merge);
-			}
-			// For arrays, merge equals set (as overwriting a partial array rarely makes sense).
-			// As `oldData` is not the proxy, we must emit this ourselves.
-			for(let i=newData.length; i<oldLength; i++) {
-				emit(oldData, i, undefined, (oldData as any[])[i])
-			}
-			(oldData as any[]).length = newData.length;
-			emit(oldData, 'length', newData.length, oldLength);
-		} else {
-			for(const k in newData) {
-				update(oldData, k, newData[k], (oldData as any)[k], merge);
-			}
-			if (!merge) { // Delete removed keys
-				for(const k in oldData) {
-					if (!(k in newData)) {
-						const oldVal = (oldData as any)[k];
-						(oldData as any)[k] = undefined;
-						emit(oldData, k, undefined, oldVal);
-					}
-				}
-			}
-		}
-	} else {
-		if (!target) throw new Error("Cannot change top-level proxy type");
-		if (target instanceof Array) {
-			let oldLength = target.length;
-			target[index] = optProxy(newData);
-			if (target.length !== oldLength) {
-				emit(target, 'length', target.length, oldLength);
-			}
-		} else {
-			(target as any)[index] = optProxy(newData);			
-		}
-		emit(target, index, newData, oldData);
-	}
-}
-
 //* @internal */
 export function defaultEmitHandler(target: TargetType, index: string|symbol|number, newData: DatumType, oldData: DatumType) {
 	// We're triggering for values changing from undefined to undefined, as this *may*
@@ -890,9 +838,13 @@ const objectHandler: ProxyHandler<any> = {
 		subscribe(target, prop);
 		return optProxy(target[prop]);
 	},
-	set(target: any, prop: any, value: any) {
-		update(target, prop, value, target[prop], false);
-		runImmediateQueue();
+	set(target: any, prop: any, newData: any) {
+		const oldData = target[prop];
+		if (newData !== oldData) {
+			target[prop] = newData;
+			emit(target, prop, newData, oldData);
+			runImmediateQueue();
+		}
 		return true;
 	},
 	deleteProperty(target: any, prop: any) {
@@ -909,17 +861,30 @@ const objectHandler: ProxyHandler<any> = {
 	},
 };
 
-function arraySet(target: any, prop: any, value: any) {
-	if (prop === 'length') {
-		// We only need to emit for shrinking, as growing just adds undefineds
-		for(let i=value; i<target.length; i++) {
-			emit(target, i, undefined, target[i]);
+function arraySet(target: any, prop: any, newData: any) {
+	const oldData = target[prop];
+	if (newData !== oldData) {
+		let oldLength = target.length;
+				
+		if (prop === 'length') {
+			target.length = newData;
+
+			// We only need to emit for shrinking, as growing just adds undefineds
+			for(let i=newData; i<oldLength; i++) {
+				emit(target, i, undefined, target[i]);
+			}
+		} else {
+			const intProp = parseInt(prop)
+			if (intProp.toString() === prop) prop = intProp;
+
+			target[prop] = newData;
+			emit(target, prop, newData, oldData);
 		}
+		if (target.length !== oldLength) {
+			emit(target, 'length', target.length, oldLength);
+		}
+		runImmediateQueue();
 	}
-	const intProp = parseInt(prop)
-	if (intProp.toString() === prop) prop = intProp;
-	update(target, prop, value, target[prop], false);
-	runImmediateQueue();
 	return true;
 }
 
@@ -983,79 +948,62 @@ function destroyWithClass(element: Element, cls: string) {
 	setTimeout(() => element.remove(), 2000);
 }
 
+/**
+ * Copies all array items or object properties from `source` to `target`. In case
+ * a value is an object that already exists as an object of the same class in `target`,
+ * it is merged recursively, instead of replaced.
+ * This results in minimal changes to be made to `target`, thus causing only minimal
+ * updates to the user interface. 
+ * @param target - The object/array to merge into. It will look like `source` afterwards.
+ * @param source - The object/array to merge from. Won't be modified.
+ * @param partial - When `true`, behavior is more suitable for partial updates:
+ *  - Object properties present in `target` but not in `source` are left as-is. This also
+ *    applies to nested objects.
+ *  - A value of `undefined` or `null` will cause a `delete` to happen on the property.
+ *  - When a nested source property has an array value while the corresponding target
+ *    value is some other object type, normal behavior would be to replace the target
+ *    value. In `partial` mode however, the array will be left in place and the target
+ *    object keys will be interpreted as array indexes. This allows partial array
+ *    updates like: `{messages: {42: {seen: true}}}` (where `messages` contains an array).
+ * @throws Error if attempting to merge an array into a non-array object.
+ */
 
-/** Helper function to get a deeply nested value from an object, Map or Array;
-*
-* @param target A (possibly proxied) object, `Map` or `Array`.
-* @param indices One or more indices/keys to traverse into the target
-* @returns The value at the specified path, or undefined if the path doesn't exist
-* @throws An `Error` if trying to index a primitive type. When trying to index `null` or `undefined`,
-*   the value `undefined` will be returned instead.
-* @example
-* ```
-* import {$, peek, proxy} from aberdeen
-*
-* let data = proxy(['a', {b: 42}, 'c'])
-*
-* mount(document.body, () => {
-*     let answer = peek(data, 1, 'b')
-*     $({text: answer})
-* })
-* ```
-*/
-export function get<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1] | undefined;
-export function get<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2] | undefined;
-export function get<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3] | undefined;
+export function merge<T extends object>(target: T, source: T, partial: boolean): void {
+	// When we're not being observed anyway, we'll work with the actual `source` object
+	// instead of the proxied version, for performance.
+	if (currentScope !== ROOT_SCOPE && !peeking && TARGET_SYMBOL in source) source = source[TARGET_SYMBOL] as T;
 
-export function get(target: TargetType, ...indices: any[]): DatumType | undefined {
-	// We'll work on the proxied object, subscribing to reads
-	let node: any = target;
-	for(let index of indices) {
-		if (node==null) return;
-		if (typeof node !== 'object') throw new Error(`Attempting to index primitive type ${node} with ${index}`);
-		node = node[index];
-	}
-	return node;
-}
-
-
-export function set<T extends object>(target: T, value: T): void;
-export function set<T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
-export function set<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
-export function set<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
-
-export function set(target: TargetType, ...indicesAndValue: any[]): void {
-	mergeSet(target, indicesAndValue, false)
-}
-
-function mergeSet(target: TargetType, indicesAndValue: any[], merge: boolean): void {
-	// We don't want to subscribe, so we'll work on the actual target object
-	target = (target as any)[TARGET_SYMBOL] || target
-	const value = indicesAndValue.pop();
-	if (indicesAndValue.length) {
-		const prop = indicesAndValue.pop();
-		let node: any = target;
-		for(let index of indicesAndValue) {
-			node = node[index]
-			node = node[TARGET_SYMBOL] || node
+    if (source instanceof Array) {
+        if (!(target instanceof Array)) throw new Error("Cannot merge array into object");
+		let len = source.length;
+        for(let i=0; i<len; i++) {
+            mergeValue(target, source, i, partial)
+        }
+		// Leaving additional values in the old array doesn't make sense
+        target.length = len;
+    } else {
+        for(let k in source) {
+            mergeValue(target, source, k, partial);
+        }
+		if (!partial) {
+			for(let k in target) {
+				if (!(k in source)) delete target[k];
+			}
 		}
-		update(node, prop, value, node[prop], merge)
-	} else {
-		update(undefined, undefined, value, target, merge)
+    }
+}
+
+function mergeValue(target: any, source: any, index: any, partial: boolean) {
+    let sourceValue = source[index];
+	let targetValue = target[index];
+	if (sourceValue !== targetValue) {
+		if (sourceValue && targetValue && (sourceValue.constructor === targetValue.constructor || (partial && targetValue instanceof Array))) {
+			merge(targetValue, sourceValue, partial);
+		}
+		else if (partial && sourceValue == null) delete target[index];
+		else target[index] = sourceValue;
 	}
-	runImmediateQueue();
 }
-
-
-export function merge<T extends object>(target: T, value: T): void;
-export function merge<T extends object, K1 extends keyof T>(target: T, k1: K1, value: T[K1]): void;
-export function merge<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2, value: T[K1][K2]): void;
-export function merge<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3, value: T[K1][K2][K3]): void;
-
-export function merge(target: TargetType, ...indicesAndValue: any[]): void {
-	mergeSet(target, indicesAndValue, true)
-}
-
 
 interface RefTarget {
 	proxy: TargetType
@@ -1149,96 +1097,145 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
 }
 
 
-
 /**
-* Modifies the *parent* DOM element in the current reactive scope, or adds
-* new DOM elements to it.
-* 
-* @param args - Arguments that define how to modify/create elements.
-* 
-* ### String arguments
-* Create new elements with optional classes and text content:
-* ```js
-* $('div.myClass')              // <div class="myClass"></div>
-* $('span.c1.c2:Hello')         // <span class="c1 c2">Hello</span>
-* $('p:Some text')              // <p>Some text</p>
-* $('.my-thing')                // <div class="my-thing"></div>
-* $('div', 'span', 'p.cls')     // <div><span<p class="cls"></p></span></div>
-* $(':Just some text!')		 // Just some text! (No new element, just a text node)
-* ```
-* 
-* ### Object arguments
-* Set properties, attributes, events and special features:
-* ```js
-* // Classes (dot prefix)
-* $('div', {'.active': true})           // Add class
-* $('div', {'.hidden': false})          // Remove (or don't add) class
-* $('div', {'.selected': myStore})      // Reactively add/remove class
-* 
-* // Styles (dollar prefixed and camel-cased CSS properties)
-* $('div', {$color: 'red'})             // style.color = 'red'
-* $('div', {$marginTop: '10px'})        // style.marginTop = '10px'
-* $('div', {$color: myColorStore})      // Reactively change color
-* 
-* // Events (function values)
-* $('button', {click: () => alert()})   // Add click handler
-* 
-* // Properties (boolean values, `selectedIndex`, `value`)
-* $('input', {disabled: true})          // el.disabled = true
-* $('input', {value: 'test'})           // el.value = 'test'
-* $('select', {selectedIndex: 2})       // el.selectedIndex = 2
-* 
-* // Transitions
-* $('div', {create: 'fade-in'})         // Add class on create
-* $('div', {create: el => {...}})       // Run function on create
-* $('div', {destroy: 'fade-out'})       // Add class before remove
-* $('div', {destroy: el => {...}})      // Run function before remove
-* 
-* // Content
-* $('div', {html: '<b>Bold</b>'})       // Set innerHTML
-* $('div', {text: 'Plain text'})        // Add text node
-* const myElement = document.createElement('video')
-* $('div', {element: myElement})        // Add existing DOM element
-*
-* // Regular attributes (everything else)
-* $('div', {title: 'Info'})             // el.setAttribute('title', 'info')
-* ```
-* 
-* When a `Store` is passed as a value, a seperate observe-scope will
-* be created for it, such that when the `Store` changes, only *that*
-* UI property will need to be updated.
-* So in the following example, when `colorStore` changes, only the
-* `color` CSS property will be updated.
-* ```js
-* $('div', {
-*   '.active': activeStore,             // Reactive class
-*   $color: colorStore,                 // Reactive style
-*   text: textStore                     // Reactive text
-* })
-* ```
-* 
-* ### Two-way input binding
-* Set the initial value of an <input> <textarea> or <select> to that
-* of a `Store`, and then start reflecting user changes to the former
-* in the latter.
-* ```js
-* $('input', {bind: myStore})           // Binds input.value
-* ```
-* This is a special case, as changes to the `Store` will *not* be
-* reflected in the UI. 
-* 
-* ### Function arguments
-* Create child scopes that re-run on observed `Store` changes:
-* ```js 
-* $('div', () => {
-*   $(myStore.get() ? 'span' : 'p')     // Reactive element type
-* })
-* ```
-* When *only* a function is given, `$` behaves exactly like {@link Store.observe},
-* except that it will only work when we're inside a `mount`.
-* 
-* @throws {Error} If invalid arguments are provided.
-*/
+ * The $ function is the core building block of the Aberdeen reactive UI library.
+ * It provides a concise way to create and manipulate DOM elements with reactive data binding.
+ * 
+ * @description
+ * The $ function can be used in several ways:
+ * 
+ * 1. Create DOM elements: `$('tagname.class1.class2:text content', ...)`
+ * 2. Apply properties and event handlers to elements: `$('div', { prop: value, event: handler })`
+ * 3. Create reactive scopes: `$(() => { code_that_reacts_to_changes })`
+ * 4. Observe reactive values: `const reactiveValue = $(() => someComputedValue)`
+ * 
+ * When creating elements, the first argument is a string with the format:
+ * - `tagname` - The HTML tag name (defaults to 'div' if omitted)
+ * - `.class1.class2` - Optional CSS classes
+ * - `:text content` - Optional text content
+ * 
+ * Special property keys:
+ * - Keys starting with `.` toggle CSS classes: `{ '.active': isActive }`
+ * - Keys starting with `$` set style properties: `{ '$color': 'red' }`
+ * - `bind` creates two-way data binding with form elements
+ * - `create` runs when an element is created (can be a function or transition name)
+ * - `destroy` runs when an element is removed
+ * - `html` sets innerHTML
+ * - `text` adds a text node
+ * - `element` adds an existing DOM node
+ * 
+ * @example
+ * // Create a simple div with text
+ * $('div:Hello world');
+ * 
+ * @example
+ * // Create an element with classes
+ * $('button.primary.large:Submit');
+ * 
+ * @example
+ * // Create an element with properties and event handlers
+ * $('input', {
+ *   type: 'text',
+ *   placeholder: 'Enter your name',
+ *   input: (e) => console.log(e.target.value)
+ * });
+ * 
+ * @example
+ * // Create nested elements
+ * $('ul', () => {
+ *   $('li:Item 1');
+ *   $('li:Item 2');
+ *   $('li:Item 3');
+ * });
+ * 
+ * @example
+ * // Create reactive UI that updates when data changes
+ * const data = proxy({ count: 0 });
+ * 
+ * $('div', () => {
+ *   $('p:Count: ' + data.count);
+ *   $('button', { 
+ *     click: () => data.count++,
+ *     text: 'Increment'
+ *   });
+ * });
+ * 
+ * @example
+ * // Two-way data binding with form elements
+ * const user = proxy({ name: '', email: '' });
+ * 
+ * $('form', () => {
+ *   $('input', { 
+ *     type: 'text',
+ *     placeholder: 'Name',
+ *     bind: ref(user, 'name')
+ *   });
+ *   
+ *   $('input', { 
+ *     type: 'email',
+ *     placeholder: 'Email',
+ *     bind: ref(user, 'email')
+ *   });
+ *   
+ *   $('p:Hello, ' + (user.name || 'anonymous'));
+ * });
+ * 
+ * @example
+ * // Conditional rendering
+ * const state = proxy({ showDetails: false });
+ * 
+ * $('div', () => {
+ *   $('button', { 
+ *     click: () => state.showDetails = !state.showDetails,
+ *     text: state.showDetails ? 'Hide details' : 'Show details'
+ *   });
+ *   
+ *   if (state.showDetails) {
+ *     $('div.details', {
+ *       create: grow,
+ *       destroy: shrink
+ *     }, () => {
+ *       $('p:These are the details you requested.');
+ *     });
+ *   }
+ * });
+ * 
+ * @example
+ * // List rendering
+ * const todos = proxy([
+ *   { id: 1, text: 'Learn Aberdeen', done: false },
+ *   { id: 2, text: 'Build an app', done: false }
+ * ]);
+ * 
+ * $('ul', () => {
+ *   for (const todo of todos) {
+ *     $('li', () => {
+ *       $('input', {
+ *         type: 'checkbox',
+ *         checked: todo.done,
+ *         change: (e) => todo.done = e.target.checked
+ *       });
+ *       $('span', {
+ *         $textDecoration: todo.done ? 'line-through' : 'none',
+ *         text: todo.text
+ *       });
+ *     });
+ *   }
+ * });
+ * 
+ * @example
+ * // Observing computed values
+ * const userData = proxy({ firstName: 'John', lastName: 'Doe' });
+ * 
+ * // This returns a reactive object with a 'value' property
+ * const fullName = $(() => userData.firstName + ' ' + userData.lastName);
+ * 
+ * // fullName.value will update whenever firstName or lastName changes
+ * console.log(fullName.value); // "John Doe"
+ * 
+ * @param {...DollarArg|Function} args - String tags, property objects, or functions
+ * @returns {void|{value: T}} - Returns nothing for DOM manipulation, or a reactive object when observing values
+ */
 
 type DollarArg = string | null | undefined | false | Record<string,any>;
 // When only a function is passed in, $ will return a proxied reference of its observed return value.
