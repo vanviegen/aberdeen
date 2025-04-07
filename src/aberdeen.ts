@@ -761,6 +761,10 @@ function subscribe(target: any, index: symbol|string|number, observer: Scope | (
 
 	let byTarget = subscribers.get(target);
 	if (!byTarget) subscribers.set(target, byTarget = new Map());
+
+	// No need to subscribe to specific keys if we're already subscribed to ANY
+	if (index !== ANY_SYMBOL && byTarget.get(ANY_SYMBOL)?.has(observer)) return;
+
 	let byIndex = byTarget.get(index);
 	if (!byIndex) byTarget.set(index, byIndex = new Set());
 
@@ -859,6 +863,10 @@ const objectHandler: ProxyHandler<any> = {
 		subscribe(target, prop);
 		return result;
 	},
+	ownKeys(target: any) {
+		subscribe(target, ANY_SYMBOL);
+		return Reflect.ownKeys(target);
+	}
 };
 
 function arraySet(target: any, prop: any, newData: any) {
@@ -928,19 +936,6 @@ export function proxy(target: TargetType): TargetType {
 	return optProxy(typeof target === 'object' && target !== null ? target : {value: target});
 }
 
-export function isProxied(target: TargetType): boolean {
-	return typeof target === 'object' && target !== null && (target as any)[TARGET_SYMBOL] !== undefined;
-}
-
-export class Proxied {
-	constructor() {
-		const proxied = new Proxy(this, objectHandler);
-		proxyMap.set(this, proxied as TargetType);
-		return proxied
-	}
-}
-
-
 let onDestroyMap: WeakMap<Node, string | Function | true> = new WeakMap();
 
 function destroyWithClass(element: Element, cls: string) {
@@ -954,8 +949,8 @@ function destroyWithClass(element: Element, cls: string) {
  * it is merged recursively, instead of replaced.
  * This results in minimal changes to be made to `target`, thus causing only minimal
  * updates to the user interface. 
- * @param target - The object/array to merge into. It will look like `source` afterwards.
- * @param source - The object/array to merge from. Won't be modified.
+ * @param dst - The destination object/array to merge into. It will look like `source` afterwards.
+ * @param src - The source object/array to merge from. It won't be modified.
  * @param partial - When `true`, behavior is more suitable for partial updates:
  *  - Object properties present in `target` but not in `source` are left as-is. This also
  *    applies to nested objects.
@@ -967,41 +962,63 @@ function destroyWithClass(element: Element, cls: string) {
  *    updates like: `{messages: {42: {seen: true}}}` (where `messages` contains an array).
  * @throws Error if attempting to merge an array into a non-array object.
  */
-
-export function merge<T extends object>(target: T, source: T, partial: boolean): void {
+export function merge<T extends object>(dst: T, src: T, partial: boolean = false): void {
+	// We never want to subscribe to reads we do to the target (to find changes). So we'll
+	// take the unproxied version and `emit` updates ourselve.
+	if (TARGET_SYMBOL in dst) dst = dst[TARGET_SYMBOL] as T;
 	// When we're not being observed anyway, we'll work with the actual `source` object
 	// instead of the proxied version, for performance.
-	if (currentScope !== ROOT_SCOPE && !peeking && TARGET_SYMBOL in source) source = source[TARGET_SYMBOL] as T;
+	if (currentScope !== ROOT_SCOPE && !peeking && TARGET_SYMBOL in src) src = src[TARGET_SYMBOL] as T;
 
-    if (source instanceof Array) {
-        if (!(target instanceof Array)) throw new Error("Cannot merge array into object");
-		let len = source.length;
-        for(let i=0; i<len; i++) {
-            mergeValue(target, source, i, partial)
+	mergeRecurse(dst, src, partial);
+	runImmediateQueue();
+}
+
+function mergeRecurse(dst: any, src: any, partial: boolean) {
+    if (src instanceof Array) {
+        if (!(dst instanceof Array)) throw new Error("Cannot merge array into object");
+		const dstLen = dst.length;
+		const srcLen = src.length;
+        for(let i=0; i<srcLen; i++) {
+            mergeValue(dst, src, i, partial)
         }
 		// Leaving additional values in the old array doesn't make sense
-        target.length = len;
+		if (srcLen !== dstLen) {
+	        dst.length = srcLen;
+			for(let i=srcLen; i<dstLen; i++) {
+				emit(dst, i, undefined, dst[i]);
+			}
+			emit(dst, 'length', srcLen, dstLen);
+		}
     } else {
-        for(let k in source) {
-            mergeValue(target, source, k, partial);
+        for(let k in src) {
+            mergeValue(dst, src, k, partial);
         }
 		if (!partial) {
-			for(let k in target) {
-				if (!(k in source)) delete target[k];
+			for(let k in dst) {
+				if (!(k in src)) {
+					const old = dst[k];
+					delete dst[k];
+					if (old !== undefined) emit(dst, k, undefined, old);
+				}
 			}
 		}
     }
 }
 
-function mergeValue(target: any, source: any, index: any, partial: boolean) {
-    let sourceValue = source[index];
-	let targetValue = target[index];
-	if (sourceValue !== targetValue) {
-		if (sourceValue && targetValue && (sourceValue.constructor === targetValue.constructor || (partial && targetValue instanceof Array))) {
-			merge(targetValue, sourceValue, partial);
+function mergeValue(dst: any, src: any, index: any, partial: boolean) {
+	let dstValue = dst[index];
+    let srcValue = src[index];
+	if (srcValue !== dstValue) {
+		if (srcValue && dstValue && typeof srcValue === 'object' && typeof dstValue === 'object' && (srcValue.constructor === dstValue.constructor || (partial && dstValue instanceof Array))) {
+			mergeRecurse(dstValue, srcValue, partial);
 		}
-		else if (partial && sourceValue == null) delete target[index];
-		else target[index] = sourceValue;
+		else {
+			const old = dst[index];
+			if (partial && srcValue == null) delete dst[index];
+			else dst[index] = srcValue;
+			emit(dst, index, srcValue, old)
+		}
 	}
 }
 

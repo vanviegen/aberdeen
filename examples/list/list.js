@@ -1,4 +1,4 @@
-import { $, proxy, observe, onEach, set, ref } from '../../dist/aberdeen.js';
+import { $, proxy, onEach, ref } from '../../dist/aberdeen.js';
 
 // Create observable data structures using proxy
 const items = proxy([]);
@@ -38,12 +38,6 @@ $('table.game', () => {
 		}
 	});
 
-	// TODO: allow onEach to *move* HTML elements.
-	// Hmm, this would require a separate subscription for the sort key function and the renderer.. i think?
-	// Would that be worth it? It *is* quite common that not the whole rendering changes...
-	
-	// onEach now takes the proxied array, a render function, and an optional sort key function
-	// orderIndex.value
 	onEach(items, (item, index) => {
 		$('tr', () => {
 			// Nested onEach for each field in the item
@@ -54,7 +48,7 @@ $('table.game', () => {
 			$('td:⌫', { 
 				click: () => {
 					// Remove the item from the array
-					items.splice(index, 1);
+					delete items[index];
 				}
 			});
 		});

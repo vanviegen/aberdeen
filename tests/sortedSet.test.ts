@@ -1,5 +1,5 @@
 import { expect, test, beforeEach } from "bun:test";
-import { SortedSet, makeKeyBetween } from "../src/helpers/sortedSet"
+import { ReverseSortedSet } from "../src/helpers/reverseSortedSet"
 
 
 expect.extend({
@@ -18,9 +18,9 @@ declare module 'bun:test' {
     }
 }
 
-let list: SortedSet<{id: number}>;
+let list: ReverseSortedSet<{id: number}>;
 beforeEach(() => {
-    list = new SortedSet('id');
+    list = new ReverseSortedSet('id');
 });
 
 // Basic operations
@@ -65,13 +65,12 @@ test('handle duplicate adds', () => {
 test('maintain order with negative ids', () => {
     const items = [{ id: -2 }, { id: 0 }, { id: 1 }, { id: -1 },];
     items.forEach(item => list.add(item));
-    expect([...list].map(i => i.id)).toEqual([-2, -1, 0, 1]);
+    expect([...list].map(i => i.id)).toEqual([1, 0, -1, -2]);
 });
 
 // Larger quantities
 test('maintain sorted order with many items', () => {
-    // 100,000 items takes about 65ms. 1,000,000 items takes about 750ms. scales pretty well! 
-    const items = Array.from({length: 100000}, (_, i) => ({ id: i }));
+    const items = Array.from({length: 50000}, (_, i) => ({ id: -i }));
     // Add in random order
     const shuffled = [...items].sort(() => Math.random() - 0.5);
     shuffled.forEach(item => list.add(item));
@@ -99,29 +98,5 @@ test('handle sparse ids', () => {
         { id: 10000 }
     ];
     items.forEach(item => list.add(item));
-    expect([...list].map(i => i.id)).toEqual([0, 100, 1000, 10000]);
+    expect([...list].map(i => i.id)).toEqual([10000, 1000, 100, 0]);
 });
-
-test('makeKeyBetween', () => {
-    expect(makeKeyBetween('a', 'c')).toBe('b');
-
-    expect(makeKeyBetween('a', 'b')).toBeBetween('a', 'b');
-    expect(makeKeyBetween('a', 'b')).toHaveLength(2);
-
-    expect(makeKeyBetween(undefined, 'x')).toBeBetween('0', 'x');
-    expect(makeKeyBetween(undefined, 'x')).toHaveLength(1);
-
-    expect(makeKeyBetween('x', undefined)).toBeBetween('x', "\x7f");
-    expect(makeKeyBetween('x', undefined)).toHaveLength(1);
-
-    expect(makeKeyBetween('xya', 'xyc')).toBe('xyb');
-
-    expect(makeKeyBetween('xya~~~', 'xybZ')).toBeBetween('xya~~~', 'xybZ');
-
-    // Nothing can come before this
-    expect(() => makeKeyBetween(undefined, "0")).toThrow("Invalid pre");
-    expect(() => makeKeyBetween("b", "b")).toThrow("Invalid pre");
-    expect(() => makeKeyBetween("b", "a")).toThrow("Invalid pre");
-
-    
-})

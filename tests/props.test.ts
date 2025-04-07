@@ -1,8 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime } from "./helpers";
-import { $, proxy, observe, getParentElement, mount } from "../src/aberdeen";
-import { merge } from "../src/merge";
-
+import { $, merge, proxy, observe, getParentElement, mount } from "../src/aberdeen";
 
 test('Sets and unsets classes', async () => {
     let cnt1 = 0, cnt2 = 0, cnt3 = 0;
@@ -20,12 +18,12 @@ test('Sets and unsets classes', async () => {
     await asyncPassTime();
     assertBody(`div.b`);
     
-    merge(classObj, {".a": true, ".d": true});
+    merge(classObj, {".a": true, ".d": true}, true);
     await asyncPassTime();
     assertBody(`div.a.b.d`);
     
-    merge(classObj, {".a": null}); // Removed from div
-    delete classObj[".b"]; // Won't disappear
+    classObj[".a"] = false;
+    delete classObj[".b"]; // Won't remove class, as '.props' don't set a cleaner
     await asyncPassTime();
     assertBody(`div.b.d`);
     

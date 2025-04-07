@@ -60,7 +60,7 @@ export function objToMap(obj: Record<string,any>) {
     if (typeof obj === 'object' && obj && obj.constructor===Object) {
         let map = new Map()
         for(let k in obj) {
-            map.set(k, objToMap(obj[k]))
+            map.merge(k, objToMap(obj[k]))
         }
         return map
     }

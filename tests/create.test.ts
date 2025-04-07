@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, asyncPassTime, assertDomUpdates, getBody } from "./helpers";
-import { $, proxy, observe, set, onEach } from "../src/aberdeen";
+import { $, proxy, observe, merge, onEach } from "../src/aberdeen";
 import { grow } from "../src/transitions";
 
 test('Create event does not apply on initial rendering', () => {
@@ -54,7 +54,7 @@ test('Create event works in an onEach', async () => {
         });
     });
     
-    set(data, ['a', undefined, 'c']);
+    merge(data, ['a', undefined, 'c']);
     await asyncPassTime(0);
     // We don't have a good way to know if the class has been set and immediately
     // removed, so we'll just look at the number of changes, which would have

@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
 import { $, proxy, observe, merge, onEach, mount, isEmpty } from "../src/aberdeen";
-import { merge } from "../src/merge";
 import { asyncPassTime } from "./fakedom";
 
 test('fires higher-scope isEmpty before getting to content', () => {
@@ -28,7 +27,7 @@ test('fires higher-scope isEmpty before getting to content', () => {
 	expect([cnt1, cnt2]).toEqual([1, 2]);
 
 	// Clear the array
-	merge(data, [] as string[]);
+	merge(data, [] as string[], true);
 
 	passTime();
 	assertBody(``);
@@ -76,7 +75,7 @@ test('merges', () => {
 	expect([cnt1, cnt2]).toEqual([1, 3]);
 
 	// Merging just replace the entire array
-	merge(data, [1, "two"]);
+	merge(data, [1, "two"], true);
 	passTime();
 	assertBody(`div{"1"} div{"two"}`);
 	expect([cnt1, cnt2]).toEqual([1, 4]);
@@ -105,7 +104,7 @@ test('merges', () => {
 	assertBody(`div{"1"} div{"five"} div{"six"}`);
 	expect([cnt1, cnt2]).toEqual([1, 7]);
 
-	merge(data, [1, undefined, 3]);
+	merge(data, [1, undefined, 3], true);
 	passTime();
 	assertBody(`div{"1"} div{"3"}`);
 	expect([cnt1, cnt2]).toEqual([1, 8]);

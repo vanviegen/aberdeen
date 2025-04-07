@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime } from "./helpers";
 import { $, proxy, observe, merge, mount } from "../src/aberdeen";
-import { merge } from "../src/merge";
 
 test('proxy holds basic types', async () => {
   let proxied = proxy(undefined as any);
@@ -34,7 +33,7 @@ test('proxy stores and modifies arrays', () => {
 
 test('proxy merges objects', () => {
   let data = proxy({a: 1, b: 2} as Record<string, number>);
-  merge(data, {b: 3, c: 4});
+  merge(data, {b: 3, c: 4}, true);
   expect(data).toEqual({a: 1, b: 3, c: 4});
 });
 
@@ -44,11 +43,11 @@ test('proxy stores nested objects', () => {
   expect(data).toEqual(obj);
   
   let data2 = proxy(obj);
-  merge(data2, obj);
+  merge(data2, obj, true);
   expect(data2).toEqual(obj);
 });
 
-test('proxy replaces object values on set', () => {
+test('proxy replaces object values on merge', () => {
   let data = proxy({a: 1, b: 2} as Record<string, number>);
   merge(data, {b: 3, c: 4});
   expect(data).toEqual({b: 3, c: 4});
@@ -74,13 +73,12 @@ test('proxy creates unresolved references', () => {
 });
 
 test('proxy stores and retrieves deep trees', async () => {
-  let obj = {a: {b: {c: {d: {e: {f: {g: 5}}}}}}} as any;
+  const obj = {a: {b: {c: {d: {e: {f: {g: 5}}}}}}} as any;
   let data = proxy({...obj});
   let result: any;
   let cnt = 0;
   
   $(() => {
-    console.log('run')
     result = {...data};
     cnt++;
   });
@@ -90,15 +88,13 @@ test('proxy stores and retrieves deep trees', async () => {
   merge(data, {});
   await asyncPassTime();
   expect(result).toEqual({});
-  
-  console.log('set')
+
   merge(data, obj);
   await asyncPassTime();
-  console.log(result, data)
   expect(result).toEqual(obj);
   expect(cnt).toEqual(3);
   
-  merge(data, {...obj}); // no change!
+  merge(data, obj); // no change!
   await asyncPassTime();
   expect(result).toEqual(obj);
   expect(cnt).toEqual(3); // should not have fired again
@@ -106,10 +102,10 @@ test('proxy stores and retrieves deep trees', async () => {
 
 test('proxy merges deep trees', () => {
   let data = proxy({a: 3, b: {h: 4, i: {l: 5, m: 6}}} as any);
-  merge(data, {c: 7, b: {j: 8, i: {n: 9}}});
+  merge(data, {c: 7, b: {j: 8, i: {n: 9}}}, true);
   expect(data).toEqual({a: 3, c: 7, b: {h: 4, j: 8, i: {l: 5, n: 9, m: 6}}});
   
-  merge(data, {d: 10, b: {k: 11, i: {o: 12}}});
+  merge(data, {d: 10, b: {k: 11, i: {o: 12}}}, true);
   expect(data).toEqual({a: 3, c: 7, d: 10, b: {h: 4, j: 8, k: 11, i: {l: 5, n: 9, o: 12, m: 6}}});
   
   merge(data, {b: {}});
@@ -139,11 +135,7 @@ test('proxy links objects to each other', () => {
 
 test('proxy reactively links objects to each other', async () => {
   let data1 = proxy({a: 1, b: 2} as Record<string, number>);
-  let data2: any;
-  
-  observe(() => {
-    data2 = proxy({x: data1, y: 3});
-  });
+  let data2 = proxy({x: data1, y: 3});
   
   expect(data2).toEqual({x: {a: 1, b: 2}, y: 3});
   
@@ -275,7 +267,7 @@ test(`proxy 'has'`, async () => {
 test(`proxy maintains source object identity when assigning`, () => {
   const proxied = proxy([{name: 'Alice'}]);
   const bob = {name: 'Bob'}
-  merge(proxied[0], bob);
-  bob.name = 'Bobby';
-  expect(proxied[0].name).toEqual('Bobby');
+  proxied[0] = bob;
+  bob.name = 'Robert';
+  expect(proxied[0].name).toEqual('Robert');
 })

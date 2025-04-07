@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime, getBody } from "./helpers";
-import { $, proxy, observe, set, onEach, clean, unmountAll, map } from "../src/aberdeen";
+import { $, proxy, observe, merge, onEach, clean, unmountAll, map } from "../src/aberdeen";
 
 test('onEach does nothing for an empty object', () => {
   let cnt = 0;
@@ -276,23 +276,23 @@ test('onEach keeps two onEaches in order', async () => {
   await asyncPassTime();
   assertBody(`c1 b1 c2`);
   
-  set(data2, ['b2', 'c2', 'd2']);
+  merge(data2, ['b2', 'c2', 'd2']);
   await asyncPassTime();
   assertBody(`c1 b1 b2 c2 d2`);
   
-  set(data1, []);
+  merge(data1, []);
   await asyncPassTime();
   assertBody(`b2 c2 d2`);
   
-  set(data2, []);
+  merge(data2, []);
   await asyncPassTime();
   assertBody(``);
   
-  set(data2, ['c2', 'b2']);
+  merge(data2, ['c2', 'b2']);
   await asyncPassTime();
   assertBody(`b2 c2`);
   
-  set(data1, ['c1', 'b1']);
+  merge(data1, ['c1', 'b1']);
   await asyncPassTime();
   assertBody(`c1 b1 b2 c2`);
 });
@@ -393,7 +393,7 @@ test('onEach filters when there is no sort key', async () => {
   
   assertBody(`a c`);
   
-  set(data, []);
+  merge(data, []);
   await asyncPassTime();
   assertBody(``);
 });
