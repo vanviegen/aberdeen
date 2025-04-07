@@ -3,14 +3,14 @@ import { $, insertCss, unmountAll } from "../src/aberdeen";
 import { assertBody, assertCss } from './helpers';
 
 test('Basic style', async () => {
-  insertCss({
+  let cls = insertCss({
     color: 'red'
   });
-  assertCss(`.AbdStl1{color:red;}`);
+  assertCss(`${cls}{color:red;}`);
 });
 
 test('Complex selectors', async () => {
-  insertCss({
+  let cls = insertCss({
     margin: 5,
     ".empty": {},
     ".x": {
@@ -29,11 +29,11 @@ test('Complex selectors', async () => {
     },
   })
   assertCss(
-    ".AbdStl1 .x .y{font-weight:bold;}",
-    ".AbdStl1:before{content:\"BEFORE\";}",
-    ".AbdStl1{margin:5;}",
-    "body > .AbdStl1 span{font-size:20;}",
-    "body > .AbdStl1{margin-bottom:20px;}"
+    `${cls}{margin:5;}`,
+    `${cls} .x .y{font-weight:bold;}`,
+    `${cls}:before{content:"BEFORE";}`,
+    `body > ${cls}{margin-bottom:20px;}`,
+    `body > ${cls} span{font-size:20;}`,
   );
 });
 
@@ -45,7 +45,28 @@ test('Global style', async () => {
     margin: 4,
   }, true);
   assertCss(
+    `*{margin:4;}`,
     `h1{color:red;}`,
-    `*{margin:4;}`
+  );
+})
+
+test('Media queries', async () => {
+  let cls = insertCss({
+    '@media (max-width: 600px)': {
+      flexDirection: 'column',
+    },
+    main: {
+      '@media (max-width: 400px)': {
+        button: {color: 'red'},
+      },
+    },
+  });
+  assertCss(
+    `@media (max-width: 600px){`,
+      `${cls}{flex-direction:column;}`,
+    `}`,
+    `@media (max-width: 400px){`,
+      `.AbdStl1 main button{color:red;}`,
+    `}`,
   );
 })

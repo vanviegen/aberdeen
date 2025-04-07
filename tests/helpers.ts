@@ -47,7 +47,7 @@ export function assertCss(...expected: string[]) {
 			}
 		}
 	})
-	expect(found.toSorted()).toEqual(expected.toSorted());
+	expect(found).toEqual(expected);
 }
 
 

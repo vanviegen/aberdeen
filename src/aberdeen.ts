@@ -1321,6 +1321,71 @@ export function $(...args: any) {
 }
 
 let cssCount = 0;
+/**
+ * Inserts CSS styles into the document and returns a unique class prefix.
+ * 
+ * This function converts a JavaScript style object into CSS and adds it to the document.
+ * When `global` is false (default), all selectors are prefixed with a unique class name,
+ * allowing for scoped CSS that won't affect other elements.
+ * 
+ * @param style - An object representing CSS styles. Keys can be:
+ *   - CSS properties in camelCase (e.g., `fontSize`)
+ *   - Nested selectors (e.g., `'&:hover'`, `'.child'`)
+ *   - Media queries or other at-rules (e.g., `'@media (max-width: 600px)'`)
+ * @param global - When true, styles are applied globally without a class prefix.
+ *                 When false (default), styles are scoped with a unique class prefix.
+ * @returns The class prefix string that was used (empty string if global is true) including
+ *          the leading '.'.
+ * 
+ * @example
+ * // Basic usage - scoped styles
+ * const className = insertCss({
+ *   color: 'blue',
+ *   fontSize: '16px',
+ *   '&:hover': {
+ *     color: 'red'
+ *   },
+ *   '.child': {
+ *     marginTop: '10px'
+ *   }
+ * });
+ * // Returns something like '.AbdStl1'
+ * // Adds CSS like:
+ * // .AbdStl1 { color: blue; font-size: 16px; }
+ * // .AbdStl1:hover { color: red; }
+ * // .AbdStl1 .child { margin-top: 10px; }
+ * 
+ * // Apply the returned class to an element:
+ * $('div:Outer', className, 'div.child:Inner');
+ * 
+ * @example
+ * // Global styles (no prefix)
+ * insertCss({
+ *   'body': {
+ *     margin: 0,
+ *     padding: 0
+ *   },
+ *   'a': {
+ *     textDecoration: 'none',
+ *     color: '#333'
+ *   }
+ * }, true);
+ * 
+ * @example
+ * // Media queries and complex selectors
+ * insertCss({
+ *   display: 'flex',
+ *   '@media (max-width: 768px)': {
+ *     flexDirection: 'column',
+ *     '& > div': {
+ *       width: '100%'
+ *     }
+ *   },
+ *   '& [data-selected="true"]': {
+ *     fontWeight: 'bold'
+ *   }
+ * });
+ */
 export function insertCss(style: object, global: boolean = false): string {
 	const prefix = global ? "" : ".AbdStl" + ++cssCount;
 	let css = styleToCss(style, prefix);
@@ -1333,8 +1398,15 @@ function styleToCss(style: object, prefix: string): string {
 	let rules = '';
 	for(const k in style) {
 		const v = (style as any)[k];
-		if (v && typeof v === 'object') rules += styleToCss(v, k.includes('&') ? k.replace(/&/g, prefix) : prefix+' '+k);
-		else props += k.replace(/[A-Z]/g, letter => '-'+letter.toLowerCase()) +":"+v+";";
+		if (v && typeof v === 'object') {
+			if (k.startsWith('@')) { // media queries
+                rules += k + '{\n' + styleToCss(v, prefix) + '}\n';
+            } else {
+				rules += styleToCss(v, k.includes('&') ? k.replace(/&/g, prefix) : prefix+' '+k);
+			}
+		} else {
+			props += k.replace(/[A-Z]/g, letter => '-'+letter.toLowerCase()) +":"+v+";";
+		}
 	}
 	if (props) rules = (prefix.trimStart() || '*') + '{'+props+'}\n' + rules;
 	return rules;
