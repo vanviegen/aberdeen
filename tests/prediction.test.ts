@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime, assertThrow, passTime } from "./helpers";
-import { $, merge, proxy, observe, mount } from "../src/aberdeen";
+import { $, copy, proxy, observe, mount, MERGE } from "../src/aberdeen";
 import { applyPrediction, applyCanon } from "../src/prediction";
 
 test('Prediction reverts', async () => {
@@ -34,7 +34,7 @@ test('Prediction reverts entire patch when it can no longer apply', async () => 
     assertBody(`a x m`);
     
     // This prediction should be flushed out due to conflict
-    applyPrediction(() => merge(data, {1: 'b', 2: 'y'}, true));
+    applyPrediction(() => copy(data, {1: 'b', 2: 'y'}, MERGE));
     await asyncPassTime();
     assertBody(`b y m`);
     

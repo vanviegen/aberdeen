@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, assertDomUpdates } from "./helpers";
-import { $, proxy, ref, merge, mount } from "../src/aberdeen";
+import { $, proxy, ref, copy, mount } from "../src/aberdeen";
 
 test('creates nested nodes', () => {
 	$("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
@@ -56,7 +56,7 @@ test('reacts to conditions', () => {
 	expect(cnt).toEqual(1)
 	assertDomUpdates({new: 3, changed: 5}) // also removes unset classes
 
-	merge(data, {b: true, yes: "abc"}) // delete 'a'
+	copy(data, {b: true, yes: "abc"}) // delete 'a'
 	passTime()
 
 	assertBody(`div{span.z} input{value->abc}`)

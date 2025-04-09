@@ -1,6 +1,6 @@
-import { expect, test } from "bun:test";
-import { $, insertCss, unmountAll } from "../src/aberdeen";
-import { assertBody, assertCss } from './helpers';
+import { test } from "bun:test";
+import { insertCss } from "../src/aberdeen";
+import { assertCss } from './helpers';
 
 test('Basic style', async () => {
   let cls = insertCss({

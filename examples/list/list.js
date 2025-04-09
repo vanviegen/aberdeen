@@ -4,6 +4,7 @@ import { $, proxy, onEach, ref, insertCss } from '../../dist/aberdeen.js';
 const items = proxy([]);
 const orderIndex = proxy(0);
 const search = proxy("");
+const animate = proxy(false);
 
 const makeWord = () => Math.random().toString(36).substring(2, 12).replace(/[0-9]+/g, '').replace(/^\w/, c => c.toUpperCase());
 const COLUMN_NAMES = ["First name", "Last name", "Age", "Gender", "City"];
@@ -27,38 +28,62 @@ $('button:Add 10', { click: () => addItems(10) });
 $('button:Add 100', { click: () => addItems(100) });
 $('button:Add 1000', { click: () => addItems(1000) });
 $('input', { placeholder: 'Search first name', autofocus: true, bind: ref(search, 'value') });
+$('label', () => {
+	$('input', {type: 'checkbox', bind: animate});
+	$(":Animate");
+});
 
 const gameStyle = insertCss({
-	color: 'red',
-	tr: {
-		transition: 'opacity 1s',
-		'&.hidden': {
-			opacity: 0
-		}
+	display: 'grid',
+	gridTemplateColumns: 'repeat(6, 1fr)',
+	".row": {
+		display: "contents",
+		"> *": {
+			transition: 'height 1s, opacity 0.5s 1s',
+			height: "20px",
+			overflow: "hidden",
+		},
+		'&.hidden > *': {
+			display: "none",
+		},
+		"&.header": {
+			fontWeight: "bold",
+		},
 	}
 })
 
-$('table.game', gameStyle, () => {
-	$('tr', () => {
+const animateStyle = insertCss({
+	'.row.hidden > *': {
+		display: "initial",
+		height: 0,
+		opacity: 0.4,
+		transition: 'opacity 0.5s, height 1s 0.5s',
+	},
+});
+
+
+$('div', gameStyle, {[animateStyle]: animate}, () => {
+	$('div.row.header', () => {
 		for (let i = 0; i < COLUMN_NAMES.length; i++) {
-			$('th', {click: () => orderIndex.value = i}, () => {
+			$('div', {click: () => orderIndex.value = i}, () => {
 				// Show triangle when we're sorting by this column
 				$(':' + COLUMN_NAMES[i] + (orderIndex.value === i ? ' ▼' : ''));
 			});
 		}
-		$('th:Delete')
+		$('div:Delete')
 	});
 
 	// The second argument is the render function, the third argument returns the
 	// order key (or undefined if we don't need to run render).
 	onEach(items, (item, index) => {
-		$('tr', () => {
+		$('div.row', () => {
+
 			// Nested onEach for each field in the item
 			onEach(item, (field) => {
-				$('td', { text: field });
+				$('div', { text: field });
 			});
 			
-			$('td:⌫', { 
+			$('div:⌫', { 
 				click: () => {
 					// Remove the item from the array
 					delete items[index];
@@ -68,6 +93,6 @@ $('table.game', gameStyle, () => {
 			$(() => {
 				$({".hidden": !item[0].toLowerCase().includes(search.value.toLowerCase())})
 			})
-		});
+		})
 	}, (item) => item[orderIndex.value]);
 });

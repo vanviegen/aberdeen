@@ -15,9 +15,10 @@ let sortedQueue: ReverseSortedSet<QueueRunner> | undefined; // When set, a runQu
 let runQueueDepth = 0 // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
 let topRedrawScope: Scope | undefined // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 
+/** @internal */
 export type TargetType = any[] | {[key: string]: any};
+/** @internal */
 export type DatumType = TargetType | boolean | number | string | null | undefined;
-
 /** @internal */
 export type Patch = Map<TargetType, Record<string|symbol|number, [any, any]>>;
 
@@ -44,6 +45,7 @@ function queue(runner: QueueRunner) {
 * function that is called due to another (automatic) invocation of `runQueue`.
 */
 export function runQueue(): void {
+	let time = Date.now();
 	while(true) {
 		const runner = sortedQueue!.fetchLast();
 		if (!runner) break;
@@ -52,6 +54,8 @@ export function runQueue(): void {
 	}
 	sortedQueue = undefined;
 	runQueueDepth = 0;
+	time = Date.now() - time;
+	if (time>1) console.debug(`Aberdeen queue took ${time}ms`)
 }
 
 
@@ -570,7 +574,10 @@ class OnEachScope extends Scope {
 		
 		// Help garbage collection:
 		this.byIndex.clear();
-		this.sortedSet.clear(); // Unsure if this is a good idea. It takes time, but presumably makes things a lot easier for GC...
+		setTimeout(() => {
+			// Unsure if this is a good idea. It takes time, but presumably makes things a lot easier for GC...
+			this.sortedSet.clear(); 
+		}, 1);
 	}
 	
 	getLastNode(): Node | undefined {
@@ -843,6 +850,8 @@ const objectHandler: ProxyHandler<any> = {
 		return optProxy(target[prop]);
 	},
 	set(target: any, prop: any, newData: any) {
+		// Make sure newData is unproxied
+		if (typeof newData === 'object' && newData) newData = (newData as any)[TARGET_SYMBOL] || newData;
 		const oldData = target[prop];
 		if (newData !== oldData) {
 			target[prop] = newData;
@@ -870,6 +879,8 @@ const objectHandler: ProxyHandler<any> = {
 };
 
 function arraySet(target: any, prop: any, newData: any) {
+	// Make sure newData is unproxied
+	if (typeof newData === 'object' && newData) newData = (newData as any)[TARGET_SYMBOL] || newData;
 	const oldData = target[prop];
 	if (newData !== oldData) {
 		let oldLength = target.length;
@@ -910,7 +921,7 @@ const arrayHandler: ProxyHandler<any[]> = {
 	set: arraySet,
 	deleteProperty(target: any, prop: string|symbol) {
 		return arraySet(target, prop, undefined);
-	}
+	},
 };
 
 const proxyMap = new WeakMap<TargetType, /*Proxy*/TargetType>();
@@ -936,6 +947,16 @@ export function proxy(target: TargetType): TargetType {
 	return optProxy(typeof target === 'object' && target !== null ? target : {value: target});
 }
 
+/**
+ * The reverse of `proxy()`.
+ * @param target A proxied object or array.
+ * @returns The underlying (unproxied) data of that object or array, or the thing
+ *   itself if it was already unproxied.
+ */
+export function unproxy<T>(target: T): T {
+	return target ? (target as any)[TARGET_SYMBOL] || target : target;
+}
+
 let onDestroyMap: WeakMap<Node, string | Function | true> = new WeakMap();
 
 function destroyWithClass(element: Element, cls: string) {
@@ -949,78 +970,130 @@ function destroyWithClass(element: Element, cls: string) {
  * it is merged recursively, instead of replaced.
  * This results in minimal changes to be made to `target`, thus causing only minimal
  * updates to the user interface. 
- * @param dst - The destination object/array to merge into. It will look like `source` afterwards.
- * @param src - The source object/array to merge from. It won't be modified.
- * @param partial - When `true`, behavior is more suitable for partial updates:
- *  - Object properties present in `target` but not in `source` are left as-is. This also
- *    applies to nested objects.
- *  - A value of `undefined` or `null` will cause a `delete` to happen on the property.
- *  - When a nested source property has an array value while the corresponding target
- *    value is some other object type, normal behavior would be to replace the target
- *    value. In `partial` mode however, the array will be left in place and the target
- *    object keys will be interpreted as array indexes. This allows partial array
- *    updates like: `{messages: {42: {seen: true}}}` (where `messages` contains an array).
- * @throws Error if attempting to merge an array into a non-array object.
+ * In addition, this function is optimized for working with proxied data.
+ * 
+ * @param dst - The destination object/array to copy into. It will look like `source` afterwards.
+ *              Both proxied and unproxied values are supported.
+ *              When dst is `null`, a new (unproxied!) object is created (of the same class as `src`)
+ *              and returned.
+ * @param src - The source object/array to copy from. It won't be modified.
+ *              Both proxied and unproxied values are supported.
+ * @param flags - Bit mask of copy options:
+ * - MERGE: When set, `src` is applied as a *partial* update, meanings:
+ *    - Object properties present in `target` but not in `source` are left as-is. This also
+ *      applies to nested objects.
+ *    - A value of `undefined` or `null` will cause a `delete` to happen on the property.
+ *    - When a nested source property has an array value while the corresponding target
+ *      value is some other object type, normal behavior would be to replace the target
+ *      value. In `partial` mode however, the array will be left in place and the target
+ *      object keys will be interpreted as array indexes. This allows partial array
+ *      updates like: `{messages: {42: {seen: true}}}` (where `messages` contains an array).
+ * - SHALLOW: When set, a shallow copy is made. Without this flag, any objects
+ *      that don't exist on `dst` yet are created new using the same prototype as the
+ *      the original, and then all properties are copied from the source object. With this
+ *      flag, `dst` properties may be set to refer to object and arrays referred to be `src`. 
+ * @returns `dst` or the object that was created if `dst` was `null`.
+ * @throws Error if attempting to copy an array into a non-array object.
+ * @example
+ * ```typescript
+ * 
+ * ```
  */
-export function merge<T extends object>(dst: T, src: T, partial: boolean = false): void {
-	// We never want to subscribe to reads we do to the target (to find changes). So we'll
-	// take the unproxied version and `emit` updates ourselve.
-	if (TARGET_SYMBOL in dst) dst = dst[TARGET_SYMBOL] as T;
-	// When we're not being observed anyway, we'll work with the actual `source` object
-	// instead of the proxied version, for performance.
-	if (currentScope !== ROOT_SCOPE && !peeking && TARGET_SYMBOL in src) src = src[TARGET_SYMBOL] as T;
 
-	mergeRecurse(dst, src, partial);
+export const MERGE = 1;
+export const SHALLOW = 2;
+const COPY_SUBSCRIBE = 32;
+const COPY_EMIT = 64;
+export function copy<T extends object>(dst: T | null, src: T, flags: number = 0): T {
+	if (dst == null) {
+		dst = Object.create(Object.getPrototypeOf(src)) as T;
+	}
+
+	copyRecurse(dst, src, flags);
 	runImmediateQueue();
+	return dst;
 }
 
-function mergeRecurse(dst: any, src: any, partial: boolean) {
+function copyRecurse(dst: any, src: any, flags: number) {
+	// We never want to subscribe to reads we do to the target (to find changes). So we'll
+	// take the unproxied version and `emit` updates ourselve.
+	let unproxied = dst[TARGET_SYMBOL];
+	if (unproxied) {
+		dst = unproxied;
+		flags |= COPY_EMIT;
+	}
+	// For performance, we'll work on the unproxied `src` and manually subscribe to changes.
+	unproxied = src[TARGET_SYMBOL];
+	if (unproxied) {
+		src = unproxied;
+		// If we're not in peek mode, we'll manually subscribe to all source reads.
+		if (currentScope !== ROOT_SCOPE && !peeking) flags |= COPY_SUBSCRIBE;
+	}
+
+	if (flags&COPY_SUBSCRIBE) subscribe(src, ANY_SYMBOL);
     if (src instanceof Array) {
-        if (!(dst instanceof Array)) throw new Error("Cannot merge array into object");
+        if (!(dst instanceof Array)) throw new Error("Cannot copy array into object");
 		const dstLen = dst.length;
 		const srcLen = src.length;
         for(let i=0; i<srcLen; i++) {
-            mergeValue(dst, src, i, partial)
+            copyValue(dst, src, i, flags)
         }
 		// Leaving additional values in the old array doesn't make sense
 		if (srcLen !== dstLen) {
-	        dst.length = srcLen;
-			for(let i=srcLen; i<dstLen; i++) {
-				emit(dst, i, undefined, dst[i]);
+			if (flags&COPY_EMIT) {
+				for(let i=srcLen; i<dstLen; i++) {
+					const old = dst[i];
+					dst[i] = undefined;
+					emit(dst, i, undefined, old);
+				}
+				dst.length = srcLen;
+				emit(dst, 'length', srcLen, dstLen);
+			} else {
+				dst.length = srcLen;
 			}
-			emit(dst, 'length', srcLen, dstLen);
 		}
     } else {
         for(let k in src) {
-            mergeValue(dst, src, k, partial);
+            copyValue(dst, src, k, flags);
         }
-		if (!partial) {
+		if (!(flags & MERGE)) {
 			for(let k in dst) {
 				if (!(k in src)) {
 					const old = dst[k];
 					delete dst[k];
-					if (old !== undefined) emit(dst, k, undefined, old);
+					if (flags&COPY_EMIT && old !== undefined) {
+						emit(dst, k, undefined, old);
+					}
 				}
 			}
 		}
     }
 }
 
-function mergeValue(dst: any, src: any, index: any, partial: boolean) {
+function copyValue(dst: any, src: any, index: any, flags: number) {
 	let dstValue = dst[index];
     let srcValue = src[index];
 	if (srcValue !== dstValue) {
-		if (srcValue && dstValue && typeof srcValue === 'object' && typeof dstValue === 'object' && (srcValue.constructor === dstValue.constructor || (partial && dstValue instanceof Array))) {
-			mergeRecurse(dstValue, srcValue, partial);
+		if (srcValue && dstValue && typeof srcValue === 'object' && typeof dstValue === 'object' && (srcValue.constructor === dstValue.constructor || (flags&MERGE && dstValue instanceof Array))) {
+			copyRecurse(dstValue, srcValue, flags);
+			return;
 		}
-		else {
-			const old = dst[index];
-			if (partial && srcValue == null) delete dst[index];
-			else dst[index] = srcValue;
-			emit(dst, index, srcValue, old)
+		
+		if (!(flags&SHALLOW) && srcValue && typeof srcValue === 'object') {
+			// Create an empty object of the same type
+			let copy = Object.create(Object.getPrototypeOf(srcValue));
+			// Copy all properties to it. This doesn't need to emit anything
+			// and MERGE does not apply as this is a new branch.
+			copyRecurse(copy, srcValue, 0);
+			srcValue = copy;
 		}
+		const old = dst[index];
+		if (flags&MERGE && srcValue == null) delete dst[index];
+		else dst[index] = srcValue;
+		if (flags&COPY_EMIT) emit(dst, index, srcValue, old)
 	}
 }
+
 
 interface RefTarget {
 	proxy: TargetType
@@ -1396,16 +1469,18 @@ export function insertCss(style: object, global: boolean = false): string {
 function styleToCss(style: object, prefix: string): string {
 	let props = '';
 	let rules = '';
-	for(const k in style) {
-		const v = (style as any)[k];
-		if (v && typeof v === 'object') {
-			if (k.startsWith('@')) { // media queries
-                rules += k + '{\n' + styleToCss(v, prefix) + '}\n';
-            } else {
-				rules += styleToCss(v, k.includes('&') ? k.replace(/&/g, prefix) : prefix+' '+k);
+	for(const kOr in style) {
+		const v = (style as any)[kOr];
+		for(const k of kOr.split(/, ?/g)) {
+			if (v && typeof v === 'object') {
+				if (k.startsWith('@')) { // media queries
+					rules += k + '{\n' + styleToCss(v, prefix) + '}\n';
+				} else {
+					rules += styleToCss(v, k.includes('&') ? k.replace(/&/g, prefix) : prefix+' '+k);
+				}
+			} else {
+				props += k.replace(/[A-Z]/g, letter => '-'+letter.toLowerCase()) +":"+v+";";
 			}
-		} else {
-			props += k.replace(/[A-Z]/g, letter => '-'+letter.toLowerCase()) +":"+v+";";
 		}
 	}
 	if (props) rules = (prefix.trimStart() || '*') + '{'+props+'}\n' + rules;

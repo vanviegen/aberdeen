@@ -1,4 +1,4 @@
-import {getParentElement, runQueue, clean, proxy, observe, peek, immediateObserve} from './aberdeen.js'
+import {getParentElement, runQueue, clean, proxy, observe, peek, immediateObserve, copy} from './aberdeen.js'
 
 /**
  * A `Store` object that holds the following keys:
@@ -107,9 +107,9 @@ window.addEventListener("popstate", handleLocationUpdate);
 function updatePath(): void {
 	let path = route.path
 	if (path == null && peek(route, 'p')) {
-		return updateP();
+		return updateP()
 	} 
-	path = ''+path
+	path = ''+(path || '/')
 	if (!path.startsWith('/')) path = '/'+path
 	route.path = path
 	route.p = path.slice(1).split('/')
@@ -158,8 +158,8 @@ function updateHistory() {
 	// Get and delete mode without triggering anything.
 	let mode = route.mode
 	const state = {
-		id: route.id,
-		aux: route.aux,
+		id: copy(null, route.id),
+		aux: copy(null, route.aux),
 		route: stateRoute,
 	}
 	

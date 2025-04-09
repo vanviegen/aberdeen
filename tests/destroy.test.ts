@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { getBody, assertBody, asyncPassTime, assertDomUpdates } from "./helpers";
-import { $, proxy, observe, merge, onEach, mount } from "../src/aberdeen";
+import { $, proxy, observe, copy, onEach, mount } from "../src/aberdeen";
 import { shrink } from "../src/transitions";
 
 test('destroy event works for simple deletes', async () => {
@@ -51,12 +51,12 @@ test('transitions onEach deletes', async () => {
   assertBody(`a b.x c`);
   await asyncPassTime(2000);
   assertBody(`a c`);
-  merge(data, ['a', 'b', 'c', 'd', 'e', 'f']);
+  copy(data, ['a', 'b', 'c', 'd', 'e', 'f']);
   await asyncPassTime(1);
-  merge(data, [undefined, 'b', undefined, undefined, 'e', undefined]);
+  copy(data, [undefined, 'b', undefined, undefined, 'e', undefined]);
   await asyncPassTime(1);
   assertBody(`a.x b c.x d.x e f.x`);
-  merge(data, ['a2', 'b', undefined, 'd2', 'e', 'f2']);
+  copy(data, ['a2', 'b', undefined, 'd2', 'e', 'f2']);
   await asyncPassTime(1);
   assertBody(`a2 a.x b d2 c.x d.x e f2 f.x`);
   await asyncPassTime(2000);
@@ -87,7 +87,7 @@ test('deletes in the middle of deleting items', async () => {
   assertBody(`a.x`);
   await asyncPassTime(500);
   assertBody(``);
-  merge(data, [undefined, 'b']);
+  copy(data, [undefined, 'b']);
   await asyncPassTime(1);
   assertBody(`b`);
 });
@@ -102,7 +102,7 @@ test('aborts deletion transition on higher level removal', async () => {
   });
   await asyncPassTime(1);
   assertBody(`a`);
-  merge(data, []);
+  copy(data, []);
   await asyncPassTime(1);
   assertBody(`a.x`);
   visible.value = false;

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime, assertDomUpdates, assertThrow } from "./helpers";
-import { $, proxy, observe, peek, merge, dump, mount, unmountAll } from "../src/aberdeen";
+import { $, proxy, observe, peek, copy, dump, mount, unmountAll, MERGE } from "../src/aberdeen";
 
 test('adds nodes', async () => {
   $('p');
@@ -203,11 +203,11 @@ test('merges objects collapsing changes', async () => {
   
   assertBody(`"4"`);
   
-  merge(data, {a: 3, b: 4});
+  copy(data, {a: 3, b: 4});
   await asyncPassTime();
   assertBody(`"10"`);
   expect(cnt).toEqual(2);
   
-  merge(data, {c: 4}, true);
+  copy(data, {c: 4}, MERGE);
   expect(cnt).toEqual(2);
 });

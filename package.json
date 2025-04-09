@@ -26,11 +26,6 @@
       "development": "./dist/prediction.js",
       "types`": "./dist/prediction.d.ts"
     },
-    "./merge": {
-      "default": "./dist-min/merge.js",
-      "development": "./dist/merge.js",
-      "types`": "./dist/merge.d.ts"
-    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -44,7 +39,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/bun": "latest",
-    "typedoc": "^0.23.28",
+    "typedoc": "^0.28.2",
     "typescript": "^5.8.2"
   },
   "files": [

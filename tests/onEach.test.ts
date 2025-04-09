@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime, getBody } from "./helpers";
-import { $, proxy, observe, merge, onEach, clean, unmountAll, map } from "../src/aberdeen";
+import { $, proxy, observe, copy, onEach, clean, unmountAll, map } from "../src/aberdeen";
 
 test('onEach does nothing for an empty object', () => {
   let cnt = 0;
@@ -48,11 +48,9 @@ test('onEach adds a single item to the DOM', () => {
 });
 
 test('onEach adds multiple items to the DOM in default order', () => {
-  observe(() => {
-    let data = proxy({c: 3, a: 1, b: 2});
-    onEach(data, function(value, key) {
-      $('p', {text: key});
-    });
+  let data = proxy({c: 3, a: 1, b: 2});
+  onEach(data, function(value, key) {
+    $('p', {text: key});
   });
   assertBody(`p{"a"} p{"b"} p{"c"}`);
 });
@@ -276,23 +274,23 @@ test('onEach keeps two onEaches in order', async () => {
   await asyncPassTime();
   assertBody(`c1 b1 c2`);
   
-  merge(data2, ['b2', 'c2', 'd2']);
+  copy(data2, ['b2', 'c2', 'd2']);
   await asyncPassTime();
   assertBody(`c1 b1 b2 c2 d2`);
   
-  merge(data1, []);
+  copy(data1, []);
   await asyncPassTime();
   assertBody(`b2 c2 d2`);
   
-  merge(data2, []);
+  copy(data2, []);
   await asyncPassTime();
   assertBody(``);
   
-  merge(data2, ['c2', 'b2']);
+  copy(data2, ['c2', 'b2']);
   await asyncPassTime();
   assertBody(`b2 c2`);
   
-  merge(data1, ['c1', 'b1']);
+  copy(data1, ['c1', 'b1']);
   await asyncPassTime();
   assertBody(`c1 b1 b2 c2`);
 });
@@ -393,7 +391,7 @@ test('onEach filters when there is no sort key', async () => {
   
   assertBody(`a c`);
   
-  merge(data, []);
+  copy(data, []);
   await asyncPassTime();
   assertBody(``);
 });
