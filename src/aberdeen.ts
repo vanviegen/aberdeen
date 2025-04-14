@@ -837,11 +837,6 @@ const ANY_SYMBOL = Symbol('any');
  */
 const TARGET_SYMBOL = Symbol('target');
 
-/**
- * Indicates that an object is a `ref`, meaning its underlying value may be 
- * an observable.
- */
-const REF_SYMBOL = Symbol('ref');
 
 const subscribers = new WeakMap<TargetType, Map<any, Set<Scope | ((index: any, newData: DatumType, oldData: DatumType) => void)>>>;
 let peeking = 0; // When > 0, we're not subscribing to any changes
@@ -1406,7 +1401,10 @@ interface RefTarget {
 }
 const refHandler: ProxyHandler<RefTarget> = {
 	get(target: RefTarget, prop: any) {
-		if (prop===REF_SYMBOL) return true;
+		if (prop===TARGET_SYMBOL) {
+			// Create a ref to the unproxied version of the target
+			return ref(unproxy(target.proxy), target.index);
+		}
 		if (prop==="value") {
 			return (target.proxy as any)[target.index];
 		}
@@ -1460,30 +1458,26 @@ export function ref<T extends TargetType, K extends keyof T>(target: T, index: K
 
 function applyBind(_el: Element, target: any) {
 	const el = _el as HTMLInputElement;
-	let onProxyChange: (value: any) => void;
+	let onProxyChange: () => void;
 	let onInputChange: () => void;
 	let type = el.getAttribute('type');
 	let value = unproxy(target).value;
 	if (type === 'checkbox') {
 		if (value === undefined) target.value = el.checked;
-		onProxyChange = value => el.checked = value;
+		onProxyChange = () => el.checked = target.value;
 		onInputChange = () => target.value = el.checked;
 	} else if (type === 'radio') {
 		if (value === undefined && el.checked) target.value = el.value;
-		onProxyChange = value => el.checked = (value === el.value);
+		onProxyChange = () => el.checked = (target.value === el.value);
 		onInputChange = () => {
 			if (el.checked) target.value = el.value;
 		}
 	} else {
 		onInputChange = () => target.value = type==='number' || type==='range' ? (el.value==='' ? null : +el.value) : el.value;
 		if (value === undefined) onInputChange();
-		onProxyChange = value => {
-			if (el.value !== value) el.value = value;
-		}
+		onProxyChange = () => el.value = target.value
 	}
-	observe(() => {
-		onProxyChange(target.value);
-	});
+	observe(onProxyChange);
 	el.addEventListener('input', onInputChange);
 	clean(() => {
 		el.removeEventListener('input', onInputChange);
@@ -1740,7 +1734,7 @@ function styleToCss(style: object, prefix: string): string {
 
 function applyArg(key: string, value: any) {
 	const el = currentScope.getParentElement();
-	if (typeof value === 'object' && value !== null && (value[TARGET_SYMBOL] || value[REF_SYMBOL])) { // Value is a proxy
+	if (typeof value === 'object' && value !== null && value[TARGET_SYMBOL]) { // Value is a proxy
 		if (key === 'bind') {
 			applyBind(el, value)
 		} else {

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime } from "./helpers";
-import { $, proxy, observe, copy, unproxy } from "../src/aberdeen";
+import { $, proxy, observe, copy, unproxy, ref } from "../src/aberdeen";
 
 test('proxy holds basic types', async () => {
   let proxied = proxy(undefined as any);
@@ -215,4 +215,26 @@ test(`unproxies`, () => {
   let p = proxy(x);
   expect(p).not.toBe(x);
   expect(unproxy(p)).toBe(x);
+})
+
+test('unproxies refs', async () => {
+  let obj = proxy({a: 1});
+  let a = ref(obj, 'a')
+  
+  $(() => {
+    $(':'+a.value)
+  });
+  assertBody('"1"');
+
+  unproxy(a).value = 2;
+  await asyncPassTime();
+  expect(a.value).toEqual(2);
+  expect(obj.a).toEqual(2);
+  assertBody('"1"');
+
+  a.value = 3;
+  await asyncPassTime();
+  expect(a.value).toEqual(3);
+  expect(obj.a).toEqual(3);
+  assertBody('"3"');
 })
