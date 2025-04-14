@@ -1,0 +1,29 @@
+{
+    "name": "Aberdeen",
+    "readme": "none",
+    "entryPoints": ["src/*.ts"],
+    "projectDocuments": ["README.md", "docs/*.md"],
+    "excludeInternal": true,
+    "excludePrivate": true,
+    "includeVersion": true,
+    "router": "structure-dir",
+    "highlightLanguages": [
+        "typescript",
+        "javascript",
+        "html"
+    ],
+    "searchInComments": true,
+    "navigationLinks": {
+        "What's this?": "https://vanviegen.github.io/aberdeen/README/",
+        "Tutorial": "https://vanviegen.github.io/aberdeen/Tutorial/",
+        "GitHub": "https://github.com/vanviegen/aberdeen"
+    },
+    "hostedBaseUrl": "https://vanviegen.github.io/aberdeen/",
+    "useFirstParagraphOfCommentAsSummary": true,
+    "validation": {
+        "notDocumented": true
+    },
+    "treatWarningsAsErrors": true,
+    "out": "./dist-docs",
+    "customJs": "docs/live-code.js"
+}

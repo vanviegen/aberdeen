@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { asyncPassTime } from "./helpers";
-import { setErrorHandler, proxy, observe, peek, immediateObserve } from "../src/aberdeen";
+import { setErrorHandler, proxy, observe, immediateObserve } from "../src/aberdeen";
 
 test('immediateObserve runs immediately', async () => {
     const data = proxy({ a: 1, b: 0 });
@@ -45,16 +45,16 @@ test('immediateObserve stabilizes dependent values', () => {
         }
     });
 
-    expect(peek(data)).toEqual({ num: 1, str: 'x' });
+    expect(data).toEqual({ num: 1, str: 'x' });
 
     data.num = 3;
-    expect(peek(data)).toEqual({ num: 3, str: 'xxx' });
+    expect(data).toEqual({ num: 3, str: 'xxx' });
 
     data.num = ''; // This triggers the first observer's else branch
-    expect(peek(data)).toEqual({ num: 0, str: '' });
+    expect(data).toEqual({ num: 0, str: '' });
 
     data.str = 'af123'; // This triggers the second observer
-    expect(peek(data)).toEqual({ num: 5, str: 'xxxxx' });
+    expect(data).toEqual({ num: 5, str: 'xxxxx' });
 });
 
 test('immediateObserve stops when its containing scope re-runs and removes it', async () => {

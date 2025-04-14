@@ -1,7 +1,12 @@
 import {withEmitHandler, defaultEmitHandler} from './aberdeen.js'
 import type { DatumType, TargetType } from './aberdeen.js';
 
-type Patch = Map<TargetType, Map<any, [DatumType, DatumType]>>;
+/** 
+ * Represents a set of changes that can be applied to proxied objects.
+ * This is an opaque type - its internal structure is not part of the public API.
+ * @private
+ */
+export type Patch = Map<TargetType, Map<any, [DatumType, DatumType]>>;
 
 
 function recordPatch(func: () => void): Patch {

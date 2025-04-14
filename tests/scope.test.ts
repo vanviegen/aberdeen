@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime } from "./helpers";
-import { $, proxy, observe, peek, onEach, clean, unmountAll } from "../src/aberdeen";
+import { $, proxy, observe, peek, onEach, clean, unmountAll, unproxy } from "../src/aberdeen";
 
 test('rerenders only the inner scope', async () => {
   let data = proxy('before');
@@ -205,7 +205,7 @@ test('does not rerender on peek', async () => {
       $('span', () => {
         cnt2++;
         $(":" + peek(() => data.value));
-        $(":" + peek(data, 'value'));
+        $(":" + unproxy(data).value);
       });
     });
   });
@@ -273,3 +273,17 @@ test('allows modifying proxied objects from within scopes', async () => {
   assertBody(``);
   expect([cnt0, cnt1, cnt2, cnt3]).toEqual([1, 4, 4, 4]);
 });
+
+test('returns a reactive value when only a function is given', async () => {
+  const data = proxy(20);
+  const plus2 = observe(() => data.value + 2);
+  $('p', {text: plus2})
+
+  expect(plus2.value).toEqual(22)
+  assertBody(`p{"22"}`)
+
+  data.value *= 2
+  await asyncPassTime();
+  expect(plus2.value).toEqual(42)
+  assertBody(`p{"42"}`)
+})

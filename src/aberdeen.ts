@@ -19,8 +19,6 @@ let topRedrawScope: Scope | undefined // The scope that triggered the current re
 export type TargetType = any[] | {[key: string]: any};
 /** @internal */
 export type DatumType = TargetType | boolean | number | string | null | undefined;
-/** @internal */
-export type Patch = Map<TargetType, Record<string|symbol|number, [any, any]>>;
 
 function queue(runner: QueueRunner) {
 	if (!sortedQueue) {
@@ -36,14 +34,34 @@ function queue(runner: QueueRunner) {
 }
 
 /**
-* Normally, changes to `Store`s are reacted to asynchronously, in an (optimized) 
-* batch, after a timeout of 0s. Calling `runQueue()` will do so immediately
-* and synchronously. Doing so may be helpful in cases where you need some DOM
-* modification to be done synchronously.
-*
-* This function is re-entrant, meaning it is safe to call `runQueue` from a
-* function that is called due to another (automatic) invocation of `runQueue`.
-*/
+ * Forces the immediate and synchronous execution of all pending reactive updates.
+ *
+ * Normally, changes to observed data sources (like proxied objects or arrays)
+ * are processed asynchronously in a batch after a brief timeout (0ms). This function
+ * allows you to bypass the timeout and process the update queue immediately.
+ *
+ * This can be useful in specific scenarios where you need the DOM to be updated
+ * synchronously.
+ *
+ * This function is re-entrant, meaning it is safe to call `runQueue` from within
+ * a function that is itself being executed as part of an update cycle triggered
+ * by a previous (or the same) `runQueue` call.
+ *
+ * @example
+ * ```typescript
+ * const data = observe("before");
+ * $({text: data});
+ * // The DOM now contains `before`.
+ *
+ * // Schedule an update
+ * data.value = "after";
+ *
+ * // Normally, the DOM update would happen after a timeout.
+ * // But we need it now:
+ * runQueue();
+ * // The DOM now contains "after".
+ * ```
+ */
 export function runQueue(): void {
 	let time = Date.now();
 	while(true) {
@@ -77,8 +95,45 @@ let domInReadPhase = false;
 * 
 * See `transitions.js` for some examples.
 */
-
+/**
+ * A promise-like object that resolves *after* the current batch of reactive DOM updates
+ * has completed, but *before* any subsequent DOM writes in the same update cycle begin.
+ *
+ * This provides a safe point to read DOM properties that depend on the latest layout,
+ * such as element dimensions (`offsetHeight`, `offsetWidth`) or positions, without
+ * causing layout thrashing. Layout thrashing occurs when the browser is forced to
+ * recalculate layouts repeatedly due to interleaved DOM reads and writes within the
+ * same synchronous block of code.
+ *
+ * By awaiting `DOM_READ_PHASE`, you ensure your read operations are batched together
+ * after Aberdeen has finished its DOM modifications for the current update cycle.
+ *
+ * @example
+ * ```typescript
+ * const show = observe(false);
+ *
+ * $('div', () => {
+ *     if (show.value) {
+ *         $('p:Hello', {
+ *             create: async (element: HTMLElement) => {
+ *                 // Wait until the element is definitely in the DOM and layout is stable
+ *                 await DOM_READ_PHASE;
+ *                 // Now it's safe to read dimensions
+ *                 console.log('Paragraph height:', element.offsetHeight);
+ *                
+ *                 // If you need to write based on the read, use DOM_WRITE_PHASE
+ *                 await DOM_WRITE_PHASE;
+ *                 element.style.opacity = '1'; // Start a transition, for example
+ *             }
+ *         });
+ *     }
+ * });
+ * ```
+ *
+ * @see {@link DOM_WRITE_PHASE} for the subsequent phase optimal for writing DOM changes.
+ */
 export const DOM_READ_PHASE = {
+	/** The promise-like `then` method, which allows this object to be `await`ed. */
 	then: function(fulfilled: () => void) {
 		if (domInReadPhase) fulfilled();
 		else {
@@ -87,25 +142,27 @@ export const DOM_READ_PHASE = {
 		}
 		return this;
 	}
-}
+};
+
+
 /**
-* A promise-like object that you can `await`. It will resolve *after* the current 
-* DOM_READ_PHASE has completed (if any) and after any DOM triggered by Aberdeen
-* have completed. This is a good time to do little manual DOM tweaks that depend
-* on a *read phase* first, like triggering transitions.
-*
-* By batching DOM writes separately from DOM reads, this prevents the browser from
-* interleaving layout reads and writes, which can force additional layout recalculations.
-* This helps reduce visual glitches and flashes by ensuring the browser doesn't render
-* intermediate DOM states during updates.
-*
-* Unlike `setTimeout` or `requestAnimationFrame`, this mechanism ensures that DOM write
-* operations happen after all DOM reads in the same queue cycle, minimizing layout thrashing.
-*
-* See `transitions.js` for some examples.
-*/
+ * A promise-like object that resolves *after* the {@link DOM_READ_PHASE} (if any reads
+ * were scheduled) and after Aberdeen's reactive DOM updates for the current cycle
+ * have completed.
+ *
+ * This provides a safe point to perform manual DOM manipulations or apply styles/classes
+ * that might trigger transitions or rely on measurements taken during the read phase.
+ * By batching these writes after reads and reactive updates, it helps prevent layout
+ * thrashing and visual glitches.
+ *
+ * Use this when you need to modify the DOM based on its state *after* the latest
+ * reactive updates have been applied.
+ *
+ * @see {@link DOM_READ_PHASE} for the preceding phase optimal for reading DOM properties, and for an example.
+ */
 
 export const DOM_WRITE_PHASE = {
+	/** The promise-like `then` method, which allows this object to be `await`ed. */
 	then: function(fulfilled: () => void) {
 		if (!domInReadPhase) fulfilled();
 		else {
@@ -133,8 +190,14 @@ const DOM_PHASE_RUNNER = {
 }
 
 
-/** @internal */
-type SortKeyType = number | string | Array<number|string> | undefined;
+/**
+ * A sort key, as used by {@link onEach}, is a value that determines the order of items. It can	
+ * be a number, string, or an array of numbers/strings. The sort key is used to sort items
+ * based on their values. The sort key can also be `undefined`, which indicates that the item
+ * should be ignored.
+ * @private
+ */
+export type SortKeyType = number | string | Array<number|string> | undefined;
 
 /**
 * Given an integer number or a string, this function returns a string that can be concatenated
@@ -161,13 +224,33 @@ function partToStr(part: number|string): string {
 	return String.fromCharCode(128 + (negative ? -result.length : result.length)) + result;
 }
 
-
 /**
- * Creates a new string that has the opposite sort order as the input string, by flipping
- * all its bits. This is useful for specifying a reverse ordering to `onEach`.
- * @param input The string to invert.
- * @returns A new string that has the opposite sort order as `input`. It will contain
- * gibberish, so don't display it.
+ * Creates a new string that has the opposite sort order compared to the input string.
+ *
+ * This is achieved by flipping the bits of each character code in the input string.
+ * The resulting string is intended for use as a sort key, particularly with the
+ * `makeKey` function in {@link onEach}, to achieve a descending sort order.
+ *
+ * **Warning:** The output string will likely contain non-printable characters or
+ * appear as gibberish and should not be displayed to the user.
+ *
+ * @example
+ * ```typescript
+ * const users = observe([
+ *     { id: 1, name: 'Charlie', score: 95 },
+ *     { id: 2, name: 'Alice', score: 100 },
+ *     { id: 3, name: 'Bob', score: 90 },
+ * ]);
+ *
+ * // Sort users by score descending
+ * onEach(users, (user) => {
+ *     $('p', `${user.name}: ${user.score}`);
+ * }, (user) => invertString(user.name)); // Reverse alphabetic order
+ * ```
+ *
+ * @param input The string whose sort order needs to be inverted.
+ * @returns A new string that will sort in the reverse order of the input string.
+ * @see {@link onEach} for usage with sorting.
  */
 export function invertString(input: string): string {
 	let result = '';
@@ -411,12 +494,12 @@ function findLastNodeInPrevSiblings(sibling: Node | Scope | undefined): Node | u
 }
 
 
-class ResultScope extends ChainedScope {
-	public result: {value: DatumType} = optProxy({value: undefined});
+class ResultScope<T extends DatumType | void> extends ChainedScope {
+	public result: ValueRef<T> = optProxy({value: undefined});
 
 	constructor(
 		parentElement: Element,
-		public renderer: () => DatumType,
+		public renderer: () => T,
 	) {
 		super(parentElement);
 
@@ -791,6 +874,61 @@ function subscribe(target: any, index: symbol|string|number, observer: Scope | (
 export function onEach<T>(target: Array<undefined|T>, render: (value: T, index: number) => void, makeKey?: (value: T, key: any) => SortKeyType): void;
 export function onEach<K extends string|number|symbol,T>(target: Record<K,undefined|T>, render: (value: T, index: K) => void, makeKey?: (value: T, key: K) => SortKeyType): void;
 
+/**
+ * Reactively iterates over the items of an observable array or object, optionally rendering content for each item.
+ * 
+ * Automatically updates when items are added, removed, or modified.
+ *
+ * @param target The observable array or object to iterate over. Values that are `undefined` are skipped.
+ * @param render A function called for each item in the array. It receives the item's (observable) value and its index/key. Any DOM elements created within this function will be associated with the item, placed at the right spot in the DOM, and cleaned up when redrawing/removing the item.
+ * @param makeKey An optional function to generate a sort key for each item. This controls the order in which items are rendered in the DOM. If omitted, items are rendered in array index order. The returned key can be a number, string, or an array of numbers/strings for composite sorting. Use {@link invertString} on string keys for descending order. Returning `null` or `undefined` from `makeKey` will prevent the item from being rendered.
+ *
+ * @example Iterating an array
+ * ```typescript
+ * const items = observe(['apple', 'banana', 'cherry']);
+ *
+ * // Basic iteration
+ * onEach(items, (item, index) => $(`li:${item} (#${index})`));
+ *
+ * // Add a new item - the list updates automatically
+ * items.push('date');
+ * // Same for updates and deletes
+ * items[1] = 'berry';
+ * delete items[2];
+ * ```
+ *
+ * @example Iterating an array with custom ordering
+ * ```typescript
+ * const users = observe([
+ *     { id: 3, group: 1, name: 'Charlie' },
+ *     { id: 1, group: 1, name: 'Alice' },
+ *     { id: 2, group: 2, name: 'Bob' },
+ * ]);
+ *
+ * // Sort by name alphabetically
+ * onEach(users, (user) => {
+ *     $(`p:${user.name} (id=${user.id})`);
+ * }, (user) => [user.group, user.name]); // Sort by group, and within each group sort by name
+ * ```
+ * 
+ *  * @example Iterating an object
+ * ```typescript
+ * const config = observe({ theme: 'dark', fontSize: 14, showTips: true });
+ *
+ * // Display configuration options
+ * $('dl', () => {
+ *     onEach(config, (value, key) => {
+ *         if (key === 'showTips') return; // Don't render this one
+ *         $('dt:'+key);
+ *         $('dd:'value);
+ *     });
+ * });
+ *
+ * // Change a value - the display updates automatically
+ * config.fontSize = 16;
+ * ```
+ * @see {@link invertString} To easily create keys for reverse sorting.
+ */
 export function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeKey?: (value: DatumType, key: any) => SortKeyType): void {
 	if (!target || typeof target !== 'object') throw new Error('onEach requires an object');
 	target = (target as any)[TARGET_SYMBOL] || target;
@@ -803,6 +941,35 @@ function isObjEmpty(obj: object): boolean {
 	return true;
 }
 
+/**
+ * Reactively checks if an observable array or object is empty.
+ *
+ * This function not only returns the current emptiness state but also establishes
+ * a reactive dependency. If the emptiness state of the `proxied` object or array
+ * changes later (e.g., an item is added to an empty array, or the last property
+ * is deleted from an object), the scope that called `isEmpty` will be automatically
+ * scheduled for re-evaluation.
+ *
+ * @param proxied The observable array or object (obtained via `observe()`) to check.
+ * @returns `true` if the array has length 0 or the object has no own enumerable properties, `false` otherwise.
+ *
+ * @example
+ * ```typescript
+ * const items = observe([]);
+ *
+ * // Reactively display a message if the items array is empty
+ * $('div', () => {
+ *     if (isEmpty(items)) {
+ *         $('p', 'No items yet!');
+ *     } else {
+ *         // ... render items using onEach ...
+ *     }
+ * });
+ *
+ * // Adding an item will automatically remove the "No items yet!" message
+ * items.push('first item');
+ * ```
+ */
 export function isEmpty(proxied: TargetType): boolean {
 	const target = (proxied as any)[TARGET_SYMBOL] || proxied;
 	const scope = currentScope;
@@ -821,7 +988,54 @@ export function isEmpty(proxied: TargetType): boolean {
 	}
 }
 
-//* @internal */
+/** @private */
+export interface ValueRef<T> {
+	value: T;
+}
+
+/**
+ * Reactively counts the number of properties in an objects.
+ *
+ * @param proxied The observable object to count. In case an `array` is passed in, a {@link ref} to its `.length` will be returned.
+ * @returns an observable object for which the `value` property reflects the number of properties in `proxied` with a value other than `undefined`.
+ * 
+ * @example
+ * ```typescript
+ * const items = observe({x: 3, y: 7} as any);
+ * const count = countProps(items);
+ *
+ * // Create a DOM text node for the count:
+ * $('div', {text: count});
+ * // <div>2</div>
+
+ * // Or we can use it in an {@link observe} function:
+ * observe(() => console.log("The count is now", count.value));
+ * // The count is now 2
+ * 
+ * // Adding/removing items will update the count
+ * items.z = 12;
+ * // Asynchronously, after 0ms:
+ * // <div>3</div>
+ * // The count is now 3
+ * ```
+ */
+export function countProps(proxied: TargetType): ValueRef<number> {
+	if (proxied instanceof Array) return ref(proxied, 'length');
+
+	const target = (proxied as any)[TARGET_SYMBOL] || proxied;
+	subscribe(target, ANY_SYMBOL, function(index: any, newData: DatumType, oldData: DatumType) {
+		if (oldData===newData) {}
+		else if (oldData===undefined) result.value++;
+		else if (newData===undefined) result.value--;
+	});
+
+	let initial = 0;
+	for(let k in target) if (target[k] !== undefined) initial++;
+	const result = proxy(initial);
+	return result;
+}
+
+/** @internal */
 export function defaultEmitHandler(target: TargetType, index: string|symbol|number, newData: DatumType, oldData: DatumType) {
 	// We're triggering for values changing from undefined to undefined, as this *may*
 	// indicate a change from or to `[empty]` (such as `[,1][0]`).
@@ -939,19 +1153,84 @@ function optProxy(value: any): any {
 	return proxied;
 }
 
-export function proxy<T extends DatumType>(array: Array<T>): Array<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
-export function proxy<T extends object>(obj: T): T;
-export function proxy<T extends DatumType>(value: T): {value: T extends number ? number : T extends string ? string : T extends boolean ? boolean : T};
 
+export function proxy<T extends DatumType>(target: Array<T>): Array<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
+export function proxy<T extends object>(target: T): T;
+export function proxy<T extends DatumType>(target: T): ValueRef<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
+
+/**
+ * Creates a reactive proxy around the given data.
+ *
+ * Reading properties from the returned proxy within a reactive scope (like one created by
+ * {@link $} or {@link observe}) establishes a subscription. Modifying properties *through*
+ * the proxy will notify subscribed scopes, causing them to re-execute.
+ *
+ * - Plain objects and arrays are wrapped in a standard JavaScript `Proxy` that intercepts
+ *   property access and mutations, but otherwise works like the underlying data.
+ * - Primitives (string, number, boolean, null, undefined) are wrapped in an object
+ *   `{ value: T }` which is then proxied. Access the primitive via the `.value` property.
+ *
+ * Use {@link unproxy} to get the original underlying data back.
+ *
+ * @param target - The object, array, or primitive value to make reactive.
+ * @returns A reactive proxy wrapping the target data.
+ * @template T - The type of the data being proxied.
+ *
+ * @example Object
+ * ```typescript
+ * const state = proxy({ count: 0, message: 'Hello' });
+ * observe(() => console.log(state.message)); // Subscribes to message
+ * setTimeout(() => state.message = 'World', 1000); // Triggers the observe function
+ * ```
+ *
+ * @example Array
+ * ```typescript
+ * const items = proxy(['a', 'b']);
+ * observe(() => console.log(items.length)); // Subscribes to length
+ * setTimeou(() => items.push('c'), 1000); // Triggers the observe function
+ * ```
+ *
+ * @example Primitive
+ * ```typescript
+ * const name = proxy('Aberdeen');
+ * observe(() => console.log(name.value)); // Subscribes to value
+ * setTimeout(() => name.value = 'UI', 1000); // Triggers the observe function
+ * ```
+ */
 export function proxy(target: TargetType): TargetType {
-	return optProxy(typeof target === 'object' && target !== null ? target : {value: target});
+    return optProxy(typeof target === 'object' && target !== null ? target : {value: target});
 }
 
 /**
- * The reverse of `proxy()`.
- * @param target A proxied object or array.
- * @returns The underlying (unproxied) data of that object or array, or the thing
- *   itself if it was already unproxied.
+ * Returns the original, underlying data target from a reactive proxy created by {@link proxy}.
+ * If the input `target` is not a proxy, it is returned directly.
+ *
+ * This is useful when you want to avoid triggering subscriptions during read operations or
+ * re-executes during write operations. Using {@link peek} is an alternative way to achieve this.
+ *
+ * @param target - A proxied object, array, or any other value.
+ * @returns The underlying (unproxied) data, or the input value if it wasn't a proxy.
+ * @template T - The type of the target.
+ *
+ * @example
+ * ```typescript
+ * const userProxy = proxy({ name: 'Frank' });
+ * const rawUser = unproxy(userProxy);
+ *
+ * // Log reactively
+ * $(() => console.log('proxied', userProxy.name));
+ * // The following will only ever log once, as we're not subscribing to any observable
+ * $(() => console.log('unproxied', rawUser.name));
+ * 
+ * // This cause the first log to run again:
+ * setTimeout(() => userProxy.name += '!', 1000);
+ * 
+ * // This doesn't cause any new logs:
+ * setTimeout(() => rawUser.name += '?', 2000);
+ * 
+ * // Both userProxy and rawUser end up as `{name: 'Frank!?'}`
+ * setTimeout(() => console.log('final values', userProxy, rawUser), 3000);
+ * ```
  */
 export function unproxy<T>(target: T): T {
 	return target ? (target as any)[TARGET_SYMBOL] || target : target;
@@ -964,53 +1243,79 @@ function destroyWithClass(element: Element, cls: string) {
 	setTimeout(() => element.remove(), 2000);
 }
 
+
 /**
- * Copies all array items or object properties from `source` to `target`. In case
- * a value is an object that already exists as an object of the same class in `target`,
- * it is merged recursively, instead of replaced.
- * This results in minimal changes to be made to `target`, thus causing only minimal
- * updates to the user interface. 
- * In addition, this function is optimized for working with proxied data.
- * 
- * @param dst - The destination object/array to copy into. It will look like `source` afterwards.
- *              Both proxied and unproxied values are supported.
- *              When dst is `null`, a new (unproxied!) object is created (of the same class as `src`)
- *              and returned.
- * @param src - The source object/array to copy from. It won't be modified.
- *              Both proxied and unproxied values are supported.
- * @param flags - Bit mask of copy options:
- * - MERGE: When set, `src` is applied as a *partial* update, meanings:
- *    - Object properties present in `target` but not in `source` are left as-is. This also
- *      applies to nested objects.
- *    - A value of `undefined` or `null` will cause a `delete` to happen on the property.
- *    - When a nested source property has an array value while the corresponding target
- *      value is some other object type, normal behavior would be to replace the target
- *      value. In `partial` mode however, the array will be left in place and the target
- *      object keys will be interpreted as array indexes. This allows partial array
- *      updates like: `{messages: {42: {seen: true}}}` (where `messages` contains an array).
- * - SHALLOW: When set, a shallow copy is made. Without this flag, any objects
- *      that don't exist on `dst` yet are created new using the same prototype as the
- *      the original, and then all properties are copied from the source object. With this
- *      flag, `dst` properties may be set to refer to object and arrays referred to be `src`. 
- * @returns `dst` or the object that was created if `dst` was `null`.
- * @throws Error if attempting to copy an array into a non-array object.
- * @example
+ * Recursively copies properties or array items from `src` to `dst`.
+ * It's designed to work efficiently with reactive proxies created by {@link proxy}.
+ *
+ * - **Minimizes Updates:** When copying between objects/arrays (proxied or not), if a nested object
+ *   exists in `dst` with the same constructor as the corresponding object in `src`, `copy`
+ *   will recursively copy properties into the existing `dst` object instead of replacing it.
+ *   This minimizes change notifications for reactive updates.
+ * - **Handles Proxies:** Can accept proxied or unproxied objects/arrays for both `dst` and `src`.
+ *
+ * @param dst - The destination object/array (proxied or unproxied).
+ * @param src - The source object/array (proxied or unproxied). It won't be modified.
+ * @param flags - Bitmask controlling copy behavior:
+ *   - {@link MERGE}: Performs a partial update. Properties in `dst` not present in `src` are kept.
+ *     `null`/`undefined` in `src` delete properties in `dst`. Handles partial array updates via object keys.
+ *   - {@link SHALLOW}: Performs a shallow copy; when an array/object of the right type doesn't exist in `dst` yet, a reference to the array/object in `src` will be made, instead of creating a copy. If the array/object already exists, it won't be replaced (by a reference), but all items will be individually checked and copied like normal, keeping changes (and therefore UI updates) to a minimum.
+ * @template T - The type of the objects being copied.
+ * @throws Error if attempting to copy an array into a non-array or vice versa (unless {@link MERGE} is set, allowing for sparse array updates).
+ *
+ * @example Basic Copy
  * ```typescript
- * 
+ * const source = proxy({ a: 1, b: { c: 2 } });
+ * const dest = proxy({ b: { d: 3 } });
+ * copy(dest, source); // dest is now { a: 1, b: { c: 2 } }
+ * ```
+ *
+ * @example MERGE
+ * ```typescript
+ * const source = { b: { c: 99 }, d: undefined }; // d: undefined will delete
+ * const dest = proxy({ a: 1, b: { x: 5 }, d: 4 });
+ * copy(dest, source, MERGE); // dest is now proxy({ a: 1, b: { c: 99, x: 5 } })
+ * ```
+ *
+ * @example Partial Array Update with MERGE
+ * ```typescript
+ * const messages = proxy(['msg1', 'msg2', 'msg3']);
+ * const update = { 1: 'updated msg2' }; // Update using object key as index
+ * copy(messages, update, MERGE); // messages is now proxy(['msg1', 'updated msg2', 'msg3'])
+ *
+ * @example SHALLOW
+ * ```typescript
+ * const source = { nested: [1, 2] };
+ * const dest = {};
+ * copy(dest, source, SHALLOW);
+ * dest.nested.push(3);
+ * console.log(source.nested); // Output: [1, 2, 3] (source was modified)
+ * ```
  * ```
  */
-
+export function copy<T extends object>(dst: T, src: T, flags: number = 0) {
+	copyRecurse(dst, src, flags);
+	runImmediateQueue();
+}
+/** Flag to {@link copy} causing it to use merge semantics. See {@link copy} for details. */
 export const MERGE = 1;
+/** Flag to {@link copy} and {@link clone} causing them to create a shallow copy (instead of the deep copy done by default).*/
 export const SHALLOW = 2;
 const COPY_SUBSCRIBE = 32;
 const COPY_EMIT = 64;
-export function copy<T extends object>(dst: T | null, src: T, flags: number = 0): T {
-	if (dst == null) {
-		dst = Object.create(Object.getPrototypeOf(src)) as T;
-	}
 
+/**
+ * Clone an (optionally proxied) object or array.
+ * 
+ * @param src The object or array to clone. If it is proxied, `clone` will subscribe to any changes to the (nested) data structure.
+ * @param flags 
+ *   - {@link SHALLOW}: Performs a shallow clone, meaning that only the top-level array or object will be copied, while object/array values will just be references to the original data in `src`.
+ * @template T - The type of the objects being copied.
+ * @returns A new unproxied array or object (of the same type as `src`), containing a deep (by default) copy of `src`.
+ */
+export function clone<T extends object>(src: T, flags: number = 0): T {
+	const dst = Object.create(Object.getPrototypeOf(src)) as T;
 	copyRecurse(dst, src, flags);
-	runImmediateQueue();
 	return dst;
 }
 
@@ -1115,8 +1420,41 @@ const refHandler: ProxyHandler<RefTarget> = {
 	},
 };
 
-export function ref(proxy: TargetType, index: any) {
-	return new Proxy({proxy, index}, refHandler);
+
+/**
+ * Creates a reactive reference (`{ value: T }`-like object) to a specific value
+ * within a proxied object or array.
+ *
+ * This is primarily used for the `bind` property in {@link $} to create two-way data bindings
+ * with form elements, and for passing a reactive property to any of the {@link $} key-value pairs.
+ *
+ * Reading `ref.value` accesses the property from the underlying proxy (and subscribes the current scope).
+ * Assigning to `ref.value` updates the property in the underlying proxy (triggering reactive updates).
+ *
+ * @param target - The reactive proxy (created by {@link proxy}) containing the target property.
+ * @param index - The key (for objects) or index (for arrays) of the property to reference.
+ * @returns A reference object with a `value` property linked to the specified proxy property.
+ *
+ * @example
+ * ```typescript
+ * const formData = proxy({ username: '', velocity: 42 });
+ *
+ * // Usage with `bind`
+ * $('input', {
+ *   type: 'text',
+ *   // Creates a two-way binding between the input's value and formData.username
+ *   bind: ref(formData, 'username')
+ * });
+ *
+ * // Usage as a dynamic property, causes a TextNode with just the name to be created and live-updated
+ * $('p:Entered: ', {text: ref(formData, 'username'});
+ * 
+ * // Changes are actually stored in formData - this causes logs like `{username: "Frank", velocity 42}`
+ * $(() => console.log(JSON.stringify(formData)))
+ * ```
+ */
+export function ref<T extends TargetType, K extends keyof T>(target: T, index: K): ValueRef<T[K]> {
+	return new Proxy({proxy: target, index}, refHandler) as any as ValueRef<T[K]>;
 }
 
 
@@ -1125,7 +1463,7 @@ function applyBind(_el: Element, target: any) {
 	let onProxyChange: (value: any) => void;
 	let onInputChange: () => void;
 	let type = el.getAttribute('type');
-	let value = peek(target, 'value');
+	let value = unproxy(target).value;
 	if (type === 'checkbox') {
 		if (value === undefined) target.value = el.checked;
 		onProxyChange = value => el.checked = value;
@@ -1187,159 +1525,82 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
 }
 
 
+
 /**
- * The $ function is the core building block of the Aberdeen reactive UI library.
- * It provides a concise way to create and manipulate DOM elements with reactive data binding.
- * 
- * @description
- * The $ function can be used in several ways:
- * 
- * 1. Create DOM elements: `$('tagname.class1.class2:text content', ...)`
- * 2. Apply properties and event handlers to elements: `$('div', { prop: value, event: handler })`
- * 3. Create reactive scopes: `$(() => { code_that_reacts_to_changes })`
- * 4. Observe reactive values: `const reactiveValue = $(() => someComputedValue)`
- * 
- * When creating elements, the first argument is a string with the format:
- * - `tagname` - The HTML tag name (defaults to 'div' if omitted)
- * - `.class1.class2` - Optional CSS classes
- * - `:text content` - Optional text content
- * 
- * Special property keys:
- * - Keys starting with `.` toggle CSS classes: `{ '.active': isActive }`
- * - Keys starting with `$` set style properties: `{ '$color': 'red' }`
- * - `bind` creates two-way data binding with form elements
- * - `create` runs when an element is created (can be a function or transition name)
- * - `destroy` runs when an element is removed
- * - `html` sets innerHTML
- * - `text` adds a text node
- * - `element` adds an existing DOM node
- * 
- * @example
- * // Create a simple div with text
- * $('div:Hello world');
- * 
- * @example
- * // Create an element with classes
- * $('button.primary.large:Submit');
- * 
- * @example
- * // Create an element with properties and event handlers
- * $('input', {
- *   type: 'text',
- *   placeholder: 'Enter your name',
- *   input: (e) => console.log(e.target.value)
+ * The core function for building reactive user interfaces in Aberdeen. It creates and inserts new DOM elements
+ * and sets attributes/properties/event listeners on DOM elements. It does so in a reactive way, meaning that
+ * changes will be (mostly) undone when the current *scope* is destroyed or will be re-execute.
+ *
+ * @param {...(string | function | object | false | undefined | null)} args - Any number of arguments can be given. How they're interpreted depends on their types:
+ *
+ * - `string`: Strings can be used to create and insert new elements, set classnames for the *current* element, and add text to the current element.
+ *   The format of a string is: **tag**? (`.` **class**)* (':' **text**)?
+ *   meaning it consists of...
+ *   - An optional HTML **tag**, something like `h1`. If present, a DOM element of that tag is created, and that element will be the *current* element for the rest of this `$` function execution.
+ *   - Any number of CSS classes prefixed by `.` characters. These classes will be added to the *current* element.
+ *   - Optional content **text** prefixed by a `:` character, ranging til the end of the string. This will be added as a TextNode to the *current* element.
+ * - `function`: When a function (without argument nor a return value) is passed in, it will be reactively executed in its own observe scope, preserving the *current element*. So any `$()` invocations within this function will create DOM elements with our *current* element as parent. If the function reads observable data, and that data is changed later on, the function we re-execute (after side effects, such as DOM modifications through `$`, have been cleaned - see also {@link clean}).
+ * - `object`: When an object is passed in, its key-value pairs are used to modify the *current* element in the following ways...
+ *   - `{<attrName>: any}`: The common case is setting the value as an HTML attribute named key. So `{placeholder: "Your name"}` would add `placeholder="Your name"` to the current HTML element.
+ *   - `{<propName>: boolean}` or `{value: any}` or `{selectedIndex: number}`: If the value is a boolean, or if the key is `value` or `selectedIndex`, it is set on the `current` element as a DOM property instead of an HTML attribute. For example `{checked: true}` would do `el.checked = true` for the *current* element.
+ *   - `{".class": boolean}`: If the key starts with a `.` character, its either added to or removed from the *current* element as a CSS class, based on the truthiness of the value. So `{".hidden": hide}` would toggle the `hidden` CSS class.
+ *   - `{<eventName>: function}`: If the value is a `function` it is set as an event listener for the event with the name given by the key. For example: `{click: myClickHandler}`.
+ *   - `{$<styleProp>: value}`: If the key starts with a `$` character, set a CSS style property with the name of the rest of the key to the given value. Example: `{$backgroundColor: 'red'}`.
+ *   - `{create: string}`: Add the value string as a CSS class to the *current* element, *after* the browser has finished doing a layout pass. This behavior only triggers when the scope setting the `create` is the top-level scope being (re-)run. This allows for creation transitions, without triggering the transitions for deeply nested elements being drawn as part of a larger component.
+ *   - `{destroy: string}`: When the *current* element is a top-level element to be removed (due to reactivity cleanup), actual removal from the DOM is delayed by 2 seconds, and in the mean time the value string is added as a CSS class to the element, allowing for a deletion transition.
+ *   - `{create: function}` and `{destroy: function}`: The function is invoked when the *current* element is the top-level element being created/destroyed. It can be used for more involved creation/deletion animations. In case of `destroy`, the function is responsible for actually removing the element from the DOM (eventually). See `transitions.ts` in the Aberdeen source code for some examples.
+ *   - `{bind: <obsValue>}`: Create a two-way binding element between the `value` property of the given observable (proxy) variable, and the *current* input element (`<input>`, `<select>` or `<textarea>`). This is often used together with {@link ref}, in order to use properties other than `.value`.
+ *   - `{<any>: <obsvalue>}`: Create a new observe scope and read the `value` property of the given observable (proxy) variable from within it, and apply the contained value using any of the other rules in this list. Example:
+ *      ```typescript
+ *      const myColor = proxy('red');
+ *      $('p:Test', {$color: myColor}, click: () => myColor.value = 'yellow'})
+ *      // Clicking the text will cause it to change color without recreating the <p> itself
+ *      ```
+ *      This is often used together with {@link ref}, in order to use properties other than `.value`.
+ *   - `{text: string|number}`: Add the value as a `TextNode` to the *current* element.
+ *   - `{html: string}`: Add the value as HTML to the *current* element. This should only be used in exceptional situations. And of course, beware of XSS.
+ *   - `{element: Node}`: Add a pre-existing HTML `Node` to the *current* element.
+ *
+ *
+ * @example Create Element
+ * ```typescript
+ * $('button.btn.primary:Submit', {
+ *   disabled: false,
+ *   click: () => console.log('Clicked!'),
+ *   $color: 'white'
  * });
- * 
- * @example
- * // Create nested elements
- * $('ul', () => {
- *   $('li:Item 1');
- *   $('li:Item 2');
- *   $('li:Item 3');
+ * ```
+ *
+ * @example Nested Elements & Reactive Scope
+ * ```typescript
+ * const state = proxy({ count: 0 });
+ * $('div', () => { // Outer element
+ *   // This scope re-renders when state.count changes
+ *   $(`:Count is ${state.count}`); // Text node, reactive
+ *   $('button:Increment', { click: () => state.count++ });
  * });
- * 
- * @example
- * // Create reactive UI that updates when data changes
- * const data = proxy({ count: 0 });
- * 
- * $('div', () => {
- *   $('p:Count: ' + data.count);
- *   $('button', { 
- *     click: () => data.count++,
- *     text: 'Increment'
- *   });
- * });
- * 
- * @example
- * // Two-way data binding with form elements
- * const user = proxy({ name: '', email: '' });
- * 
- * $('form', () => {
- *   $('input', { 
- *     type: 'text',
- *     placeholder: 'Name',
- *     bind: ref(user, 'name')
- *   });
- *   
- *   $('input', { 
- *     type: 'email',
- *     placeholder: 'Email',
- *     bind: ref(user, 'email')
- *   });
- *   
- *   $('p:Hello, ' + (user.name || 'anonymous'));
- * });
- * 
- * @example
- * // Conditional rendering
- * const state = proxy({ showDetails: false });
- * 
- * $('div', () => {
- *   $('button', { 
- *     click: () => state.showDetails = !state.showDetails,
- *     text: state.showDetails ? 'Hide details' : 'Show details'
- *   });
- *   
- *   if (state.showDetails) {
- *     $('div.details', {
- *       create: grow,
- *       destroy: shrink
- *     }, () => {
- *       $('p:These are the details you requested.');
- *     });
+ * ```
+ *
+ * @example Two-way Binding
+ * ```typescript
+ * const user = proxy({ name: '' });
+ * $('input', { bind: ref(user, 'name') });
+ * $(`:Hello ${user.name || 'stranger'}`);
+ * ```
+ *
+ * @example Conditional Rendering
+ * ```typescript
+ * const show = proxy(false);
+ * $('button', { click: () => show.value = !show.value }, () => $(show.value ? ':Hide' : ':Show'));
+ * $(() => { // Reactive scope
+ *   if (show.value) {
+ *     $('p:Details are visible!');
  *   }
  * });
- * 
- * @example
- * // List rendering
- * const todos = proxy([
- *   { id: 1, text: 'Learn Aberdeen', done: false },
- *   { id: 2, text: 'Build an app', done: false }
- * ]);
- * 
- * $('ul', () => {
- *   for (const todo of todos) {
- *     $('li', () => {
- *       $('input', {
- *         type: 'checkbox',
- *         checked: todo.done,
- *         change: (e) => todo.done = e.target.checked
- *       });
- *       $('span', {
- *         $textDecoration: todo.done ? 'line-through' : 'none',
- *         text: todo.text
- *       });
- *     });
- *   }
- * });
- * 
- * @example
- * // Observing computed values
- * const userData = proxy({ firstName: 'John', lastName: 'Doe' });
- * 
- * // This returns a reactive object with a 'value' property
- * const fullName = $(() => userData.firstName + ' ' + userData.lastName);
- * 
- * // fullName.value will update whenever firstName or lastName changes
- * console.log(fullName.value); // "John Doe"
- * 
- * @param {...DollarArg|Function} args - String tags, property objects, or functions
- * @returns {void|{value: T}} - Returns nothing for DOM manipulation, or a reactive object when observing values
+ * ```
  */
 
-type DollarArg = string | null | undefined | false | Record<string,any>;
-// When only a function is passed in, $ will return a proxied reference of its observed return value.
-export function $<T>(func: () => T): {value: T};
-export function $<T>(...args: DollarArg[]): void;
-// Only the last argument can be a function.
-export function $<T>(...args: [...DollarArg[], (() => void)]): void;
-
-export function $(...args: any) {
-
-	if (args.length === 1 && typeof args[0] === 'function') {
-		return (new ResultScope(currentScope.getParentElement(), args[0])).result;
-	}
-
+export function $(...args: (string | null | undefined | false | (() => void) | Record<string,any>)[]): void {
 	let savedScope = currentScope;
 
 	for(let arg of args) {
@@ -1371,7 +1632,7 @@ export function $(...args: any) {
 				if (text) el.textContent = text;
 				currentScope.addNode(el);
 				currentScope = new ChainedScope(el);
-				currentScope.lastChild = el.lastChild;
+				currentScope.lastChild = el.lastChild || undefined;
 				// Extend topRedrawScope one level deep, so it works for $('div', {create: true})`.
 				if (savedScope === topRedrawScope) topRedrawScope = currentScope;
 			}
@@ -1394,70 +1655,60 @@ export function $(...args: any) {
 }
 
 let cssCount = 0;
+
 /**
- * Inserts CSS styles into the document and returns a unique class prefix.
- * 
- * This function converts a JavaScript style object into CSS and adds it to the document.
- * When `global` is false (default), all selectors are prefixed with a unique class name,
- * allowing for scoped CSS that won't affect other elements.
- * 
- * @param style - An object representing CSS styles. Keys can be:
- *   - CSS properties in camelCase (e.g., `fontSize`)
- *   - Nested selectors (e.g., `'&:hover'`, `'.child'`)
- *   - Media queries or other at-rules (e.g., `'@media (max-width: 600px)'`)
- * @param global - When true, styles are applied globally without a class prefix.
- *                 When false (default), styles are scoped with a unique class prefix.
- * @returns The class prefix string that was used (empty string if global is true) including
- *          the leading '.'.
- * 
- * @example
- * // Basic usage - scoped styles
- * const className = insertCss({
- *   color: 'blue',
- *   fontSize: '16px',
- *   '&:hover': {
- *     color: 'red'
+ * Inserts CSS rules into the document, optionally scoping them with a unique class name.
+ *
+ * Takes a JavaScript object representation of CSS rules. camelCased property keys are
+ * converted to kebab-case (e.g., `fontSize` becomes `font-size`).
+ *
+ * @param style - An object where keys are CSS selectors (or camelCased properties) and values are
+ *   CSS properties or nested rule objects.
+ *   - Selectors are usually combined as a descendant-relationship (meaning just a space character) with their parent selector.
+ *   - In case a selector contains a `&`, that character will be replaced by the parent selector.
+ *   - Selectors will be split on `,` characters, each combining with the parent selector with *or* semantics.
+ *   - Selector starting with `'@'` define at-rules like media queries. They may be nested within regular selectors.
+ * @param global - If `true`, styles are inserted globally without prefixing.
+ *                 If `false` (default), all selectors are prefixed with a unique generated
+ *                 class name (e.g., `.AbdStl1`) to scope the styles.
+ * @returns The unique class name prefix used for scoping (e.g., `.AbdStl1`), or an empty string
+ *          if `global` was `true`. Use this prefix with {@link $} to apply the styles.
+ *
+ * @example Scoped Styles
+ * ```typescript
+ * const scopeClass = insertCss({
+ *   color: 'navy',
+ *   padding: '10px',
+ *   '&:hover': { // Use '&' for the root scoped selector
+ *     backgroundColor: 'lightgrey'
  *   },
- *   '.child': {
- *     marginTop: '10px'
- *   }
- * });
- * // Returns something like '.AbdStl1'
- * // Adds CSS like:
- * // .AbdStl1 { color: blue; font-size: 16px; }
- * // .AbdStl1:hover { color: red; }
- * // .AbdStl1 .child { margin-top: 10px; }
- * 
- * // Apply the returned class to an element:
- * $('div:Outer', className, 'div.child:Inner');
- * 
- * @example
- * // Global styles (no prefix)
- * insertCss({
- *   'body': {
- *     margin: 0,
- *     padding: 0
- *   },
- *   'a': {
- *     textDecoration: 'none',
- *     color: '#333'
- *   }
- * }, true);
- * 
- * @example
- * // Media queries and complex selectors
- * insertCss({
- *   display: 'flex',
- *   '@media (max-width: 768px)': {
- *     flexDirection: 'column',
- *     '& > div': {
- *       width: '100%'
- *     }
- *   },
- *   '& [data-selected="true"]': {
+ *   '.child-element': { // Nested selector
  *     fontWeight: 'bold'
+ *   },
+ *   '@media (max-width: 600px)': {
+ *     padding: '5px'
  *   }
  * });
+ * // scopeClass might be ".AbdStl1"
+ *
+ * // Apply the styles
+ * $(scopeClass, () => { // Add class to the div
+ *   $(`:Scoped content`);
+ *   $('span.child-element:Child'); // .AbdStl1 .child-element rule applies
+ * });
+ * ```
+ *
+ * @example Global Styles
+ * ```typescript
+ * insertCss({
+ *   'body': { // Targeting a global element
+ *     fontFamily: 'sans-serif'
+ *   },
+ *   'a.external-link': {
+ *     textDecoration: 'underline'
+ *   }
+ * }, true); // Pass true for global
+ * ```
  */
 export function insertCss(style: object, global: boolean = false): string {
 	const prefix = global ? "" : ".AbdStl" + ++cssCount;
@@ -1525,242 +1776,319 @@ function defaultOnError(error: Error) {
 let onError: (error: Error) => boolean | undefined = defaultOnError;
 
 /**
-* Set a custome error handling function, thast is called when an error occurs during rendering
-* while in a reactive scope. The default implementation logs the error to the console, and then
-* just returns `true`, which causes an 'Error' message to be displayed in the UI. When this function
-* returns `false`, the error is suppressed. This mechanism exists because rendering errors can occur
-* at any time, not just synchronous when making a call to Aberdeen, thus normal exception handling
-* is not always possible. 
-* 
-* @param handler The handler function, getting an `Error` as its argument, and returning `false`
-*    if it does *not* want an error message to be added to the DOM.
-*    When `handler is `undefined`, the default error handling will be reinstated.
-* 
-* @example
-* ```javascript
-* // 
-* setErrorHandler(error => {
-*    // Tell our developers about the problem.
-* 	  fancyErrorLogger(error)
-*    // Add custom error message to the DOM.
-*    try {
-*        $('.error:Sorry, something went wrong!')
-*    } catch() {} // In case there is no parent element.
-*    // Don't add default error message to the DOM.
-* 	  return false
-* })
-* ```
-*/
+ * Sets a custom error handler function for errors that occur asynchronously
+ * within reactive scopes (e.g., during updates triggered by proxy changes in
+ * {@link observe} or {@link $} render functions).
+ *
+ * The default handler logs the error to `console.error` and adds a simple
+ * 'Error' message div to the DOM at the location where the error occurred (if possible).
+ *
+ * Your handler can provide custom logging, UI feedback, or suppress the default
+ * error message.
+ *
+ * @param handler - A function that accepts the `Error` object.
+ *   - Return `false` to prevent adding an error message to the DOM.
+ *   - Return `true` or `undefined` (or throw) to allow the error messages to be added to the DOM.
+ *
+ * @example Custom Logging and Suppressing Default Message
+ * ```typescript
+ * setErrorHandler(error => {
+ *   console.warn('Aberdeen render error:', error.message);
+ *   // Log to error reporting service
+ *   // myErrorReporter.log(error);
+ *
+ *   try {
+ *     // Attempt to show a custom message in the UI
+ *     $('div.error-display:Oops, something went wrong!');
+ *   } catch (e) {
+ *     // Ignore errors during error handling itself
+ *   }
+ *
+ *   return false; // Suppress default console log and DOM error message
+ * });
+ * ```
+ */
 export function setErrorHandler(handler?: (error: Error) => boolean | undefined) {
 	onError = handler || defaultOnError;
 }
 
 
 /**
-* Return the browser Element that nodes would be rendered to at this point.
-* NOTE: Manually changing the DOM is not recommended in most cases. There is
-* usually a better, declarative way. Although there are no hard guarantees on
-* how your changes interact with Aberdeen, in most cases results will not be
-* terribly surprising. Be careful within the parent element of onEach() though.
-*/
+ * Gets the parent DOM `Element` where nodes created by {@link $} would currently be inserted.
+ *
+ * This is context-dependent based on the current reactive scope (e.g., inside a {@link mount}
+ * call or a {@link $} element's render function).
+ *
+ * **Note:** While this provides access to the DOM element, directly manipulating it outside
+ * of Aberdeen's control is generally discouraged. Prefer declarative updates using {@link $}.
+ *
+ * @returns The current parent `Element` for DOM insertion.
+ *
+ * @example Get parent for attaching a third-party library
+ * ```typescript
+ * import someLibrary from './some-library';
+ *
+ * $('div.widget-container', () => {
+ *   // Get the div.widget-container element just created
+ *   const containerElement = getParentElement();
+ *   // Initialize the library
+ *   someLibrary.init(containerElement);
+ * });
+ * ```
+ */
 export function getParentElement(): Element {
 	return currentScope.getParentElement();
 }
 
 
 /**
-* Register a function that is to be executed right before the current reactive scope
-* disappears or redraws.
-* @param cleaner - The function to be executed.
-*/
+ * Registers a cleanup function to be executed just before the current reactive scope
+ * is destroyed or redraws.
+ *
+ * This is useful for releasing resources, removing manual event listeners, or cleaning up
+ * side effects associated with the scope. Cleaners are run in reverse order of registration.
+ *
+ * Scopes are created by functions like {@link observe}, {@link mount}, {@link $} (when given a render function),
+ * and internally by constructs like {@link onEach}.
+ *
+ * @param cleaner - The function to execute during cleanup.
+ *
+ * @example Maintaing a sum for a changing array
+ * ```typescript
+ * const myArray = proxy([3, 5, 10]);
+ * let sum = proxy(0);
+ *
+ * // Show the array items and maintain the sum
+ * onEach(myArray, (item, index) => {
+ *     $(`code:${index}→${item} `);
+ *     sum.value += item;
+ *     // Cleans gets called before each rerun for a certain item index
+ *     clean(() => sum.value -= item);
+ * })
+ * 
+ * // Show the sum
+ * $('h1', {text: sum});
+ * 
+ * // Make random changes to the array
+ * const rnd = () => 0|(Math.random()*20);
+ * setInterval(() => myArray[rnd()] = rnd(), 1000));
+ * ```
+ */
+
 export function clean(cleaner: () => void) {
 	currentScope.cleaners.push(cleaner);
 }
 
 
 /**
-* Reactively run a function, meaning the function will rerun when any `Store` that was read
-* during its execution is updated.
-* Calls to `observe` can be nested, such that changes to `Store`s read by the inner function do
-* no cause the outer function to rerun.
-*
-* @param func - The function to be (repeatedly) executed.
-* @returns The mount id (usable for `unmount`) if this is a top-level observe.
-* @example
-* ```
-* let number = new Store(0)
-* let doubled = new Store()
-* setInterval(() => number.set(0|Math.random()*100)), 1000)
-*
-* observe(() => {
-*   doubled.set(number.get() * 2)
-* })
-*
-* observe(() => {
-*   console.log(doubled.get())
-* })
-*/
-export function observe(func: () => void) {
-	new RegularScope(currentScope.getParentElement(), func);
+ * Creates a reactive scope that automatically re-executes the provided function
+ * whenever any proxied data (created by {@link proxy}) read during its last execution changes, storing
+ * its return value in an observable.
+ *
+ * Updates are batched and run asynchronously shortly after the changes occur.
+ * Use {@link clean} to register cleanup logic for the scope.
+ * Use {@link peek} or {@link unproxy} within the function to read proxied data without subscribing to it.
+ *
+ * @param func - The function to execute reactively. Any DOM manipulations should typically
+ *   be done using {@link $} within this function. Its return value will be made available as an
+ *   observable returned by the `observe()` function.
+ * @returns An observable object, with its `value` property containing whatever the last run of `func` returned.
+ *
+ * @example Observation creating a UI components
+ * ```typescript
+ * const data = proxy({ user: 'Frank', notifications: 0 });
+ *
+ * $('main', () => {
+ *   $('p:Welcome, ' + data.user); // Reactive text
+ *
+ *   observe(() => {
+ * 	   // When data.notifications changes, only this inner scope reruns, leaving the `<p>Welcome, ..</p>` untouched.
+ *     $('div.notification-badge:' + data.notifications);
+ *   });
+ * });
+ * ```
+ * 
+ * ***Note*** that the above could just as easily be done using `$(func)` instead of `observe(func)`.
+ * 
+ * @example Observation with return value
+ * ```typescript
+ * const counter = proxy(0);
+ * setInterval(() => counter.value++, 1000);
+ * const double = observe(() => counter.value * 2);
+ *
+ * $('h1', () => {
+ *     $(`:counter=${counter.value} double=${double.value}`);
+ * })
+ * ```
+ *
+ * @overload
+ * @param func Func without a return value.
+ */
+export function observe<T extends (DatumType | void)>(func: () => T): ValueRef<T> {
+	return (new ResultScope<T>(currentScope.getParentElement(), func)).result;
 }
 
 /**
-* Like `observe`, but instead of deferring running the observer function until
-* a setTimeout 0, run it immediately and synchronously when a change to one of
-* the observed  `Store`s is made. Use this sparingly, as this prevents Aberdeen
-* from doing the usual batching and smart ordering of observers, leading to
-* performance problems and observing of 'weird' partial states.
-* @param func The function to be (repeatedly) executed.
-* @returns The mount id (usable for `unmount`) if this is a top-level observe.
-*/
+ * Similar to {@link observe}, creates a reactive scope that re-executes the function
+ * when its proxied dependencies change.
+ *
+ * **Difference:** Updates run **synchronously and immediately** after the proxy modification
+ * that triggered the update occurs.
+ *
+ * **Caution:** Use sparingly. Immediate execution bypasses Aberdeen's usual batching and
+ * ordering optimizations, which can lead to performance issues or observing inconsistent
+ * intermediate states if multiple related updates are applied sequentially.
+ * Prefer {@link observe} or {@link $} for most use cases.
+ *
+ * @param func - The function to execute reactively and synchronously.
+ *
+ * @example
+ * ```typescript
+ * const state = proxy({ single: 'A' } as any);
+ *
+ * immediateObserve(() => {
+ *   state.double = state.single + state.single
+ * });
+ * // state.double == 'AA'
+ *
+ * state.value = 'B';
+ * // Synchronously:
+ * // state.double == 'BB'
+ * ```
+ */
 export function immediateObserve(func: () => void) {
 	new ImmediateScope(currentScope.getParentElement(), func);
 }
 
-
 /**
-* Reactively run the function, adding any DOM-elements created using {@link $} to the given parent element.
-
-* @param func - The function to be (repeatedly) executed, possibly adding DOM elements to `parentElement`.
-* @param parentElement - A DOM element that will be used as the parent element for calls to `$`.
-*
-* @example
-* ```
-* let store = new Store(0)
-* setInterval(() => store.modify(v => v+1), 1000)
-*
-* mount(document.body, () => {
-* 	   $(`h2:${store.get()} seconds have passed`)
-* })
-* ```
-*
-* An example nesting {@link Store.observe} within `mount`:
-* ```
-* let selected = new Store(0)
-* let colors = new Store(new Map())
-*
-* mount(document.body, () => {
-*   // This function will never rerun (as it does not read any `Store`s)
-*   $('button:<<', {click: () => selected.modify(n => n-1)})
-*   $('button:>>', {click: () => selected.modify(n => n+1)})
-*
-*   observe(() => {
-*     // This will rerun whenever `selected` changes, recreating the <h2> and <input>.
-*     $('h2', {text: '#' + selected.get()})
-*     $('input', {type: 'color', value: '#ffffff' bind: colors(selected.get())})
-*   })
-*
-*   observe(() => {
-*     // This function will rerun when `selected` or the selected color changes.
-*     // It will change the <body> background-color.
-*     $({$backgroundColor: colors.get(selected.get()) || 'white'})
-*   })
-* })
-* ```
-*/
+ * Attaches a reactive Aberdeen UI fragment to an existing DOM element. Without the use of
+ * this function, {@link $} will assume `document.body` as its root.
+ *
+ * It creates a top-level reactive scope associated with the `parentElement`. The provided
+ * function `func` is executed immediately within this scope. Any proxied data read by `func`
+ * will cause it to re-execute when the data changes, updating the DOM elements created within it.
+ *
+ * Calls to {@link $} inside `func` will append nodes to `parentElement`.
+ * You can nest {@link observe} or other {@link $} scopes within `func`.
+ * Use {@link unmountAll} to clean up all mounted scopes and their DOM nodes.
+ * 
+ * Mounting scopes happens reactively, meaning that if this function is called from within another
+ * ({@link observe} or {@link $} or {@link mount}) scope that gets cleaned up, so will the mount.
+ *
+ * @param parentElement - The native DOM `Element` to which the UI fragment will be appended.
+ * @param func - The function that defines the UI fragment, typically containing calls to {@link $}.
+ *
+ * @example Basic Mount
+ * ```typescript
+ * import { mount, $, proxy } from './aberdeen';
+ *
+ * const appState = proxy({ time: new Date() });
+ * setInterval(() => appState.time = new Date(), 1000);
+ *
+ * mount(document.getElementById('app-root'), () => {
+ *   $('h1:Aberdeen App');
+ *   $('p:Current time: ' + appState.time.toLocaleTimeString()); // Updates every second
+ * });
+ * ```
+ */
 
 export function mount(parentElement: Element, func: () => void) {
 	new MountScope(parentElement, func);
 }
 
 /**
- * Stop all observe scopes and remove any created DOM nodes.
+ * Removes all Aberdeen-managed DOM nodes and stops all active reactive scopes
+ * (created by {@link mount}, {@link observe}, {@link $} with functions, etc.).
+ *
+ * This effectively cleans up the entire Aberdeen application state.
  */
 export function unmountAll() {
 	ROOT_SCOPE.remove();
 	cssCount = 0;
 }
 
-
-/** Runs the given function, while not subscribing the current scope when reading {@link Store.Store} values.
-*
-* @param func Function to be executed immediately.
-* @returns Whatever `func()` returns.
-* @example
-* ```
-* import {$, peek, proxy} from aberdeen
-*
-* let data = proxy(['a', {b: 42}, 'c'])
-*
-* mount(document.body, () => {
-*     // No *not* rerender when data changes
-*     const msg = peek(() => `Data has ${data.length} elements, and the first is ${data[0]}`)
-*     $({text: msg})
-* })
-* ```
-*
-* In the above example `store.get(0)` could be replaced with `store.peek(0)` to achieve the
-* same result without `peek()` wrapping everything. There is no non-subscribing equivalent
-* for `count()` however.
-*/
-
-export function peek<T>(func: () => T): T;
-/** Alternatively `peek` can behave like {@link get}, only without subscribing to reads.
-*
-* @param target A (possibly proxied) object, `Map` or `Array`.
-* @param indices One or more indices/keys to traverse into the target
-* @returns The value at the specified path, or undefined if the path doesn't exist
-* @throws An `Error` if trying to index a primitive type. When trying to index `null` or `undefined`,
-*   the value `undefined` will be returned instead.
-* @example
-* ```
-* import {$, peek, proxy} from aberdeen
-*
-* let data = proxy(['a', {b: 42}, 'c'])
-*
-* mount(document.body, () => {
-*     // No *not* rerender when data changes
-*     let answer = peek(data, 1, 'b')
-*     $({text: answer})
-* })
-* ```
-*/
-export function peek<T extends object>(target: T): T;
-export function peek<T extends object, K1 extends keyof T>(target: T, k1: K1): T[K1];
-export function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1]>(target: T, k1: K1, k2: K2): T[K1][K2];
-export function peek<T extends object, K1 extends keyof T, K2 extends keyof T[K1], K3 extends keyof T[K1][K2]>(target: T, k1: K1, k2: K2, k3: K3): T[K1][K2][K3];
-
-export function peek(data: TargetType, ...indices: any[]): DatumType | undefined {
+/**
+ * Executes a function *without* creating subscriptions in the current reactive scope, and returns its result.
+ *
+ * This is useful when you need to access reactive data inside a reactive scope (like {@link observe})
+ * but do not want changes to that specific data to trigger a re-execute of the scope.
+ *
+ * @template T The type of the return value of your function.
+ *
+ * @param func - The function to execute without creating subscriptions.
+ * @returns Whatever `func` returns.
+ *
+ * @example Peeking within observe
+ * ```typescript
+ * const data = proxy({ a: 1, b: 2 });
+ * observe(() => {
+ *   // re-executes only when data.a changes, because data.b is peeked.
+ *   const b = peek(() => data.b);
+ *   console.log(`A is ${data.a}, B was ${b} when A changed.`);
+ * });
+ * data.b = 3; // Does not trigger console.log
+ * data.a = 2; // Triggers console.log (logs "A is 2, B was 3 when A changed.")
+ * ```
+ *
+ */
+export function peek<T>(func: () => T): T {
 	peeking++;
 	try {
-		if (indices.length===0) {
-			if (typeof data === 'function') return data();
-			// Return a copy that is (shallowly) unproxied
-			return data instanceof Array ? data.slice(0) : {...data};
-		}
-		for(let index of indices) {
-			if (data==null) return;
-			if (typeof data !== 'object') throw new Error(`Attempting to index primitive type ${data} with ${index}`);
-			data = (data as any)[index];
-		}
-		return data;
+		return func();
 	} finally {
 		peeking--;
 	}
 }
 
+/** When using an object as `source`. */
+export function map<IN,OUT>(source: Record<string|symbol,IN>, func: (value: IN, index: string|symbol) => undefined|OUT): Record<string|symbol,OUT>;
+/** When using an array as `source`. */
+export function map<IN,OUT>(source: Array<IN>, func: (value: IN, index: number) => undefined|OUT): Array<OUT>;
 /**
- * Applies a filter/map function on each item within the provided array or object proxy,
- * and reactively updated the returned array or object proxy.
+ * Reactively maps/filters items from a proxied source array or object to a new proxied array or object.
  *
- * @param target - A proxied array or object.
+ * It iterates over the `target` proxy. For each item, it calls `func`.
+ * - If `func` returns a value, it's added to the result proxy under the same key/index.
+ * - If `func` returns `undefined`, the item is skipped (filtered out).
  *
- * @param func - Function that transform the given value (and index) into an output value or
- * `undefined` in case this value should be skipped.
- * 
- * @param thisArg - An optional object that is passed as `this` to `func`.
+ * The returned proxy automatically updates when:
+ * - Items are added/removed/updated in the `target` proxy.
+ * - Any proxied data read *within* the `func` call changes (for a specific item).
  *
- * @returns - A proxied array or object (matching `target`) with the values returned by `func`
- * and the corresponding keys from the original map or array.
+ * @param func - A function `(value, key) => mappedValue | undefined` that transforms each item.
+ *   It receives the item's value and its key/index. Return `undefined` to filter the item out.
+ * @returns A new proxied array or object containing the mapped values.
+ * @template IN The type of items in the source proxy.
+ * @template OUT The type of items in the resulting proxy.
  *
+ * @example Map array values
+ * ```typescript
+ * const numbers = proxy([1, 2, 3]);
+ * const doubled = map(numbers, (n) => n * 2);
+ * // doubled is proxy([2, 4, 6])
+ *
+ * observe(() => console.log(doubled)); // Logs updates
+ * numbers.push(4); // doubled becomes proxy([2, 4, 6, 8])
+ * ```
+ *
+ * @example Filter and map object properties
+ * ```typescript
+ * const users = proxy({
+ *   'u1': { name: 'Alice', active: true },
+ *   'u2': { name: 'Bob', active: false },
+ *   'u3': { name: 'Charlie', active: true }
+ * });
+ *
+ * const activeUserNames = map(users, (user) => user.active ? user.name : undefined);
+ * // activeUserNames is proxy({ u1: 'Alice', u3: 'Charlie' })
+ *
+ * users.u2.active = true; // activeUserNames becomes proxy({ u1: 'Alice', u2: 'Bob', u3: 'Charlie' })
+ * ```
  */
-export function map<IN,OUT>(target: Array<IN>, func: (value: IN, index: number) => undefined|OUT, thisArg?: object): Array<OUT>;
-export function map<IN,OUT>(target: Record<string|symbol,IN>, func: (value: IN, index: string|symbol) => undefined|OUT, thisArg?: object): Record<string|symbol,OUT>;
-
-export function map(proxied: any, func: (value: DatumType, key: any) => any, thisArg?: object): any {
-	let out = optProxy(proxied instanceof Array ? [] : {});
-	onEach(proxied, (item: DatumType, key: symbol|string|number) => {
-		let value = func.call(thisArg, item, key);
+export function map(source: any, func: (value: DatumType, key: any) => any): any {
+	let out = optProxy(source instanceof Array ? [] : {});
+	onEach(source, (item: DatumType, key: symbol|string|number) => {
+		let value = func(item, key);
 		if (value !== undefined) {
 			out[key] = value;
 			clean(() => {
@@ -1771,31 +2099,49 @@ export function map(proxied: any, func: (value: DatumType, key: any) => any, thi
 	return out
 }
 
-
+/** When using an array as `source`. */
+export function multiMap<IN,OUT extends {[key: string|symbol]: DatumType}>(source: Array<IN>, func: (value: IN, index: number) => OUT | undefined): OUT;
+/** When using an object as `source`. */
+export function multiMap<K extends string|number|symbol,IN,OUT extends {[key: string|symbol]: DatumType}>(source: Record<K,IN>, func: (value: IN, index: K) => OUT | undefined): OUT;
 /**
- * Applies a filter/map function on each item within the proxied array/objecty,
- * each of which can deliver any number of key/value pairs, and reactively manages the
- * returned proxied object to hold any results.
+ * Reactively maps items from a source proxy (array or object) to a target proxied object,
+ * where each source item can contribute multiple key-value pairs to the target.
  *
- * @param func - Function that transform the given store into output values
- * that can take one of the following forms:
- * - an object: Each key/value pair will be added to the output object.
- * - `undefined`: No key/value pairs are added to the output object.
+ * It iterates over the `target` proxy. For each item, it calls `func`.
+ * - If `func` returns an object, all key-value pairs from that object are added to the result proxy.
+ * - If `func` returns `undefined`, the item contributes nothing.
  *
- * @returns - A proxied object with the key/value pairs returned by all `func` invocations.
+ * The returned proxy automatically updates when:
+ * - Items are added/removed/updated in the `target` proxy.
+ * - Any proxied data read *within* the `func` call changes (for a specific item).
+ * - If multiple input items produce the same output key, the last one processed usually "wins",
+ *   but the exact behavior on collision depends on update timing.
  *
- * When items disappear from the input proxy or are changed in a way that `func` depends
- * upon, the resulting items are removed from the output proxy as well. When multiple
- * input items produce the same output keys, the results for those keys are undefined.
+ * This is useful for "flattening" or "indexing" data, or converting an observable array to an observable object.
+ *
+ * @param source - The source proxied array or object.
+ * @param func - A function `(value, key) => ({...pairs} | undefined)` that transforms an item
+ *   into an object of key-value pairs to add, or `undefined` to add nothing.
+ * @returns A new proxied object containing the aggregated key-value pairs.
+ * @template IN The type of items in the source proxy.
+ * @template OUT The type of the aggregated output object (should encompass all possible key-value pairs).
+ *
+ * @example Creating an index from an array
+ * ```typescript
+ * const items = proxy([
+ *   { id: 'a', value: 10 },
+ *   { id: 'b', value: 20 },
+ * ]);
+ * const itemsById = multiMap(items, (item) => ({ [item.id]: item.value }));
+ * // itemsById is proxy({ a: 10, b: 20 })
+ *
+ * items.push({ id: 'c', value: 30 }); // itemsById becomes proxy({ a: 10, b: 20, c: 30 })
+ * ```
  */
-
-export function multiMap<IN,OUT extends {[key: string|symbol]: DatumType}>(target: Array<IN>, func: (value: IN, index: number) => OUT | undefined, thisArg?: object): OUT;
-export function multiMap<K extends string|number|symbol,IN,OUT extends {[key: string|symbol]: DatumType}>(target: Record<K,IN>, func: (value: IN, index: K) => OUT | undefined, thisArg?: object): OUT;
-
-export function multiMap(proxied: any, func: (value: DatumType, key: any) => Record<string|symbol,DatumType>, thisArg?: object): any {
+export function multiMap(source: any, func: (value: DatumType, key: any) => Record<string|symbol,DatumType>): any {
 	let out = optProxy({});
-	onEach(proxied, (item: DatumType, key: symbol|string|number) => {
-		let pairs = func.call(thisArg, item, key);
+	onEach(source, (item: DatumType, key: symbol|string|number) => {
+		let pairs = func(item, key);
 		if (pairs) {
 			for(let key in pairs) out[key] = pairs[key];
 			clean(() => {
@@ -1806,25 +2152,157 @@ export function multiMap(proxied: any, func: (value: DatumType, key: any) => Rec
 	return out
 }
 
+/** When using an object as `array`. */
+export function partition<OUT_K extends string|number|symbol, IN_V>(source: IN_V[], func: (value: IN_V, key: number) => undefined | OUT_K | OUT_K[]): Record<OUT_K,Record<number,IN_V>>;
+/** When using an object as `source`. */
+export function partition<IN_K extends string|number|symbol, OUT_K extends string|number|symbol, IN_V>(source: Record<IN_K,IN_V>, func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[]): Record<OUT_K,Record<IN_K,IN_V>>;
+
 /**
-* Dump a live view of the proxied array/object and its descendends as HTML text,
-* `ul` and `li` nodes at the current mount position. Meant for debugging purposes.
-* @returns The array/object itself, for chaining other methods.
-*/
-export function dump<T>(proxied: T): T {
-	if (proxied && typeof proxied === 'object') {
-		$({text: proxied instanceof Array ? "<array>" : "<object>"});
+ * @overload
+ * Reactively partitions items from a source proxy (array or object) into multiple "bucket" proxies
+ * based on keys determined by a classifier function.
+ *
+ * This function iterates through the `source` proxy using {@link onEach}. For each item,
+ * it calls the classifier `func`, which should return:
+ * - A single key (`OUT_K`): The item belongs to the bucket with this key.
+ * - An array of keys (`OUT_K[]`): The item belongs to all buckets specified in the array.
+ * - `undefined`: The item is not placed in any bucket.
+ *
+ * The function returns a main proxied object. The keys of this object are the bucket keys (`OUT_K`)
+ * returned by `func`. Each value associated with a bucket key is another proxied object (the "bucket").
+ * This inner bucket object maps the *original* keys/indices from the `source` to the items
+ * themselves that were classified into that bucket.
+ *
+ * The entire structure is reactive. Changes in the `source` proxy (adding/removing/updating items)
+ * or changes in dependencies read by the `func` will cause the output partitioning to update automatically.
+ * Buckets are created dynamically as needed and removed when they become empty.
+ *
+ * @param source - The input proxied Array or Record (e.g., created by {@link proxy}) containing the items to partition.
+ * @param func - A classifier function `(value: IN_V, key: IN_K | number) => undefined | OUT_K | OUT_K[]`.
+ *   It receives the item's value and its original key/index from the `source`. It returns the bucket key(s)
+ *   the item belongs to, or `undefined` to ignore the item.
+ * @returns A proxied object where keys are the bucket identifiers (`OUT_K`) and values are proxied Records
+ *   (`Record<IN_K | number, IN_V>`) representing the buckets. Each bucket maps original source keys/indices
+ *   to the items belonging to that bucket.
+ *
+ * @template OUT_K - The type of the keys used for the output buckets (string, number, or symbol).
+ * @template IN_V - The type of the values in the source proxy.
+ * @template IN_K - The type of the keys in the source proxy (if it's a Record).
+ *
+ * @example Grouping items by a property
+ * ```typescript
+ * interface Product { id: string; category: string; name: string; }
+ * const products = proxy<Product[]>([
+ *   { id: 'p1', category: 'Fruit', name: 'Apple' },
+ *   { id: 'p2', category: 'Veg', name: 'Carrot' },
+ *   { id: 'p3', category: 'Fruit', name: 'Banana' },
+ * ]);
+ *
+ * // Partition products by category. Output keys are categories (string).
+ * // Inner keys are original array indices (number).
+ * const productsByCategory = partition(products, (product) => product.category);
+ *
+ * // productsByCategory looks like (reactively):
+ * // {
+ * //   Fruit: { 0: { id: 'p1', ... }, 2: { id: 'p3', ... } },
+ * //   Veg:   { 1: { id: 'p2', ... } }
+ * // }
+ *
+ * // Accessing items:
+ * console.log(productsByCategory.Fruit[0].name); // Output: Apple
+ *
+ * // Change category, product automatically moves buckets
+ * products[0].category = 'Snack';
+ * // productsByCategory updates: Fruit bucket loses item 0, Snack bucket gains item 0.
+ * ```
+ *
+ * @example Item in multiple buckets
+ * ```typescript
+ * interface User { id: number; tags: string[]; name: string; }
+ * const users = proxy({
+ *   'u1': { name: 'Alice', tags: ['active', 'new'] },
+ *   'u2': { name: 'Bob', tags: ['active'] }
+ * });
+ *
+ * // Partition users by tag. Output keys are tags (string).
+ * // Inner keys are original object keys (string: 'u1', 'u2').
+ * const usersByTag = partition(users, (user) => user.tags);
+ *
+ * // usersByTag looks like (reactively):
+ * // {
+ * //   active: { u1: { name: 'Alice', ... }, u2: { name: 'Bob', ... } },
+ * //   new:    { u1: { name: 'Alice', ... } }
+ * // }
+ * ```
+ */
+export function partition<IN_K extends string|number|symbol, OUT_K extends string|number|symbol, IN_V>(source: Record<IN_K,IN_V>, func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[]): Record<OUT_K,Record<IN_K,IN_V>> {
+	const unproxiedOut = {} as Record<OUT_K,Record<IN_K,IN_V>>;
+	const out = proxy(unproxiedOut);
+	onEach(source, (item: IN_V, key: IN_K) => {
+		let rsp = func(item, key);
+		if (rsp != null) {
+			const buckets = rsp instanceof Array ? rsp : [rsp];
+			if (buckets.length) {
+				for(let bucket of buckets) {
+					if (unproxiedOut[bucket]) out[bucket][key] = item;
+					else out[bucket] = {[key]: item} as Record<IN_K, IN_V>;
+				}
+				clean(() => {
+					for(let bucket of buckets) {
+						delete out[bucket][key];
+						if (isObjEmpty(unproxiedOut[bucket])) delete out[bucket];
+					}						
+				})
+			}
+		}
+	})
+	return out;
+}
+
+
+/**
+ * Renders a live, recursive dump of a proxied data structure (or any value)
+ * into the DOM at the current {@link $} insertion point.
+ *
+ * Uses `<ul>` and `<li>` elements to display object properties and array items.
+ * Updates reactively if the dumped data changes. Primarily intended for debugging purposes.
+ *
+ * @param data - The proxied data structure (or any value) to display.
+ * @returns The original `data` argument, allowing for chaining.
+ * @template T - The type of the data being dumped.
+ *
+ * @example Dumping reactive state
+ * ```typescript
+ * import { $, proxy, dump } from './aberdeen';
+ *
+ * const state = proxy({
+ *   user: { name: 'Frank', kids: 1 },
+ *   items: ['a', 'b']
+ * });
+ *
+ * $(() => {
+ *   $('h2:Live State Dump');
+ *   dump(state); // Renders the state structure below the h2
+ * });
+ *
+ * // Change state later, the dump in the DOM will update
+ * setTimeout(() => { state.user.kids++; state.items.push('c'); }, 2000);
+ * ```
+ */
+export function dump<T>(data: T): T {
+	if (data && typeof data === 'object') {
+		$({text: data instanceof Array ? "<array>" : "<object>"});
 		$('ul', () => {
-			onEach(proxied as any, (value, key) => {
+			onEach(data as any, (value, key) => {
 				$('li:'+JSON.stringify(key)+": ", () => {
 					dump(value)
 				})
 			})
 		})
 	} else {
-		$({text: JSON.stringify(proxied)})
+		$({text: JSON.stringify(data)})
 	}
-	return proxied
+	return data
 }
 
 /*

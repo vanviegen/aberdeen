@@ -1,24 +1,8 @@
-import {getParentElement, runQueue, clean, proxy, observe, peek, immediateObserve, copy} from './aberdeen.js'
+import {getParentElement, runQueue, clean, proxy, observe, immediateObserve, unproxy, clone} from './aberdeen.js'
 
 /**
- * A `Store` object that holds the following keys:
- * - `path`: The current path of the URL split into components. For instance `/` or `/users/123/feed`. Updates will be reflected in the URL and will *push* a new entry to the browser history.
- * - `p`: Array containing the path segments. For instance `[]` or `['users', 123, 'feed']`. Updates will be reflected in the URL and will *push* a new entry to the browser history. Also, the values of `p` and `path` will be synced.
- * - `search`: An observable object containing search parameters (a split up query string). For instance `{order: "date", title: "something"}` or just `{}`. By default, updates will be reflected in the URL, replacing the current history state. 
- * - `hash`: The document hash part of the URL. For instance `"#section-title"`. It can also be an empty string. Updates will be reflected in the URL, modifying the current history state.
- * - `id`: A part of the browser history *state* that is considered part of the page *identify*, meaning changes will (by default) cause a history push, and when going *back*, it must match.
- * - `aux`: The auxiliary part of the browser history *state*, not considered part of the page *identity*. Changes will be reflected in the browser history using a replace. 
- * - `depth`: The navigation depth of the current session. Starts at 1. Writing to this property has no effect.
- * - `nav`: The navigation action that got us to this page. Writing to this property has no effect.
- *    - `"load"`: An initial page load.
- *    - `"back"` or `"forward"`: When we navigated backwards or forwards in the stack.
- *    - `"push"`: When we added a new page on top of the stack. 
+ * The class for the singleton `route` object.
  * 
- * The following key may also be written to `route` but will be immediately and silently removed: 
- * - `mode`: As described above, this library takes a best guess about whether pushing an item to the browser history makes sense or not. When `mode` is...
- * 	  	- `"push"`: Force creation of a new browser history entry. 
- * 	  	- `"replace"`: Update the current history entry, even when updates to other keys would normally cause a *push*.
- * 		- `"back"`: Unwind the history (like repeatedly pressing the *back* button) until we find a page that matches the given `path` and `id`, and then *replace* that state by the full given state.
  */
 
 export class Route {
@@ -51,6 +35,9 @@ export class Route {
 	mode: 'push' | 'replace' | 'back' | undefined
 }
 
+/**
+ * The singleton {@link Route} object reflecting the current URL and browser history state. You can make changes to it to affect the URL and browser history. See {@link Route} for details.
+ */
 export const route = proxy(new Route())
 
 let stateRoute = {
@@ -73,7 +60,7 @@ function handleLocationUpdate(event?: PopStateEvent) {
 	}
 	stateRoute = state.route
 
-	if (peek(route, 'mode') === 'back') {
+	if (unproxy(route).mode === 'back') {
 		route.depth = stateRoute.depth
 		// We are still in the process of searching for a page in our navigation history..
 		updateHistory()
@@ -106,7 +93,7 @@ window.addEventListener("popstate", handleLocationUpdate);
 // or crashing due to non-canonical data).
 function updatePath(): void {
 	let path = route.path
-	if (path == null && peek(route, 'p')) {
+	if (path == null && unproxy(route).p) {
 		return updateP()
 	} 
 	path = ''+(path || '/')
@@ -118,7 +105,7 @@ immediateObserve(updatePath)
 
 function updateP(): void {
 	const p = route.p
-	if (p == null && peek(route, 'path')) {
+	if (p == null && unproxy(route).path) {
 		return updatePath()
 	}
 	if (!(p instanceof Array)) {
@@ -158,8 +145,8 @@ function updateHistory() {
 	// Get and delete mode without triggering anything.
 	let mode = route.mode
 	const state = {
-		id: copy(null, route.id),
-		aux: copy(null, route.aux),
+		id: clone(route.id),
+		aux: clone(route.aux),
 		route: stateRoute,
 	}
 	
@@ -211,7 +198,7 @@ export function persistScroll(name: string = 'main') {
 	el.addEventListener('scroll', onScroll)
 	clean(() => el.removeEventListener('scroll', onScroll))
 
-	let restore = peek(route, 'aux', 'scroll', name)
+	let restore = unproxy(route).aux.scroll?.name
 	if (restore) {
 		Object.assign(el, restore)
 	}

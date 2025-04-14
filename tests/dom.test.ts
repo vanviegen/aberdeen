@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, asyncPassTime, assertDomUpdates, assertThrow } from "./helpers";
-import { $, proxy, observe, peek, copy, dump, mount, unmountAll, MERGE } from "../src/aberdeen";
+import { $, proxy, observe, unproxy, copy, dump, mount, unmountAll, MERGE } from "../src/aberdeen";
 
 test('adds nodes', async () => {
   $('p');
@@ -102,8 +102,8 @@ test('creates text nodes', async () => {
   });
   while(true) {
     await asyncPassTime();
-    assertBody('' + cases[peek(index, 'value')][1]);
-    if (peek(index, 'value') >= cases.length-1) {
+    assertBody('' + cases[unproxy(index).value][1]);
+    if (unproxy(index).value >= cases.length-1) {
       break;
     }
     index.value += 1;

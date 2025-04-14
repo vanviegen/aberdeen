@@ -69,17 +69,6 @@ export function assertThrow(a: any, b?: any): void {
 	throw new AssertError(`exception expected`, undefined, `something containing "${a}"`, true)
 }
 
-export function objToMap(obj: Record<string,any>) {
-    if (typeof obj === 'object' && obj && obj.constructor===Object) {
-        let map = new Map()
-        for(let k in obj) {
-            map.copy(k, objToMap(obj[k]))
-        }
-        return map
-    }
-    return obj
-}
-
 export const passTime = fakedom.passTime
 export const asyncPassTime = fakedom.asyncPassTime
 

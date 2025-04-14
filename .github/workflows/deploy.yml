@@ -30,11 +30,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Build docs
-        run: npm run build && cp -rav examples dist docs/
+        run: npm run build && cp -rav examples dist dist-docs/
       - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './docs'
+          path: './dist-docs'
       - name: Deploy docs to GitHub Pages
         uses: actions/deploy-pages@v4
       - name: Test, build and deploy code to NPM
