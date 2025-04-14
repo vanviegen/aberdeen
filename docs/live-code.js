@@ -1,3 +1,7 @@
+// This script augments javascript examples in the documentation
+// to allow editing and running them in a live preview.
+// You may consider all of this to be a bit hacky. :-)
+
 let styleE = document.createElement('style');
 styleE.innerText = `
 iframe {
@@ -44,7 +48,7 @@ iframe {
 
 .tab-content {
     background-color: var(--color-background);
-    border: 2px solid var(--color-active-menu-item);
+    border: 1px solid #9096a2;
     border-top-color: var(--color-focus-outline);
 }
 
@@ -129,6 +133,9 @@ p {
 p + p {
     margin-top: 0.5em;
 }
+h1:first-child,h2:first-child,h3:first-child,h4:first-child,h5:first-child,h6:first-child {
+    margin-top: 0;
+}
 `;
 
 let iframeCount = 0;
@@ -139,50 +146,39 @@ function iframeCode(iframeId) {
         window.parent.postMessage({ height, iframeId, html: getHtml(document.body) }, '*');
     }
     
-    function toLogString(value, maxDepth = 3) {
-        const seen = new WeakSet();
-        return JSON.stringify(value, function(key, val) {
-            if (val === undefined) return '[undefined]';
-            if (val === null) return null;
-            if (typeof val === 'function') return `[Function: ${val.name || 'anonymous'}]`;
-            if (typeof val === 'symbol') return val.toString();
-            if (typeof val === 'object') {
-                if (seen.has(val)) return '[Circular]';
-                if (this[key] !== val) return val;
-                if (Array.isArray(val)) return val;
-                
-                // Get constructor name for objects
-                const constructorName = val.constructor?.name;
-                const isCustomClass = constructorName && constructorName !== 'Object';
-                
-                if (val instanceof Error) {
-                    return Object.assign({
-                        __type: constructorName,
-                        message: val.message, 
-                        stack: val.stack
-                    }, val);
-                }
-                if (val instanceof Date || val instanceof RegExp) return val.toString();
-                if (Object.keys(val).length > 20) return `[${constructorName || 'Object'}: too large]`;
-                
-                seen.add(val);
-                
-                // Add constructor name for custom classes
-                if (isCustomClass) {
-                    return Object.assign({ __type: constructorName }, val);
-                }
-                
-                return val;
-            }
-            return val;
-        }, 2);
+    function toLogString(val, maxDepth = 3, indent = "", seen = new WeakMap()) {
+        if (val === null) return "null";
+        if (val === undefined) return "undefined";
+        if (typeof val === "string") return JSON.stringify(val);
+        if (typeof val === "function") return 'function' + (val.name ? ' '+val.name : '');
+        if (typeof val !== "object") return String(val);
+        if (val instanceof Date) return val.toISOString();
+        if (val instanceof RegExp) return String(val);
+        if (val instanceof Error) return (val.stack || val.message).replace(/\n/g, "\n  " + indent);
+        
+        if (seen.has(val)) return "<Circular>";
+        seen.set(val, true);
+
+        const newIndent = indent + '  ';
+
+        if (Array.isArray(val)) {
+            if (!maxDepth) return "[...]";
+            const items = val.map(item => toLogString(item, maxDepth - 1, newIndent, seen)).join('');
+            return `[\n${items}${indent}]`;
+        }
+        
+        const name = val.constructor.name || '';
+        if (name === 'Object') name = '';
+        if (!maxDepth) return `${name}{...}`;
+        const props = Object.entries(val).map(([key, val]) => `${newIndent}${key}: ${toLogString(val, maxDepth - 1, newIndent, seen)}\n`).join('');
+        return `${name}{\n${props}${indent}}`
     }
     
     function createLogFunction(level) {
         return (...args) => window.parent.postMessage({
             level,
-            log: args.map(toLogString).join(" "),
-            iframeId
+            log: args.map(arg => toLogString(arg)).join(" "),
+            iframeId,
         }, '*');
     }
     
@@ -287,7 +283,7 @@ addEventListener('DOMContentLoaded', () => {
                     htmlE.innerText = e.data.html;
                 }
                 if (e.data.level) {
-                    const msg = document.createElement('div');
+                    const msg = document.createElement('li');
                     msg.className = e.data.level;
                     msg.textContent = e.data.log;
                     consoleE.appendChild(msg);
@@ -375,8 +371,9 @@ addEventListener('DOMContentLoaded', () => {
 </head>
 <body>
 </body>
-</html>`;   
-            iframeE.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+</html>`;
+            URL.revokeObjectURL(iframeE.src);
+            iframeE.src = URL.createObjectURL(new Blob([html], {type: 'text/html'}));
             consoleE.innerHTML = '';
             htmlE.innerHTML = '';
             tabs.Console.tabE.innerHTML = `Console`;
@@ -416,7 +413,8 @@ async function loadEditor(preE, js, onChange) {
         scrollBeyondLastLine: false,
         scrollbar: {
             vertical: 'hidden',
-            verticalScrollbarSize: 0
+            verticalScrollbarSize: 0,
+            alwaysConsumeMouseWheel: false,
         },
         lineNumbers: "off",
     });
