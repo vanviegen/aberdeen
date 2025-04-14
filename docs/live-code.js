@@ -3,24 +3,133 @@ styleE.innerText = `
 iframe {
     width: 100%;
     border: none;
-    border-radius: 0.8em;
-    box-shadow: #0008 0px 0px 8px;
- }
+}
 .console-output {
     max-height: 200px;
     overflow-y: auto;
-    background: #444;
-    border-radius: 0.8em;
-    box-shadow: #0008 0px 0px 8px;
     padding: 8px;
-    font-family: monospace;
-    margin-top: 8px;
 }
 .console-output > .error { color: #faa; }
 .console-output > .info { color: #afa; font-weight: bold; }
 .console-output > .debug { color: #ccc; }
+
+
+.tabs {
+    display: flex;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.tab {
+    padding: 1rem 2rem;
+    cursor: pointer;
+    color: var(--color-text);
+    transition: background-color 0.2s;
+}
+
+.tab.special {
+    color: var(--color-link);
+    font-style: italic;
+}
+
+.tab.active {
+    background-color: var(--color-background-secondary);
+    border-bottom: 4px solid var(--color-focus-outline);
+}
+
+.tab:hover {
+    background-color: var(--color-background-active);
+}
+
+.tab-content {
+    background-color: var(--color-background);
+    border: 2px solid var(--color-active-menu-item);
+    border-top-color: var(--color-focus-outline);
+}
+
+.tab-content > pre {
+    border-radius: 0;
+    border: 0;
+    margin: 0;
+}
 `;
 document.head.appendChild(styleE);
+
+const iframeStyle = `
+* {
+    box-sizing: border-box;    
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+}
+:root {
+    --link-color: #4c97f2;
+    --text-color: #f5f5f5;
+    --secondary-color: #bebe00;
+    --neutral-color: #ccc;
+}
+body {
+    padding: 0.8em;
+    background-color: #1e1e1e;
+    color: var(--text-color);
+    font-size: 16px;
+}
+button {
+    background-color: var(--link-color);
+    font-weight: bold;
+    color: white;
+    border: none;
+    padding: 0.5em 1em;
+    border-radius: 4px;
+    cursor: pointer; 
+    border: 2px solid var(--link-color);
+}
+.secondary {
+    background-color: var(--secondary-color);
+    border: 2px solid var(--secondary-color);
+    color: black;
+}
+.outline {
+    background-color: transparent;
+    color: inherit;
+}
+.box {
+    box-shadow: 0 0 5px var(--link-color);
+    padding: 1em;
+    border: 1px solid var(--link-color);
+    border-radius: 8px;
+}
+input {
+    padding: 0.5em 0.75em;
+    border-radius: 4px;
+    outline: none;
+    background-color: white;
+    border: 2px solid white;
+    width: 100%;
+    margin: 0;
+}
+input:focus {
+    border-color: var(--link-color);
+}
+.row {
+    display: flex;
+    gap: 0.5em;
+}
+label {
+    display: flex;
+    gap: 0.5em;
+    padding: 0.5em 0;
+    cursor: pointer;
+}
+input[type="checkbox"] {
+    width: initial;
+}
+p {
+    margin: 0;
+}
+p + p {
+    margin-top: 0.5em;
+}
+`;
 
 let iframeCount = 0;
 
@@ -29,11 +138,50 @@ function iframeCode(iframeId) {
         const height = document.documentElement.offsetHeight;
         window.parent.postMessage({ height, iframeId, html: getHtml(document.body) }, '*');
     }
-
+    
+    function toLogString(value, maxDepth = 3) {
+        const seen = new WeakSet();
+        return JSON.stringify(value, function(key, val) {
+            if (val === undefined) return '[undefined]';
+            if (val === null) return null;
+            if (typeof val === 'function') return `[Function: ${val.name || 'anonymous'}]`;
+            if (typeof val === 'symbol') return val.toString();
+            if (typeof val === 'object') {
+                if (seen.has(val)) return '[Circular]';
+                if (this[key] !== val) return val;
+                if (Array.isArray(val)) return val;
+                
+                // Get constructor name for objects
+                const constructorName = val.constructor?.name;
+                const isCustomClass = constructorName && constructorName !== 'Object';
+                
+                if (val instanceof Error) {
+                    return Object.assign({
+                        __type: constructorName,
+                        message: val.message, 
+                        stack: val.stack
+                    }, val);
+                }
+                if (val instanceof Date || val instanceof RegExp) return val.toString();
+                if (Object.keys(val).length > 20) return `[${constructorName || 'Object'}: too large]`;
+                
+                seen.add(val);
+                
+                // Add constructor name for custom classes
+                if (isCustomClass) {
+                    return Object.assign({ __type: constructorName }, val);
+                }
+                
+                return val;
+            }
+            return val;
+        }, 2);
+    }
+    
     function createLogFunction(level) {
         return (...args) => window.parent.postMessage({
             level,
-            args,
+            log: args.map(toLogString).join(" "),
             iframeId
         }, '*');
     }
@@ -50,7 +198,7 @@ function iframeCode(iframeId) {
         console.error(message);
         return false;
     };
-
+    
     // Catch unhandled promise rejections
     window.onunhandledrejection = (event) => {
         console.error('Unhandled Promise rejection:', event.reason);
@@ -63,22 +211,22 @@ function iframeCode(iframeId) {
         });
         update();
     });
-
+    
     function getHtml(element, indent='') {
         let output = '';
         for (const child of element.childNodes) {
             if (!child.children?.length) {
-                output += 'outerHTML' in child ? indent + child.outerHTML + "\n" : '';
+                output += indent + ('outerHTML' in child ? child.outerHTML : child.textContent) + "\n";
             } else {
                 const outerHTML = child.cloneNode(false).outerHTML;
-
+                
                 let openClose = outerHTML.split('></');
                 output += indent + openClose[0] + '>\n';
                 output += getHtml(child, indent+'  ');
                 output += indent + '</' + openClose[1] + "\n";
             }
         }
-
+        
         return output;
     }
 }
@@ -92,7 +240,7 @@ addEventListener('DOMContentLoaded', () => {
             if (wordE.tagName==='BR') js += "\n";
             else js += wordE.textContent;
         }
-
+        
         const base = document.body.parentElement.getAttribute('data-base') || '/';
         const absBase = new URL(base, window.location.href).href;
         
@@ -103,50 +251,35 @@ addEventListener('DOMContentLoaded', () => {
         );
         if (js === orgJs) {
             // No imports have been done, do our default input
-            js = `import * as aberdeen from "${absBase}assets/aberdeen/aberdeen.js";\nObject.assign(window, aberdeen);\n` + js;
+            js = `import {$,clean,clone,copy,countProps,DOM_READ_PHASE,DOM_WRITE_PHASE,dump,getParentElement,immediateObserve,insertCss,invertString,isEmpty,map,MERGE,mount,multiMap,observe,onEach,partition,peek,proxy,ref,runQueue,setErrorHandler,SHALLOW,unmountAll,unproxy} from "${absBase}assets/aberdeen/aberdeen.js";\n\n` + js;
         }
-
+        
+        // Create edit button
+        const editButtonE = document.createElement('button');
+        editButtonE.className = 'button';
+        editButtonE.textContent = 'Edit';
+        editButtonE.style.marginRight = '58px'; // Leave room for Copy button - hacky!
+        editButtonE.addEventListener('click', () => {
+            preE.innerHTML = '';
+            let reloadTimeout = null;
+            loadEditor(preE, js, (newJs) => {
+                js = newJs;
+                clearTimeout(reloadTimeout);
+                reloadTimeout = setTimeout(reloadIframe, 250);
+            });
+        });
+        preE.appendChild(editButtonE);
+        
+        
+        const tabContent = document.createElement('div');
+        tabContent.className = 'tab-content';
+        
         const iframeE = document.createElement('iframe');
         const iframeId = ++iframeCount;
         iframeE.id = iframeId;
         
-        // Create console output div
-        const consoleE = document.createElement('div');
-        consoleE.className = 'console-output';
-        
-        // Create restart button
-        const restartBtn = document.createElement('button');
-        restartBtn.className = 'button';
-        restartBtn.textContent = 'Restart';
-        restartBtn.style.marginTop = '25px';
-        restartBtn.onclick = () => {
-            iframeE.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-            consoleE.innerHTML = '';
-            consoleE.remove();
-        };
-        preE.appendChild(restartBtn);
-
-        const html = `<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-        <style>body { padding: 0.8em; }</style>
-        <script>
-            (${iframeCode.toString()})(${iframeId});
-        </script>
-        <script type="module">
-            ${js}
-        </script>
-    </head>
-    <body>
-    </body>
-</html>`;
-        iframeE.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-        
         const messageHandler = (e) => {
             if (e.data.iframeId == iframeId) {
-                console.log(e.data);
                 if (e.data.height) {
                     iframeE.style.height = e.data.height + 'px';
                 }
@@ -156,17 +289,148 @@ addEventListener('DOMContentLoaded', () => {
                 if (e.data.level) {
                     const msg = document.createElement('div');
                     msg.className = e.data.level;
-                    msg.textContent = e.data.args.map(a => ''+a).join(' ');
+                    msg.textContent = e.data.log;
                     consoleE.appendChild(msg);
-                    if (!consoleE.parentElement) iframeE.after(consoleE);
                     consoleE.scrollTop = consoleE.scrollHeight;
+                    tabs.Console.tabE.innerHTML = `Console <code class="tsd-tag">${consoleE.childElementCount}</code>`;
+                    if (e.data.level === 'error' && currentMode !== 'Console') {
+                        let oldMode = currentMode;
+                        tabs.Console.select();
+                        autoBackMode = oldMode;
+                    }
                 }
             }
         };
         addEventListener('message', messageHandler);
-        preE.after(iframeE);
-
+        tabContent.appendChild(iframeE);
+        
+        // Create console output div
+        const consoleE = document.createElement('pre');
+        consoleE.className = 'console-output';
+        tabContent.appendChild(consoleE);
+        
         const htmlE = document.createElement('pre');
-        iframeE.after(htmlE);
+        tabContent.appendChild(htmlE);
+        
+        const tabsE = document.createElement('ul');
+        tabsE.className = 'tabs';
+        
+        let autoBackMode;
+        let currentMode;
+        
+        let tabs = {};
+        for(let [name, contentE] of Object.entries({Browser: iframeE, HTML: htmlE, Console: consoleE})) {
+            const tabE = document.createElement('li');
+            tabE.className = 'tab';
+            tabE.textContent = name;
+            
+            const select = () => {
+                currentMode = name;
+                autoBackMode = undefined;
+                for(let tabPane of tabContent.children) {
+                    tabPane.style.display = 'none';
+                }
+                contentE.style.display = 'block';
+                for(let t of tabsE.children) {
+                    t.classList.remove('active');
+                }
+                tabE.classList.add('active');
+            };
+            tabE.addEventListener('click', select);
+            
+            tabsE.appendChild(tabE);
+            tabs[name] = {select, tabE};
+        }
+        
+        let hasLayout = !!js.match(/\$\(\s*['"`]/);
+        let hasInteraction = !!js.match(/\bbind:|\bclick:|\binput:|\bsetInterval\b|\bsetTimeout\b/);
+        tabs[hasLayout ? (hasInteraction ? 'Browser' : 'HTML') : 'Console'].select();
+        
+        reloadIframe();
+        
+        const restartTabE = document.createElement('a');
+        restartTabE.className = 'tab special';
+        restartTabE.textContent = 'Restart';
+        restartTabE.addEventListener('click', () => {
+            reloadIframe();
+        });
+        
+        tabsE.appendChild(restartTabE);
+        
+        preE.after(tabContent);
+        preE.after(tabsE)
+        
+        function reloadIframe() {
+            const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>${iframeStyle}</style>
+    <script>
+        (${iframeCode.toString()})(${iframeId});
+    </script>
+    <script type="module">
+        ${js}
+    </script>
+</head>
+<body>
+</body>
+</html>`;   
+            iframeE.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+            consoleE.innerHTML = '';
+            htmlE.innerHTML = '';
+            tabs.Console.tabE.innerHTML = `Console`;
+            
+            if (autoBackMode) tabs[autoBackMode].select();
+        }
     }
+    
 })
+async function loadEditor(preE, js, onChange) {
+    if (!window.monaco) {
+        await new Promise(resolve => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js';
+            script.onload = resolve;
+            document.head.appendChild(script);
+        });
+        
+        await new Promise(resolve => {
+            require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs' }});
+            require(['vs/editor/editor.main'], resolve);
+        });
+    }
+    
+    // Create container
+    const container = document.createElement('div');
+    preE.appendChild(container);
+    
+    // Create editor
+    const editor = monaco.editor.create(container, {
+        value: js,
+        language: 'javascript',
+        theme: 'vs-dark',
+        minimap: {
+            enabled: false
+        },
+        scrollBeyondLastLine: false,
+        scrollbar: {
+            vertical: 'hidden',
+            verticalScrollbarSize: 0
+        },
+        lineNumbers: "off",
+    });
+    editor.onDidContentSizeChange(() => {
+        const height = editor.getContentHeight();
+        editor.layout({ width: editor.getLayoutInfo().width, height });
+    });
+    
+    // Add change handler
+    if (onChange) {
+        editor.onDidChangeModelContent(() => {
+            onChange(editor.getValue());
+        });
+    }
+    
+    return editor;
+}

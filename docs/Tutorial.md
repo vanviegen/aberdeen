@@ -23,25 +23,27 @@ When a string is passed:
 - Content text can be added by prefixing it with a `:`.
 
 ```javascript
-$('button.outline.secondary:Delete');
+$('button.outline.secondary:Pressing me does nothing!');
 ```
+
+Note that you can play around, modifying any example while seeing its live result by pressing the *Edit* button that appears when hoovering an example!
 
 Multiple strings can be passed, so the above could just as well be written as:
 
 ```javascript
-$('button', '.outline', '.secondary', ':Delete');
+$('button', '.outline', '.secondary', ':Pressing me does nothing!');
 ```
 
 Also, we can create multiple nested DOM elements in a single `$` invocation, *if* the parents need to have only a single child. For instance:
 
 ```javascript
-$('article.input-container', 'input.optional');
+$('div.box', ':Text within the div element...', 'input');
 ```
 
 In order to pass in additional properties and attributes to the 'current' DOM element, we can pass in an object. So to extend the above example:
 
 ```javascript
-$('article.input-container', {id: 'cityContainer'}, 'input.optional', {value: 'London', placeholder: 'City'});
+$('div.box', {id: 'cityContainer'}, 'input', {value: 'London', placeholder: 'City'});
 ```
 
 Note that `value` doesn't become an HTML attribute. This (together with `selectedIndex`) is one of two special cases, where Aberdeen applies it as a DOM property instead, in order to preserve the variable type (as attributes can only be strings).
@@ -49,7 +51,10 @@ Note that `value` doesn't become an HTML attribute. This (together with `selecte
 When a function is passed as a property value, it's used as an event listener. So to always log the current input value to the console you can do:
 
 ```javascript
-$('div.input-container', 'input.optional', {value: 'Marshmallow', input: function(){console.log(this.value)} });
+$('div.box', 'input', {
+    value: 'Marshmallow', 
+    input: el => console.log(el.target.value)
+});
 ```
 
 Note that the example is interactive - try typing something!
@@ -57,13 +62,18 @@ Note that the example is interactive - try typing something!
 Of course, putting everything in a single `$` call will get messy soon, and you'll often want to nest more than one child within a parent. To do that, you can pass in a *content* function to `$`, like this:
 
 ```javascript
-$('div.input-container', {id: 'cityContainer'}, () => {
-	$('input.optional', {value: 'London', placeholder: 'City'});
-	$('button:Confirm', {click: () => alert("You got it!")});
+$('div.box.row', {id: 'cityContainer'}, () => {
+    $('input', {
+        value: 'London',
+        placeholder: 'City'
+    });
+    $('button:Confirm', {
+        click: () => alert("You got it!")
+    });
 });
 ```
 
-Why are we passing in a function, instead of just, say, an array of children? I'm glad you asked! :-) For each such function Aberdeen will create an *observer*, which will play a major part in what comes next...
+Why are we passing in a function instead of just, say, an array of children? I'm glad you asked! :-) For each such function Aberdeen will create an *observer*, which will play a major part in what comes next...
 
 ### Observable objects
 Aberdeen's reactivity system is built around observable objects. These are created using the `proxy` function:
@@ -102,11 +112,13 @@ const user = proxy({
 
 $('div', () => {
     $(`h1`, () => {
-		$(`:Hello, ${user.name}!`);
-	});
+        console.log('Name draws:', user.name)
+        $(`:Hello, ${user.name}!`);
+    });
     $(`p`, () => {
-		$(`:You are ${user.age} years old.`);
-	});
+        console.log('Age draws:', user.age)
+        $(`:You are ${user.age} years old.`);
+    });
 });
 
 setInterval(() => {
@@ -127,7 +139,7 @@ $('ul', () => {
     }
 });
 
-$('button:Add', {click: () => items.push(4)});  // The list will update with a new li element
+$('button:Add', {click: () => items.push(items.length+1)});  // The list will update with a new li element
 ```
 
 ### Two-way binding
@@ -157,7 +169,7 @@ $('label', () => {
 });
 
 // Display the current state
-$('div', () => {
+$('div.box', () => {
     $(`p:Name: ${user.name}`);
     $(`p:Status: ${user.active ? 'Active' : 'Inactive'}`);
 });

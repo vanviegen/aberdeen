@@ -26,12 +26,14 @@ To get a quick impression of what Aberdeen code looks like, this is all of the J
 ```javascript
 import {$, proxy, onEach, copy} from "aberdeen";
 
-// Observable data using proxy instead of Store
+// Observable data (if you prefer OOP: you can `proxy` entire objects just as easily)
+
 const squares = proxy([]);  // eg. ['X', undefined, 'O', 'X']
 const history = proxy([[]]);  // eg. [[], [undefined, 'O', undefined, 'X'], ...]
 const historyPos = proxy(null);  // set while 'time traveling' our undo history
 
-// Helper function to calculate derived values
+// Helper functions
+
 function calculateWinner(squares) {
     const lines = [
         [0, 1, 2], [3, 4, 5], [6, 7, 8], // horizontal
@@ -45,14 +47,37 @@ function calculateWinner(squares) {
     }
 }
 
-// Rendering functions
+function getCurrentPlayer() {
+	return squares.filter(v => v).length % 2 ? "O" : "X";
+}
+
+function selectSquare(position) {
+    // If there's already a winner, don't allow a new square to be filled
+    if (calculateWinner(squares)) return;
+    
+    // Fill the square
+    squares[position] = getCurrentPlayer();
+
+    // If we were viewing a historic state, truncate history and stop 'time travelling'
+    if (historyPos.value != null) {
+        history.splice(historyPos.value + 1);
+        historyPos.value = null;
+    }
+    
+    // Append the current squares-state to the history array
+    // We're creating a copy, as we don't want each history item to refer to the same state array
+    history.push([...squares]);
+}
+
+// UI drawing functions
+
 function drawSquare(position) {
     $('button.square', () => {
         let value = squares[position];
         if (value) {
             $({ text: value });
         } else {
-            $({ click: () => fillSquare(position) });
+            $({ click: () => selectSquare(position) });
         }
     });
 }
@@ -67,54 +92,31 @@ function drawBoard() {
     }
 }
 
-function getCurrentPlayer() {
-	return squares.filter(v => v).length % 2 ? "O" : "X";
-}
-
 function drawInfo() {
-    // Calculate derived values inside the reactive scope
+    // Show status messages
     $('div', () => {
-        const winner = calculateWinner(squares);        
+        // Reruns whenever observable data read by calculateWinner or getCurrentPlayer changes
+        const winner = calculateWinner(squares);
         if (winner) {
             $(`:Winner: ${winner}!`);
         } else {
             $(`:Current player: ${getCurrentPlayer()}`);
         }
     });
-    
+
+    // Show the history buttons
     $('div.buttons', () => {
-        // Use onEach with the new API
-        onEach(history, (item, index) => {
+        onEach(history, (preservedSquares, index) => {
             $('button', {
                 text: index ? `Go to move ${index}` : `Go to game start`,
                 click: () => {
                     historyPos.value = index;
-                    // Copy the history item to squares
-                    copy(squares, item);
+                    // Copy the preserved squares-state back to the active state
+                    copy(squares, preservedSquares);
                 }
             });
         });
     });
-}
-
-// Helper functions
-function fillSquare(position) {
-    // If there's already a winner, don't allow a new square to be filled
-    if (calculateWinner(squares)) return;
-    
-    // Fill the square
-    squares[position] = getCurrentPlayer();
-    
-    if (historyPos.value != null) {
-        // Truncate everything after history pos
-        history.splice(historyPos.value + 1);
-        // Stop 'time traveling'
-        historyPos.value = null;
-    }
-    
-    // Append the current squares-state to the history array
-    // We need to create a new array since we can't directly push the squares reference
-    history.push([...squares]);
 }
 
 // Fire it up! Mounts on document.body by default..
