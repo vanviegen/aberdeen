@@ -306,7 +306,7 @@ abstract class ContentScope extends Scope {
 	// Should be subclassed in most cases..
 	redraw() {};
 
-	abstract getParentElement(): Element;
+	abstract parentElement: Element;
 
 	getLastNode(): Node | undefined {
 		return findLastNodeInPrevSiblings(this.lastChild);
@@ -336,16 +336,16 @@ abstract class ContentScope extends Scope {
 		topRedrawScope = undefined
 	}
 
-	addNode(node: Node) {
-		const parentEl = this.getParentElement();
-		const prevEl = this.getLastNode() || this.getPrecedingNode();
-
-		parentEl.insertBefore(node, prevEl ? prevEl.nextSibling : parentEl.firstChild);
-		this.lastChild = node;
+	getInsertAfterNode() {
+		return this.getLastNode() || this.getPrecedingNode();
 	}
 
 	onChange(index: any, newData: DatumType, oldData: DatumType) {
-		queue(this);	
+		queue(this);
+	}
+
+	getChildPrevSibling() {
+		return this.lastChild;
 	}
 }
 
@@ -359,9 +359,9 @@ class ChainedScope extends ContentScope {
 		public parentElement: Element,
 	) {
 		super();
-		if (parentElement === currentScope.getParentElement()) {
+		if (parentElement === currentScope.parentElement) {
 			// If `currentScope` is not actually a ChainedScope, prevSibling will be undefined, as intended
-			this.prevSibling = currentScope.lastChild || (currentScope as ChainedScope).prevSibling;
+			this.prevSibling = currentScope.getChildPrevSibling();
 			currentScope.lastChild = this;
 		}
 
@@ -374,8 +374,8 @@ class ChainedScope extends ContentScope {
 		return findLastNodeInPrevSiblings(this.prevSibling);
 	}
 	
-	getParentElement(): Element {
-		return this.parentElement;
+	getChildPrevSibling() {
+		return this.lastChild || this.prevSibling;
 	}
 }
 
@@ -416,9 +416,7 @@ class RegularScope extends ChainedScope {
 
 
 class RootScope extends ContentScope {
-	getParentElement(): Element {
-		return document.body;
-	}
+	parentElement = document.body;
 	getPrecedingNode(): Node | undefined {
 		return undefined;
 	}
@@ -436,10 +434,6 @@ class MountScope extends ContentScope {
 		currentScope.cleaners.push(this)
 	}
 
-	getParentElement(): Element {
-		return this.parentElement;
-	}
-	
 	redraw() {
 		RegularScope.prototype.redraw.call(this);
 	}
@@ -576,7 +570,7 @@ function runImmediateQueue() {
 
 /** @internal */
 class OnEachScope extends Scope {
-	parentElement: Element = currentScope.getParentElement();
+	parentElement: Element = currentScope.parentElement;
 	prevSibling: Node | Scope | undefined;
 
 	/** The data structure we are iterating */
@@ -603,7 +597,7 @@ class OnEachScope extends Scope {
 		const target: TargetType = this.target = (proxy as any)[TARGET_SYMBOL] || proxy;
 
 		subscribe(target, ANY_SYMBOL, this);
-		this.prevSibling = currentScope.lastChild || (currentScope as ChainedScope).prevSibling;
+		this.prevSibling = currentScope.getChildPrevSibling();
 		currentScope.lastChild = this;
 
 		currentScope.cleaners.push(this);
@@ -674,6 +668,7 @@ class OnEachScope extends Scope {
 /** @internal */
 class OnEachItemScope extends ContentScope {
 	sortKey: string | number | undefined; // When undefined, this scope is currently not showing in the list
+	public parentElement: Element;
 	
 	constructor(
 		public parent: OnEachScope,
@@ -681,12 +676,14 @@ class OnEachItemScope extends ContentScope {
 		topRedraw: boolean,
 	) {
 		super();
+		this.parentElement = parent.parentElement;
 
 		this.parent.byIndex.set(this.itemIndex, this);
 
 		// Okay, this is hacky. In case our first (actual) child is a ChainedScope, we won't be able
 		// to provide it with a reliable prevSibling. Therefore, we'll pretend to be that sibling,
 		// doing what's need for this case in `getLastNode`.
+		// For performance, we prefer not having to create additional 'fake sibling' objects for each item.
 		this.lastChild = this;
 
 		// Don't register to be cleaned by parent scope, as the OnEachScope will manage this for us (for efficiency)
@@ -788,15 +785,11 @@ class OnEachItemScope extends ContentScope {
 		currentScope = savedScope;
 	}
 
-	addNode(node: Node) {
+	getInsertAfterNode() {
 		if (this.sortKey == null) internalError(1);
 		// Due to the `this` being the first child for `this` hack, this will look
 		// for the preceding node as well, if we don't have nodes ourselves.
-		let prevNode = findLastNodeInPrevSiblings(this.lastChild);
-
-		const parentEl = this.parent.parentElement;
-		parentEl.insertBefore(node, prevNode ? prevNode.nextSibling : parentEl.firstChild);
-		this.lastChild = node;
+		return findLastNodeInPrevSiblings(this.lastChild);
 	}
 
 	remove() {
@@ -812,10 +805,13 @@ class OnEachItemScope extends ContentScope {
 
 		this.delete();
 	}
+}
 
-	getParentElement(): Element {
-		return this.parent.parentElement;
-	}
+function addNode(node: Node) {
+	const parentEl = currentScope.parentElement;
+	const prevNode = currentScope.getInsertAfterNode();
+	parentEl.insertBefore(node, prevNode ? prevNode.nextSibling : parentEl.firstChild);
+	currentScope.lastChild = node;
 }
 
 
@@ -1486,7 +1482,7 @@ function applyBind(_el: Element, target: any) {
 
 const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
 	create: function(value: any) {
-		const el = currentScope.getParentElement();
+		const el = currentScope.parentElement;
 		if (currentScope !== topRedrawScope) return;
 		if (typeof value === 'function') {
 			value(el);
@@ -1501,20 +1497,20 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
 		}
 	},
 	destroy: function(value: any) {
-		const el = currentScope.getParentElement();
+		const el = currentScope.parentElement;
 		onDestroyMap.set(el, value);
 	},
 	html: function(value: any) {
-		let tmpParent = document.createElement(currentScope.getParentElement().tagName);
+		let tmpParent = document.createElement(currentScope.parentElement.tagName);
 		tmpParent.innerHTML = ''+value;
-		while(tmpParent.firstChild) currentScope.addNode(tmpParent.firstChild);
+		while(tmpParent.firstChild) addNode(tmpParent.firstChild);
 	},
 	text: function(value: any) {
-		currentScope.addNode(document.createTextNode(value));
+		addNode(document.createTextNode(value));
 	},
 	element: function(value: any) {
 		if (!(value instanceof Node)) throw new Error(`Unexpected element-argument: ${JSON.parse(value)}`);
-		currentScope.addNode(value);
+		addNode(value);
 	},
 }
 
@@ -1594,8 +1590,11 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
  * ```
  */
 
+
 export function $(...args: (string | null | undefined | false | (() => void) | Record<string,any>)[]): void {
-	let savedScope = currentScope;
+	let savedParentElement;
+	let savedLastChild;
+	let err;
 
 	for(let arg of args) {
 		if (arg == null || arg === false) continue;
@@ -1612,40 +1611,49 @@ export function $(...args: (string | null | undefined | false | (() => void) | R
 				arg = arg.substring(0, classPos);
 			}
 			if (arg === '') { // Add text or classes to parent
-				if (text) currentScope.addNode(document.createTextNode(text));
+				if (text) addNode(document.createTextNode(text));
 				if (classes) {
-					const el = currentScope.getParentElement();
+					const el = currentScope.parentElement;
 					el.classList.add(...classes.split('.'));
 					clean(() => el.classList.remove(...classes.split('.')));
 				}
 			} else if (arg.indexOf(' ') >= 0) {
-				throw new Error(`Tag '${arg}' cannot contain space`);
+				err = `Tag '${arg}' cannot contain space`;
+				break;
 			} else {
 				const el = document.createElement(arg);
 				if (classes) el.className = classes.replaceAll('.', ' ');
 				if (text) el.textContent = text;
-				currentScope.addNode(el);
-				currentScope = new ChainedScope(el);
+				addNode(el);
+				if (!savedParentElement) {
+					savedParentElement = currentScope.parentElement;
+					savedLastChild = el;
+				}
+				currentScope.parentElement = el;
 				currentScope.lastChild = el.lastChild || undefined;
-				// Extend topRedrawScope one level deep, so it works for $('div', {create: true})`.
-				if (savedScope === topRedrawScope) topRedrawScope = currentScope;
 			}
 		}
 		else if (typeof arg === 'object') {
-			if (arg.constructor !== Object) throw new Error(`Unexpected argument: ${arg}`);
+			if (arg.constructor !== Object) {
+				err = `Unexpected argument: ${arg}`;
+				break;
+			}
 			for(const key in arg) {
 				const val = arg[key];
 				applyArg(key, val);
 			}
 		} else if (typeof arg === 'function' && arg === args[args.length-1]) {
-			new RegularScope(currentScope.getParentElement(), arg);
+			new RegularScope(currentScope.parentElement, arg);
 		} else {
-			currentScope = savedScope;
-			throw new Error(`Unexpected argument: ${arg}`);
+			err = `Unexpected argument: ${arg}`;
+			break;
 		}
 	}
-	
-	currentScope = savedScope;
+	if (savedParentElement) {
+		currentScope.parentElement = savedParentElement;
+		currentScope.lastChild = savedLastChild;
+	}
+	if (err) throw new Error(err);
 }
 
 let cssCount = 0;
@@ -1733,7 +1741,7 @@ function styleToCss(style: object, prefix: string): string {
 }
 
 function applyArg(key: string, value: any) {
-	const el = currentScope.getParentElement();
+	const el = currentScope.parentElement;
 	if (typeof value === 'object' && value !== null && value[TARGET_SYMBOL]) { // Value is a proxy
 		if (key === 'bind') {
 			applyBind(el, value)
@@ -1831,7 +1839,7 @@ export function setErrorHandler(handler?: (error: Error) => boolean | undefined)
  * ```
  */
 export function getParentElement(): Element {
-	return currentScope.getParentElement();
+	return currentScope.parentElement;
 }
 
 
@@ -1919,7 +1927,7 @@ export function clean(cleaner: () => void) {
  * @param func Func without a return value.
  */
 export function observe<T extends (DatumType | void)>(func: () => T): ValueRef<T> {
-	return (new ResultScope<T>(currentScope.getParentElement(), func)).result;
+	return (new ResultScope<T>(currentScope.parentElement, func)).result;
 }
 
 /**
@@ -1951,7 +1959,7 @@ export function observe<T extends (DatumType | void)>(func: () => T): ValueRef<T
  * ```
  */
 export function immediateObserve(func: () => void) {
-	new ImmediateScope(currentScope.getParentElement(), func);
+	new ImmediateScope(currentScope.parentElement, func);
 }
 
 /**
@@ -2314,7 +2322,7 @@ function handleError(e: any, showMessage: boolean) {
 		if (onError(e) === false) showMessage = false;
 	} catch {}
 	try {
-		if (showMessage && currentScope.getParentElement()) $('div.aberdeen-error:Error');
+		if (showMessage) $('div.aberdeen-error:Error');
 	} catch {
 		// Error while adding the error marker to the DOM. Apparently, we're in
 		// an awkward context. The error should already have been logged by

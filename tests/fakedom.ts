@@ -6,7 +6,7 @@ export const getCounts = function(): { new: number, changed: number } {
   return { new: newCount, changed: changeCount }; 
 };
 
-export class Node {
+class Node {
   parentNode: Element | null = null;
   childNodes: Node[] = [];
 
@@ -34,7 +34,7 @@ export class Node {
   }
 }
 
-export class Element extends Node {
+class Element extends Node {
   tag: string;
   _style: Record<string, string> = {};
   attrs: Record<string, string> = {};
@@ -257,7 +257,7 @@ export class Element extends Node {
 
 
 
-export const document = {
+const document = {
   createElement: (tag: string) => new Element(tag),
   createTextNode: (text: string) => new TextNode(text),
   head: {
@@ -271,7 +271,7 @@ export const document = {
   body: new Element('body')
 };
 
-export const window: Record<string, any> = {};
+const window: Record<string, any> = {};
 
 type TimeoutItem = {
   func: () => void;
@@ -283,7 +283,7 @@ let currentTime: number = 0;
 
 const realSetTimeout = global.setTimeout;
 
-export const setTimeout = function(func: () => void, time: number): void {
+const setTimeout = function(func: () => void, time: number): void {
   timeouts.push({func, time: time + currentTime});
 };
 
@@ -321,7 +321,7 @@ export const asyncPassTime = async function(ms?: number): Promise<void> {
 
 const IGNORE_OUTPUT = new Set("tag-> attrs-> events-> childNodes-> parentNode-> class=".split(" "));
 
-export class TextNode extends Node {
+class TextNode extends Node {
   textContent: string;
 
   constructor(textContent: string) {
@@ -339,6 +339,8 @@ export class TextNode extends Node {
   }
 }
 
-export function getComputedStyle(el: Element): Record<string, string> {
+function getComputedStyle(el: Element): Record<string, string> {
   return el._style;
 }
+
+Object.assign(global, {Node, Element, TextNode, document, window, setTimeout, getComputedStyle});

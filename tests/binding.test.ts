@@ -16,6 +16,11 @@ test('binds input values', () => {
   inputElement!.event("input");
   passTime();
   assertBody(`input.correct{value->testx}`);
+
+  inputElement!.value = "n/a";
+  inputElement!.event("input");
+  passTime();
+  assertBody(`input{value->n/a}`);
 });
 
 test('binds checkboxes', () => {

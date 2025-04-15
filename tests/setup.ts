@@ -1,12 +1,9 @@
 import { beforeEach, afterEach } from "bun:test";
 import * as fakedom from './fakedom';
-import { setErrorHandler, unmountAll } from '../src/aberdeen';
 import { assertBody } from "./helpers";
-
-Object.assign(global, fakedom);
+import { setErrorHandler, unmountAll } from '../src/aberdeen';
 
 beforeEach(() => {
-	document.body = document.createElement('body')
 	fakedom.resetCounts()
 	setErrorHandler()
 })
