@@ -61,6 +61,9 @@ iframe {
 document.head.appendChild(styleE);
 
 const iframeStyle = `
+html, body {
+    overflow: hidden;
+}
 * {
     box-sizing: border-box;    
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
@@ -101,6 +104,7 @@ button {
     padding: 1em;
     border: 1px solid var(--link-color);
     border-radius: 8px;
+    overflow: auto;
 }
 input {
     padding: 0.5em 0.75em;
@@ -117,6 +121,9 @@ input:focus {
 .row {
     display: flex;
     gap: 0.5em;
+}
+.row.wide > * {
+    flex: 1;
 }
 label {
     display: flex;
@@ -145,6 +152,9 @@ function iframeCode(iframeId) {
         const height = document.documentElement.offsetHeight;
         window.parent.postMessage({ height, iframeId, html: getHtml(document.body) }, '*');
     }
+
+    // Request by parent for an update (when the iframe becomes visible)
+    addEventListener('message', update);
     
     function toLogString(val, maxDepth = 3, indent = "", seen = new WeakMap()) {
         if (val === null) return "null";
@@ -221,8 +231,7 @@ function iframeCode(iframeId) {
                 output += getHtml(child, indent+'  ');
                 output += indent + '</' + openClose[1] + "\n";
             }
-        }
-        
+        }        
         return output;
     }
 }
@@ -280,7 +289,7 @@ addEventListener('DOMContentLoaded', () => {
                     iframeE.style.height = e.data.height + 'px';
                 }
                 if (e.data.html) {
-                    htmlE.innerText = e.data.html;
+                    htmlE.innerText = e.data.html.trim();
                 }
                 if (e.data.level) {
                     const msg = document.createElement('li');
@@ -298,15 +307,12 @@ addEventListener('DOMContentLoaded', () => {
             }
         };
         addEventListener('message', messageHandler);
-        tabContent.appendChild(iframeE);
         
         // Create console output div
         const consoleE = document.createElement('pre');
         consoleE.className = 'console-output';
-        tabContent.appendChild(consoleE);
         
         const htmlE = document.createElement('pre');
-        tabContent.appendChild(htmlE);
         
         const tabsE = document.createElement('ul');
         tabsE.className = 'tabs';
@@ -316,6 +322,7 @@ addEventListener('DOMContentLoaded', () => {
         
         let tabs = {};
         for(let [name, contentE] of Object.entries({Browser: iframeE, HTML: htmlE, Console: consoleE})) {
+            tabContent.appendChild(contentE);
             const tabE = document.createElement('li');
             tabE.className = 'tab';
             tabE.textContent = name;
@@ -331,6 +338,7 @@ addEventListener('DOMContentLoaded', () => {
                     t.classList.remove('active');
                 }
                 tabE.classList.add('active');
+                if (contentE === iframeE && iframeE.contentWindow) iframeE.contentWindow.postMessage({}, '*'); // Request a height update
             };
             tabE.addEventListener('click', select);
             

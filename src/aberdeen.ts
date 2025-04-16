@@ -1642,7 +1642,7 @@ export function $(...args: (string | null | undefined | false | (() => void) | R
 				const val = arg[key];
 				applyArg(key, val);
 			}
-		} else if (typeof arg === 'function' && arg === args[args.length-1]) {
+		} else if (typeof arg === 'function') {
 			new RegularScope(currentScope.parentElement, arg);
 		} else {
 			err = `Unexpected argument: ${arg}`;

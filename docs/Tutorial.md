@@ -15,7 +15,7 @@ $('h1:Hello world');
 
 It adds a `<h1>Hello world</h1>` element to the `<body>` (which is the default mount point).
 
-The `$` function accepts various forms of arguments, which can be combined.
+The {@link aberdeen.$} function accepts various forms of arguments, which can be combined.
 
 When a string is passed:
 - The inital part (if any) is the name of the element to be created.
@@ -34,7 +34,7 @@ Multiple strings can be passed, so the above could just as well be written as:
 $('button', '.outline', '.secondary', ':Pressing me does nothing!');
 ```
 
-Also, we can create multiple nested DOM elements in a single `$` invocation, *if* the parents need to have only a single child. For instance:
+Also, we can create multiple nested DOM elements in a single {@link aberdeen.$} invocation, *if* the parents need to have only a single child. For instance:
 
 ```javascript
 $('div.box', ':Text within the div element...', 'input');
@@ -59,7 +59,7 @@ $('div.box', 'input', {
 
 Note that the example is interactive - try typing something!
 
-Of course, putting everything in a single `$` call will get messy soon, and you'll often want to nest more than one child within a parent. To do that, you can pass in a *content* function to `$`, like this:
+Of course, putting everything in a single {@link aberdeen.$} call will get messy soon, and you'll often want to nest more than one child within a parent. To do that, you can pass in a *content* function to {@link aberdeen.$}, like this:
 
 ```javascript
 $('div.box.row', {id: 'cityContainer'}, () => {
@@ -76,9 +76,9 @@ $('div.box.row', {id: 'cityContainer'}, () => {
 Why are we passing in a function instead of just, say, an array of children? I'm glad you asked! :-) For each such function Aberdeen will create an *observer*, which will play a major part in what comes next...
 
 ### Observable objects
-Aberdeen's reactivity system is built around observable objects. These are created using the `proxy` function:
+Aberdeen's reactivity system is built around observable objects. These are created using the {@link aberdeen.proxy} function:
 
-When you access properties of a proxied object within an observer function (the function passed to `$`), Aberdeen automatically tracks these dependencies. If the values change later, the observer function will re-run, updating only the affected parts of the DOM.
+When you access properties of a proxied object within an observer function (the function passed to {@link aberdeen.$}), Aberdeen automatically tracks these dependencies. If the values change later, the observer function will re-run, updating only the affected parts of the DOM.
 
 ```javascript
 import { $, proxy } from 'aberdeen';
@@ -128,22 +128,116 @@ setInterval(() => {
 
 Now, updating `user.name` would only cause the *Hello* text node to be replaced, leaving the `<div>`, `<h1>` and `<p>` elements as they were.
 
-You can create observable arrays too:
+### Observable primitive values
+
+Our {@link aberdeen.proxy} method uses wraps an object in a JavaScript [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy). As this doesn't work for primitive values (like numbers, strings and booleans), the method will wrap these types in an object in order to make it observable. The observable value is made available as its `.value` property.
+
+```javascript
+const count = proxy(42);
+$('div.row', () => {
+    // This scope will not have to redraw
+    $('button:-', {click: () => count.value--});
+    $('div', {text: count});
+    $('button:+', {click: () => count.value++});
+});
+```
+
+The reason that the scope within `div.row` doesn't have to redraw, is that we're passing in the observable object `count` as a whole to the `text:` property. When a property receives an observable object as its values, it will reactively read its `.value` property and handle changes.
+
+If we would have done `$('div', {text: count.value});` instead, we *would* have subscribed to `count.value` within the `div.row` scope, meaning we'd be redrawing the two buttons and the div every time the count changes.
+
+### Observable arrays
+
+You can create observable arrays too. They work just like regular arrays, apart from being observable.
 
 ```javascript
 const items = proxy([1, 2, 3]);
 
+$('h1', () => {
+    $(':First item: '+items[0]);
+})
+
 $('ul', () => {
+    // This subscribes to the entire array, and thus redraws all <li>s when any item changes.
+    // In the next section, we'll learn about a better way.
     for (const item of items) {
         $('li', `:Item ${item}`);
     }
 });
 
-$('button:Add', {click: () => items.push(items.length+1)});  // The list will update with a new li element
+$('button:Add', {click: () => items.push(items.length+1)});
+```
+
+### Efficient list rendering with onEach
+For rendering lists efficiently, Aberdeen provides the {@link aberdeen.onEach} function. It takes three arguments:
+1. The array to iterate over.
+2. A render function that receives the item and its index.
+3. An optional order function, that returns the value by which the item is to be sorted. By default, the output is sorted by array index.
+
+```javascript
+import { $, proxy, onEach } from 'aberdeen';
+
+const items = proxy([]);
+
+const randomInt = (max) => parseInt(Math.random() * max);
+const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0-9]+/g, '').replace(/^\w/, c => c.toUpperCase());
+
+// Make random mutations
+setInterval(() => {
+    delete items[randomInt(10)];
+    items[randomInt(10)] = {
+        label: randomWord(),
+        prio: randomInt(5)
+    };
+}, 500);
+
+$('div.row.wide', {$height: '250px'}, () => {
+    $('div.box:By index', () => {
+        onEach(items, (item, index) => {
+            $(`li:${item.label} (prio ${item.prio})`)
+        });
+    })
+    $('div.box:By label', () => {
+        onEach(items, (item, index) => {
+            $(`li:${item.label} (prio ${item.prio})`)
+        }, item => item.label);
+    })
+    $('div.box:By desc prio, then label', () => {
+        onEach(items, (item, index) => {
+            $(`li:${item.label} (prio ${item.prio})`)
+        }, item => [-item.prio, item.label]);
+    })
+})
+```
+
+We can also use {@link aberdeen.onEach} to reactively iterate objects. In that case, the render and order functions receive `(value, key)` (instead of `(value, index)`) as their arguments.
+
+```javascript
+const pairs = proxy({A: 'Y', B: 'X',});
+
+const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0-9]+/g, '').replace(/^\w/, c => c.toUpperCase());
+
+$('button:Add item', {click: () => pairs[randomWord()] = randomWord()});
+
+$('div.row.wide', {$marginTop: '1em'}, () => {
+    $('div.box:By key', () => {
+        onEach(pairs, (value, key) => {
+            $(`li:${key}: ${value}`)
+        });
+    })
+    $('div.box:By desc value', () => {
+        onEach(pairs, (value, key) => {
+            $(`li:${key}: ${value}`)
+        }, value => invertString(value));
+    })
+})
 ```
 
 ### Two-way binding
-Aberdeen makes it easy to create two-way bindings between form elements and your data:
+Aberdeen makes it easy to create two-way bindings between form elements (the various `<input>` types, `<textarea>` and `<select>`) and your data, by passing an observable object with a `.value` as `bind:` property to {@link aberdeen.$}.
+
+In order to bind to properties other than `.value`, you can use the {@link aberdeen.ref} function to create a new proxy object with only a `.value` property that maps to a property with any name on any observable object.
+
 
 ```javascript
 import { $, proxy, ref } from 'aberdeen';
@@ -156,7 +250,7 @@ const user = proxy({
 // Text input binding
 $('input', { 
     placeholder: 'Name',
-    bind: ref(user, 'name')  // Creates two-way binding
+    bind: ref(user, 'name')
 });
 
 // Checkbox binding
@@ -165,17 +259,19 @@ $('label', () => {
         type: 'checkbox', 
         bind: ref(user, 'active')
     });
-    $(':Active');
-});
+}, ':Active');
 
 // Display the current state
 $('div.box', () => {
-    $(`p:Name: ${user.name}`);
+    $(`p:Name: ${user.name} `, () => {
+        // Binding works both ways
+        $('button.outline.secondary:!', {
+            click: () => user.name += '!'
+        });
+    });
     $(`p:Status: ${user.active ? 'Active' : 'Inactive'}`);
 });
 ```
-
-The `ref` function creates a reference to a specific property of an object, allowing Aberdeen to both read from and write to that property.
 
 ### Conditional rendering
 You can conditionally render elements based on your data:
@@ -197,41 +293,6 @@ $('div', () => {
     }
 });
 ```
-
-### Efficient list rendering with onEach
-For rendering lists efficiently, Aberdeen provides the `onEach` helper:
-
-```javascript
-import { $, proxy, onEach } from 'aberdeen';
-
-const todos = proxy([
-    { id: 1, text: 'Learn Aberdeen', completed: false },
-    { id: 2, text: 'Build an app', completed: false }
-]);
-
-$('ul', () => {
-    onEach(todos, (todo, index) => {
-        $('li', {
-            class: { completed: todo.completed }
-        }, () => {
-            $('input', { 
-                type: 'checkbox',
-                checked: todo.completed,
-                change: () => todo.completed = !todo.completed
-            });
-            $(`span:${todo.text}`);
-            $('button:Delete', {
-                click: () => todos.splice(index, 1)
-            });
-        });
-    }, todo => todo.id);  // Optional key function for stable identity
-});
-```
-
-The `onEach` function takes three arguments:
-1. The array to iterate over
-2. A render function that receives the item and its index
-3. An optional key function to help Aberdeen track items when they move
 
 ### CSS and styling
 Aberdeen provides ways to add CSS to your components:
