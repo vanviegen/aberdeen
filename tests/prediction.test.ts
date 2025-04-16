@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime, assertThrow, passTime } from "./helpers";
+import { assertBody, asyncPassTime, assertThrow } from "./helpers";
 import { $, copy, proxy, observe, mount, MERGE } from "../src/aberdeen";
 import { applyPrediction, applyCanon } from "../src/prediction";
 
@@ -70,8 +70,8 @@ test('Prediction forcibly reverts to canon state', async () => {
     applyCanon(undefined, [prediction]);
     
     // An error should be thrown asynchronously
-    assertThrow('Error', () => {
-        passTime();
+    await assertThrow('Error', async () => {
+        await asyncPassTime();
     });
     assertBody(`a`);
 });

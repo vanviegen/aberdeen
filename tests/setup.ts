@@ -8,8 +8,8 @@ beforeEach(() => {
 	setErrorHandler()
 })
 
-afterEach(() => {
+afterEach(async () => {
 	unmountAll()
-	fakedom.passTime(2001) // wait for deletion transitions
+	await fakedom.asyncPassTime(2001) // wait for deletion transitions
 	assertBody(``)
 })

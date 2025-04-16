@@ -1,9 +1,8 @@
 import { expect, test } from "bun:test";
-import { assertBody, passTime } from "./helpers";
+import { assertBody, asyncPassTime } from "./helpers";
 import { $, proxy, observe, copy, onEach, mount, isEmpty, MERGE } from "../src/aberdeen";
-import { asyncPassTime } from "./fakedom";
 
-test('fires higher-scope isEmpty before getting to content', () => {
+test('fires higher-scope isEmpty before getting to content', async () => {
 	let data = proxy<string[]>(['a']);
 	let cnt1 = 0, cnt2 = 0;
 	$(() => {
@@ -22,40 +21,40 @@ test('fires higher-scope isEmpty before getting to content', () => {
 	assertBody(`div{"a"}`);
 
 	data[0] = 'b';
-	passTime();
+	await asyncPassTime();
 	assertBody(`div{"b"}`);
 	expect([cnt1, cnt2]).toEqual([1, 2]);
 
 	// Clear the array
 	copy(data, [] as string[], MERGE);
 
-	passTime();
+	await asyncPassTime();
 	assertBody(``);
 	expect([cnt1, cnt2]).toEqual([2, 2]);
 });
 
-test('reactively get full array', () => {
+test('reactively get full array', async () => {
 	let data = proxy<any[]>([3, 4, [5, 6]]);
 	mount(document.body, () => {
 		$({text: JSON.stringify(data)});
 		$({text: JSON.stringify(data[2])});
 	});
-	passTime();
+	await asyncPassTime();
 	assertBody(`"[3,4,[5,6]]" "[5,6]"`);
 
 	data.push(7);
 	(data[2] as any).push(8);
-	passTime();
+	await asyncPassTime();
 	assertBody(`"[3,4,[5,6,8],7]" "[5,6,8]"`);
 
 	expect(data[6]).toEqual(undefined);
 
 	data.length = 2;
-	passTime();
+	await asyncPassTime();
 	assertBody(`"[3,4]"`);
 });
 
-test('merges', () => {
+test('merges', async () => {
 	let cnt1 = 0, cnt2 = 0;
 	let data = proxy([1, undefined, 3] as (number|string|undefined)[]);
 	mount(document.body, () => {
@@ -70,29 +69,29 @@ test('merges', () => {
 	expect([cnt1, cnt2]).toEqual([1, 2]);
 
 	data[1] = 2;
-	passTime();
+	await asyncPassTime();
 	assertBody(`div{"1"} div{"2"} div{"3"}`);
 	expect([cnt1, cnt2]).toEqual([1, 3]);
 
 	// Merging just replace the entire array
 	copy(data, [1, "two"], MERGE);
-	passTime();
+	await asyncPassTime();
 	assertBody(`div{"1"} div{"two"}`);
 	expect([cnt1, cnt2]).toEqual([1, 4]);
 
 	data[9] = 'ten';
-	passTime();
+	await asyncPassTime();
 	assertBody(`div{"1"} div{"two"} div{"ten"}`);
 	expect([cnt1, cnt2]).toEqual([1, 5]);
 
 	data[4] = 'five';
-	passTime();
+	await asyncPassTime();
 	assertBody(`div{"1"} div{"two"} div{"five"} div{"ten"}`);
 	expect([cnt1, cnt2]).toEqual([1, 6]);
 
 	// Delete element at index 1
 	delete data[1];
-	passTime();
+	await asyncPassTime();
 	assertBody(`div{"1"} div{"five"} div{"ten"}`);
 	expect([cnt1, cnt2]).toEqual([1, 6]);
 
@@ -100,12 +99,12 @@ test('merges', () => {
 	delete data[9];
 	data.push("six");
 	expect(data[10]).toEqual("six");
-	passTime();
+	await asyncPassTime();
 	assertBody(`div{"1"} div{"five"} div{"six"}`);
 	expect([cnt1, cnt2]).toEqual([1, 7]);
 
 	copy(data, [1, undefined, 3], MERGE);
-	passTime();
+	await asyncPassTime();
 	assertBody(`div{"1"} div{"3"}`);
 	expect([cnt1, cnt2]).toEqual([1, 8]);
 });

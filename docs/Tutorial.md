@@ -295,64 +295,68 @@ $('div', () => {
 ```
 
 ### CSS and styling
-Aberdeen provides ways to add CSS to your components:
+Through the {@link aberdeen.insertCss} function, Aberdeen provides a way to create component-local CSS.
 
 ```javascript
-import { $, insertCss } from 'aberdeen';
+import { $, proxy, insertCss } from 'aberdeen';
 
 // Create a CSS class that can be applied to elements
-const buttonStyle = insertCss({
-    backgroundColor: 'blue',
-    color: 'white',
-    padding: '8px 16px',
-    borderRadius: '4px',
-    '&:hover': {
-        backgroundColor: 'darkblue'
+const myBoxStyle = insertCss({
+    borderColor: '#6936cd',
+    backgroundColor: '#1b0447',
+    button: {
+        backgroundColor: '#6936cd',
+        border: 0,
+        transition: 'box-shadow 0.3s',
+        boxShadow: '0 0 4px #ff6a0044',
+        '&:hover': {
+            boxShadow: '0 0 16px #ff6a0088',
+        }
     }
 });
 
-$('button:Click me', buttonStyle);
-
-// You can also apply styles conditionally
-const theme = proxy({ dark: false });
-
-const darkStyle = insertCss({
-    backgroundColor: '#222',
-    color: '#eee'
-});
-
-$('div', { [darkStyle]: theme.dark }, () => {
-    $('h1:Dynamic Styling');
-    $('p:This content changes style based on the theme.');
-    $('button:Toggle Theme', {
-        click: () => theme.dark = !theme.dark
-    });
-});
+// myBoxStyle is now something like "AbdStl1". Let's apply it:
+$('div.box', myBoxStyle, 'button:Click me');
 ```
 
 ### Transitions and animations
 Aberdeen provides transition helpers for smooth element entry and exit:
 
 ```javascript
-import { $, proxy } from 'aberdeen';
+import { $, proxy, onEach } from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 
-const showDetails = proxy(false);
+const items = proxy([]);
 
-$('div', () => {
-    $('button:Toggle Details', {
-        click: () => showDetails.value = !showDetails.value
-    });
-    
-    if (showDetails.value) {
-        $('div.details', {
-            create: grow,   // Animation when element is created
-            destroy: shrink // Animation when element is removed
-        }, () => {
-            $('p:These are the details you requested.');
+const randomInt = (max) => parseInt(Math.random() * max);
+const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0-9]+/g, '').replace(/^\w/, c => c.toUpperCase());
+
+// Make random mutations
+setInterval(() => {
+    delete items[randomInt(10)];
+    items[randomInt(10)] = {
+        label: randomWord(),
+        prio: randomInt(5)
+    };
+}, 500);
+
+$('div.row.wide', {$height: '250px'}, () => {
+    $('div.box:By index', () => {
+        onEach(items, (item, index) => {
+            $(`li:${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
         });
-    }
-});
+    })
+    $('div.box:By label', () => {
+        onEach(items, (item, index) => {
+            $(`li:${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
+        }, item => item.label);
+    })
+    $('div.box:By desc prio, then label', () => {
+        onEach(items, (item, index) => {
+            $(`li:${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
+        }, item => [-item.prio, item.label]);
+    })
+})
 ```
 
 ### Computed values and side effects
@@ -381,7 +385,7 @@ import { observe } from 'aberdeen';
 observe(() => {
     console.log(`Name changed to: ${user.name}`);
     // You could also save to localStorage, make API calls, etc.
-}, [user, 'name']);  // Optional dependency array to limit when this runs
+});
 ```
 
 ### Putting it all together

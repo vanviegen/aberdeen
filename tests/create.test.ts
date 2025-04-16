@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, passTime, asyncPassTime, assertDomUpdates, getBody } from "./helpers";
+import { assertBody, asyncPassTime, assertDomUpdates, getBody } from "./helpers";
 import { $, proxy, observe, copy, onEach } from "../src/aberdeen";
 import { grow } from "../src/transitions";
 
@@ -81,7 +81,7 @@ test('Create event performs a grow animation', async() => {
     assertBody(`div{display:flex a}`);
 });
 
-test('Create event aborts a grow animation', () => {
+test('Create event aborts a grow animation', async () => {
     const data = proxy(false);
     observe(() => {
         if (data.value) {
@@ -92,6 +92,6 @@ test('Create event aborts a grow animation', () => {
     assertBody(``);
     
     data.value = true; // Naughty render function will set this back to false
-    passTime();
+    await asyncPassTime();
     assertBody(``);
 });

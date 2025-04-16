@@ -10,31 +10,33 @@ test('awaits read/write batches', async () => {
     }
     const tasks = [
         async() => {
-            log('a0');
             await DOM_READ_PHASE;
-            log('a1r');
+            log('1ra');
             await DOM_READ_PHASE;
-            log('a2r');
+            log('1rb');
             await DOM_WRITE_PHASE;
-            log('a3w');
+            log('2wc');
+            await DOM_WRITE_PHASE;
+            log('2wd');
+            await DOM_READ_PHASE;
+            log('2re');
         },
         async() => {
-            log('b0');
             await DOM_WRITE_PHASE;
-            log('b1w');
+            log('1wA');
             await DOM_WRITE_PHASE;
-            log('b2w');
+            log('1wB');
             await DOM_READ_PHASE;
-            log('b3r');
+            log('1rC');
             await DOM_READ_PHASE;
-            log('b4r');
+            log('1rD');
             await DOM_WRITE_PHASE;
-            log('b5w');
+            log('2wE');
         },
     ];
     // We'll use actual setTimeout to trigger fake setTimeout in this case. A bit weird...
     let interval = setInterval(passTime, 1);
     await Promise.all(tasks.map(task => task()));
     clearTimeout(interval);
-    expect(order.join(' ')).toEqual('a0 b0 b1w b2w a1r b3r a2r b4r a3w b5w');
+    expect(order.join(' ')).toEqual('1w 1r 1r 1w 2w 1r 1r 2w');
 });

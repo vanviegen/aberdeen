@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import { assertBody, assertThrow, passTime } from "./helpers";
+import { assertBody, assertThrow, asyncPassTime } from "./helpers";
 import { $, setErrorHandler, proxy, observe, onEach, mount } from "../src/aberdeen";
 
-function captureOnError(message: string, func: () => void, showMsg: boolean = true) {
+async function captureOnError(message: string, func: () => void, showMsg: boolean = true) {
     let lastErr: Error | undefined;
     setErrorHandler(err => {lastErr = err; return showMsg; });
-    func();
+    await func();
     setErrorHandler();
     expect(lastErr).toBeTruthy();
     expect(lastErr!.toString()).toContain(message);
@@ -45,15 +45,15 @@ test('Error handling - continues rendering after an error', async () => {
         $('d');
     });    
     assertBody(`a{b c} d`);
-    captureOnError('FakeError', () => {
+    await captureOnError('FakeError', async () => {
         error.value = true;
-        passTime();
+        await asyncPassTime();
     });
     assertBody(`a{b div.aberdeen-error{"Error"}} d`);
 });
 
-test('Error handling - can disable the default error message', () => {
-    captureOnError('FakeError', () => {
+test('Error handling - can disable the default error message', async () => {
+    await captureOnError('FakeError', async () => {
         mount(document.body, () => {
             $('a', () => {
                 $('b');
@@ -61,14 +61,14 @@ test('Error handling - can disable the default error message', () => {
             });
             $('d');
         });
-        passTime();
+        await asyncPassTime();
     }, false);
     assertBody(`a{b} d`);
 });
 
 test('Error handling - continue rendering after an error in onEach', async () => {
     let data = proxy(['a','b','c']);
-    captureOnError('noSuchFunction', () => {
+    await captureOnError('noSuchFunction', async () => {
         mount(document.body, () => {
             onEach(data, (item, index) => {
                 if (index % 2) {
@@ -78,18 +78,18 @@ test('Error handling - continue rendering after an error in onEach', async () =>
                 $({text: item});
             });
         });
-        passTime();
+        await asyncPassTime();
     }, false);
     assertBody(`"a" "c"`);
     data.push('d');
     data.push('e');
-    captureOnError('noSuchFunction', passTime, false);
+    await captureOnError('noSuchFunction', asyncPassTime, false);
     assertBody(`"a" "c" "e"`);
 });
 
 test('Error handling - continue rendering after an error in onEach sort', async () => {
     let data = proxy(['a','b','c']);
-    captureOnError('noSuchFunction', () => {
+    await captureOnError('noSuchFunction', async() => {
         mount(document.body, () => {
             onEach(data, (item, index) => {
                 $({text: item});
@@ -101,12 +101,12 @@ test('Error handling - continue rendering after an error in onEach sort', async 
                 return -index;
             });
         });
-        passTime();
+        await asyncPassTime();
     });
     assertBody(`"c" "a"`);
     data.push('d');
     data.push('e');
-    captureOnError('noSuchFunction', passTime);
+    await captureOnError('noSuchFunction', asyncPassTime);
     assertBody(`"e" "c" "a"`);
 });
 
@@ -135,5 +135,5 @@ test('Error handling - breaks up long update->observe recursions', async () => {
     observe(() => {
         data.b = data.a + 1;
     });
-    captureOnError('recursive', passTime);
+    await captureOnError('recursive', asyncPassTime);
 });

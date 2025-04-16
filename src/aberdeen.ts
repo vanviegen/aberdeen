@@ -23,7 +23,8 @@ export type DatumType = TargetType | boolean | number | string | null | undefine
 function queue(runner: QueueRunner) {
 	if (!sortedQueue) {
 		sortedQueue = new ReverseSortedSet<QueueRunner>('prio');
-		setTimeout(runQueue, 0);
+		requestAnimationFrame(runQueue);
+		// setTimeout(runQueue, 0);
 	} else if (!(runQueueDepth&1)) {
 		runQueueDepth++; // Make it uneven
 		if (runQueueDepth > 98) {
@@ -80,21 +81,6 @@ export function runQueue(): void {
 let domWaiters: (() => void)[] = [];
 let domInReadPhase = false;
 
-/**
-* A promise-like object that you can `await`. It will resolve *after* the current batch
-* of DOM-write operations has completed. This is the best time to retrieve DOM properties
-* that dependent on a layout being completed, such as `offsetHeight`.
-*
-* By batching DOM reads separately from DOM writes, this prevents the browser from
-* interleaving layout reads and writes, which can force additional layout recalculations.
-* This helps reduce visual glitches and flashes by ensuring the browser doesn't render
-* intermediate DOM states during updates.
-*
-* Unlike `setTimeout` or `requestAnimationFrame`, this mechanism ensures that DOM read
-* operations happen before any DOM writes in the same queue cycle, minimizing layout thrashing.
-* 
-* See `transitions.js` for some examples.
-*/
 /**
  * A promise-like object that resolves *after* the current batch of reactive DOM updates
  * has completed, but *before* any subsequent DOM writes in the same update cycle begin.

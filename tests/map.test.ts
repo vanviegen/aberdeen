@@ -102,7 +102,7 @@ test('multiMap transforms objects to objects', async () => {
 });
 
 test('creates derived values with map', async () => {
-    const data = proxy(21);
+    const data = proxy({value: 21} as Record<string,number>);
     // This is not really a best practice, as this creates a relatively slow iterator.
     // Use $, as shown in the next test, instead.
     const double = map(data, v => v * 2);

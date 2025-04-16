@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { $, proxy, observe, clean, unmountAll } from "../src/aberdeen";
-import { assertBody, passTime } from './helpers';
+import { assertBody, asyncPassTime } from './helpers';
 
-test('Clean triggers once when redrawing', () => {
+test('Clean triggers once when redrawing', async () => {
   let cnt1 = 0, cnt2 = 0;
   let data = proxy(1);
   
@@ -14,13 +14,13 @@ test('Clean triggers once when redrawing', () => {
     });
   });
   
-  passTime();
+  await asyncPassTime();
   assertBody(`"1"`);
   expect(cnt1).toEqual(1);
   expect(cnt2).toEqual(0);
   
   data.value = 2;
-  passTime();
+  await asyncPassTime();
   assertBody(`"2"`);
   expect(cnt1).toEqual(2);
   expect(cnt2).toEqual(1);

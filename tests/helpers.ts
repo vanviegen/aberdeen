@@ -51,16 +51,16 @@ export function assertCss(...expected: string[]) {
 }
 
 
-export function assertThrow(what: string, func: ()=>void): void;
-export function assertThrow(func: ()=>void): void;
+export async function assertThrow(what: string, func: ()=>void): Promise<void>;
+export async function assertThrow(func: ()=>void): Promise<void>;
 
-export function assertThrow(a: any, b?: any): void {
+export async function assertThrow(a: any, b?: any): Promise<void> {
 	if (typeof a == 'function') {
 		b = a
 		a = undefined
 	}
 	try {
-		b()
+		await b()
 	} catch(e) {
         const s = ''+e
 		if (a && s.indexOf(a)<0) throw new AssertError(`wrong exception`, s, `something containing "${a}"`, true)

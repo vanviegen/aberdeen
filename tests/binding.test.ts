@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { assertBody, passTime } from "./helpers";
+import { assertBody, asyncPassTime } from "./helpers";
 import { $, proxy, ref, observe, getParentElement } from "../src/aberdeen";
 
-test('binds input values', () => {
+test('binds input values', async () => {
   let data = proxy('test');
   let inputElement;
   observe(() => {
@@ -14,16 +14,16 @@ test('binds input values', () => {
   assertBody(`input{value->test}`);
   inputElement!.value = "testx";
   inputElement!.event("input");
-  passTime();
+  await asyncPassTime();
   assertBody(`input.correct{value->testx}`);
 
   inputElement!.value = "n/a";
   inputElement!.event("input");
-  passTime();
+  await asyncPassTime();
   assertBody(`input{value->n/a}`);
 });
 
-test('binds checkboxes', () => {
+test('binds checkboxes', async () => {
   let data = proxy(true);
   let inputElement;
   observe(() => {
@@ -34,11 +34,11 @@ test('binds checkboxes', () => {
   assertBody(`input{type=checkbox checked->true}`);
   inputElement!.checked = false;
   inputElement!.event("input");
-  passTime();
+  await asyncPassTime();
   assertBody(`input{type=checkbox checked->false}`);
 });
 
-test('binds radio buttons', () => {
+test('binds radio buttons', async () => {
   let data = proxy('woman' as string);
   let inputElement1, inputElement2;
   observe(() => {
@@ -54,7 +54,7 @@ test('binds radio buttons', () => {
   inputElement1!.event("input");
   inputElement2!.checked = false;
   inputElement2!.event("input");
-  passTime();
+  await asyncPassTime();
   expect(data.value).toEqual('man');
 });
 
@@ -70,7 +70,7 @@ test('reads initial value when proxy is undefined', () => {
   expect(data).toEqual({input: 'a', checkbox: true, radio: 'y'});
 });
 
-test('changes DOM when proxy value is updated', () => {
+test('changes DOM when proxy value is updated', async () => {
   let data = proxy("test" as string);
   let toggle = proxy(true as boolean);
   observe(() => {
@@ -80,11 +80,11 @@ test('changes DOM when proxy value is updated', () => {
   assertBody(`input{value->test} input{type=checkbox checked->true}`);
   data.value = "changed";
   toggle.value = false;
-  passTime();
+  await asyncPassTime();
   assertBody(`input{value->changed} input{type=checkbox checked->false}`);
 });
 
-test('returns numbers for number/range typed inputs', () => {
+test('returns numbers for number/range typed inputs', async () => {
   let data = proxy("" as any);
   let inputElement;
   observe(() => {
@@ -95,10 +95,10 @@ test('returns numbers for number/range typed inputs', () => {
   assertBody(`input{type=number value->""}`);
   inputElement!.value = "123";
   inputElement!.event("input");
-  passTime();
+  await asyncPassTime();
   expect(data.value).toEqual(123);
   inputElement!.value = "";
   inputElement!.event("input");
-  passTime();
+  await asyncPassTime();
   expect(data.value).toEqual(null);
 });

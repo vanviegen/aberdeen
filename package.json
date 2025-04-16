@@ -6,7 +6,7 @@
   "devDependencies": {
     "@types/bun": "latest",
     "typedoc": "^0.28.2",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.3"
   },
   "exports": {
     ".": {
@@ -37,7 +37,7 @@
     "dist-min",
     "src"
   ],
-  "license": "ISC",
+  "license": "MIT",
   "scripts": {
     "build": "bun run build:dist && typedoc && rm -rf dist-docs/assets/aberdeen ; cp -r dist dist-docs/assets/aberdeen",
     "build:dist": "rm -rf dist dist-min && bun build src/*.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/ && bun build src/*.ts --minify --sourcemap --target browser --external '*/aberdeen.js' --outdir dist-min/ && npx tsc --emitDeclarationOnly && cd dist-min && ln -s ../dist/*.d.ts .",

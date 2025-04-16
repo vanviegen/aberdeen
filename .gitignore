@@ -3,3 +3,4 @@ coverage
 dist
 dist-min
 dist-docs
+.vscode
