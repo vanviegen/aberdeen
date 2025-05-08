@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { $, proxy, copy, MERGE, SHALLOW, clone } from "../src/aberdeen";
-import { asyncPassTime } from "./helpers";
+import { passTime } from "./helpers";
 
 test('copy replaces object values', () => {
     let data = proxy({a: 1, b: 2} as Record<string, number>);
@@ -28,16 +28,16 @@ test('clone stores and retrieves deep trees', async () => {
     expect(result).toEqual(obj);
     
     copy(data, {});
-    await asyncPassTime();
+    await passTime();
     expect(result).toEqual({});
     
     copy(data, obj);
-    await asyncPassTime();
+    await passTime();
     expect(result).toEqual(obj);
     expect(cnt).toEqual(3);
     
     copy(data, obj); // no change!
-    await asyncPassTime();
+    await passTime();
     expect(result).toEqual(obj);
     expect(cnt).toEqual(3); // should not have fired again
 });

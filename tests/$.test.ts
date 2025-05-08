@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime, assertDomUpdates } from "./helpers";
+import { assertBody, passTime, assertDomUpdates } from "./helpers";
 import { $, proxy, ref, copy, mount, observe } from "../src/aberdeen";
 
 test('creates nested nodes', () => {
@@ -24,7 +24,7 @@ test('reactively modifies attributes that have proxies as values', async () => {
 	expect(cnt).toEqual(1)
 
 	data.value = 'modified'
-	await asyncPassTime()
+	await passTime()
 	assertBody(`input{placeholder=modified} div{"modified"} p{color:modified}`)
 	expect(cnt).toEqual(1)
 })
@@ -44,14 +44,14 @@ test('reacts to conditions', async () => {
 	assertDomUpdates({new: 3, changed: 5}) // also removes unset classes
 
 	copy(data, {b: true, yes: "abc"}) // delete 'a'
-	await asyncPassTime()
+	await passTime()
 
 	assertBody(`div{span.z} input{value->abc}`)
 	expect(cnt).toEqual(1)
 	assertDomUpdates({new: 3, changed: 5+2})
 
 	data.yes = "def"
-	await asyncPassTime()
+	await passTime()
 	assertBody(`div{span.z} input{value->def}`)
 	expect(cnt).toEqual(1)
 })

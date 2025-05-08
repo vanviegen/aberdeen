@@ -10,10 +10,10 @@ This is a complete Aberdeen application:
 
 ```javascript
 import {$} from 'aberdeen';
-$('h1:Hello world');
+$('h3:Hello world');
 ```
 
-It adds a `<h1>Hello world</h1>` element to the `<body>` (which is the default mount point).
+It adds a `<h3>Hello world</h3>` element to the `<body>` (which is the default mount point).
 
 The {@link aberdeen.$} function accepts various forms of arguments, which can be combined.
 
@@ -90,7 +90,7 @@ const user = proxy({
 });
 
 $('div', () => {
-    $(`h1:Hello, ${user.name}!`);
+    $(`h3:Hello, ${user.name}!`);
     $(`p:You are ${user.age} years old.`);
 });
 
@@ -102,7 +102,7 @@ setInterval(() => {
 
 As the content function of our `div` is subscribed to both `user.name` and `user.age`, modifying either of these would trigger a re-run of that function, first undoing any side-effects (most notably: inserting DOM elements) of the earlier run. If, however `user.city` is changed, no re-run would be triggered as the function is not subscribed to that property.
 
-So if either property changes, both the `<h1>` and `<p>` are recreated as the inner most observer function tracking the changes is re-run. If you want to redraw on an even granular level, you can of course:
+So if either property changes, both the `<h3>` and `<p>` are recreated as the inner most observer function tracking the changes is re-run. If you want to redraw on an even granular level, you can of course:
 
 ```javascript
 const user = proxy({
@@ -111,7 +111,7 @@ const user = proxy({
 });
 
 $('div', () => {
-    $(`h1`, () => {
+    $(`h3`, () => {
         console.log('Name draws:', user.name)
         $(`:Hello, ${user.name}!`);
     });
@@ -126,19 +126,41 @@ setInterval(() => {
 }, 2000);
 ```
 
-Now, updating `user.name` would only cause the *Hello* text node to be replaced, leaving the `<div>`, `<h1>` and `<p>` elements as they were.
+Now, updating `user.name` would only cause the *Hello* text node to be replaced, leaving the `<div>`, `<h3>` and `<p>` elements as they were.
+
+### Conditional rendering
+
+Within an observer function (such as created by passing a function to {@link aberdeen.$}), you can use regular JavaScript logic. Like `if` and `else`, for instance:
+
+```javascript
+const user = proxy({
+    loggedIn: false
+});
+
+$('div', () => {
+    if (user.loggedIn) {
+        $('button.outline:Logout', {
+            click: () => user.loggedIn = false
+        });
+    } else {
+        $('button:Login', {
+            click: () => user.loggedIn = true
+        });
+    }
+});
+```
 
 ### Observable primitive values
 
-Our {@link aberdeen.proxy} method uses wraps an object in a JavaScript [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy). As this doesn't work for primitive values (like numbers, strings and booleans), the method will wrap these types in an object in order to make it observable. The observable value is made available as its `.value` property.
+The {@link aberdeen.proxy} method wraps an object in a JavaScript [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy). As this doesn't work for primitive values (like numbers, strings and booleans), the method will *create* an object in order to make it observable. The observable value is made available as its `.value` property.
 
 ```javascript
-const count = proxy(42);
+const cnt = proxy(42);
 $('div.row', () => {
     // This scope will not have to redraw
-    $('button:-', {click: () => count.value--});
-    $('div', {text: count});
-    $('button:+', {click: () => count.value++});
+    $('button:-', {click: () => cnt.value--});
+    $('div', {text: cnt});
+    $('button:+', {click: () => cnt.value++});
 });
 ```
 
@@ -153,8 +175,9 @@ You can create observable arrays too. They work just like regular arrays, apart 
 ```javascript
 const items = proxy([1, 2, 3]);
 
-$('h1', () => {
-    $(':First item: '+items[0]);
+$('h3', () => {
+    // This subscribes to the length of the array and to the value at `items.length-1` in the array.
+    $(':Last item: '+items[items.length-1]);
 })
 
 $('ul', () => {
@@ -167,6 +190,28 @@ $('ul', () => {
 
 $('button:Add', {click: () => items.push(items.length+1)});
 ```
+
+### TypeScript and classes
+
+Though this tutorial mostly uses plain JavaScript to explain the concepts, Aberdeen is written in and aimed towards TypeScript.
+
+Class instances, like any other object, can be proxied to make them reactive.
+
+```typescript
+class Widget {
+    constructor(public name: string, public width: number, public height: number) {}
+    grow() { this.width *= 2; }
+    toString() { return `${this.name}Widget (${this.width}x${this.height})`; }
+}
+
+let graph: Widget = proxy(new Widget('Graph', 200, 100));
+
+$('h3', () => $(':'+graph));
+$('button:Grow', {click: () => graph.grow()});
+```
+
+The type returned by {@link aberdeen.proxy} matches the input type, meaning the type system does not distinguish proxied and unproxied objects. That makes sense, as they have the exact same methods and properties (though proxied objects may have additional side effects).
+
 
 ### Efficient list rendering with onEach
 For rendering lists efficiently, Aberdeen provides the {@link aberdeen.onEach} function. It takes three arguments:
@@ -184,16 +229,14 @@ const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0
 
 // Make random mutations
 setInterval(() => {
-    delete items[randomInt(10)];
-    items[randomInt(10)] = {
-        label: randomWord(),
-        prio: randomInt(5)
-    };
+    if (randomInt(3)) items[randomInt(7)] = {label: randomWord(), prio: randomInt(4)};
+    else delete items[randomInt(7)];
 }, 500);
 
 $('div.row.wide', {$height: '250px'}, () => {
     $('div.box:By index', () => {
         onEach(items, (item, index) => {
+            // Called only for items that are created/updated
             $(`li:${item.label} (prio ${item.prio})`)
         });
     })
@@ -210,7 +253,7 @@ $('div.row.wide', {$height: '250px'}, () => {
 })
 ```
 
-We can also use {@link aberdeen.onEach} to reactively iterate objects. In that case, the render and order functions receive `(value, key)` (instead of `(value, index)`) as their arguments.
+We can also use {@link aberdeen.onEach} to reactively iterate *objects*. In that case, the render and order functions receive `(value, key)` instead of `(value, index)` as their arguments.
 
 ```javascript
 const pairs = proxy({A: 'Y', B: 'X',});
@@ -232,6 +275,8 @@ $('div.row.wide', {$marginTop: '1em'}, () => {
     })
 })
 ```
+
+Note the use of the provided {@link aberdeen.invertString} function to reverse-sort by a string value.
 
 ### Two-way binding
 Aberdeen makes it easy to create two-way bindings between form elements (the various `<input>` types, `<textarea>` and `<select>`) and your data, by passing an observable object with a `.value` as `bind:` property to {@link aberdeen.$}.
@@ -273,28 +318,7 @@ $('div.box', () => {
 });
 ```
 
-### Conditional rendering
-You can conditionally render elements based on your data:
-
-```javascript
-const user = proxy({
-    loggedIn: false
-});
-
-$('div', () => {
-    if (user.loggedIn) {
-        $('button:Logout', {
-            click: () => user.loggedIn = false
-        });
-    } else {
-        $('button:Login', {
-            click: () => user.loggedIn = true
-        });
-    }
-});
-```
-
-### CSS and styling
+### CSS
 Through the {@link aberdeen.insertCss} function, Aberdeen provides a way to create component-local CSS.
 
 ```javascript
@@ -315,12 +339,51 @@ const myBoxStyle = insertCss({
     }
 });
 
-// myBoxStyle is now something like "AbdStl1". Let's apply it:
+// myBoxStyle is now something like ".AbdStl1", the name for a generated CSS class.
+// Here's how to use it:
 $('div.box', myBoxStyle, 'button:Click me');
 ```
 
-### Transitions and animations
-Aberdeen provides transition helpers for smooth element entry and exit:
+This allows you to create single-file components with advanced CSS rules. By enabling the `global` flag, it's also possible to add CSS without a class prefix.
+
+Of course, if you dislike JavaScript-based CSS and/or prefer to use some other way to style your components, you can just ignore this Aberdeen function.
+
+### Transitions
+Aberdeen allows you to easily apply transitions on element creation and element destruction:
+
+```javascript
+let titleStyle = insertCss({
+    transition: "all 1s ease-out",
+    transformOrigin: "top left",
+    "&.faded": {
+        opacity: 0,
+    },
+    "&.imploded": {
+        transform: "scale(0.1)",
+    },
+    "&.exploded": {
+        transform: "scale(5)",
+    },
+});
+
+const show = proxy(true);
+$('label', () => {
+    $('input', {type: 'checkbox', bind: show});
+    $(':Show title');
+});
+$(() => {
+    if (!show.value) return;
+    $('h2:(Dis)appearing text', titleStyle, {
+        create: '.faded.imploded',
+        destroy: '.faded.exploded'
+    });
+});
+```
+
+- The creation transition works by briefly adding the given CSS classes on element creation, and immediately removing them after the initial browser layout has taken place.
+- The destruction transition works by delaying the removal of the element from the DOM by two seconds (currently hardcoded - should be enough for any reasonable transition), while adding the given CSS classes.
+
+Though this approach is easy (you just need to provide some CSS), you may require more control over the specifics, for instance in order to animate the layout height (or width) taken by the element as well. (Note how the document height changes in the example above are rather ugly.) For this, `create` and `destroy` may be functions instead of CSS class names. We won't go into the details here, but Aberdeen provides ready-to-use functions (that can be used as examples for your own transition) for smooth element creation and destruction:
 
 ```javascript
 import { $, proxy, onEach } from 'aberdeen';
@@ -333,11 +396,8 @@ const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0
 
 // Make random mutations
 setInterval(() => {
-    delete items[randomInt(10)];
-    items[randomInt(10)] = {
-        label: randomWord(),
-        prio: randomInt(5)
-    };
+    if (randomInt(3)) items[randomInt(7)] = {label: randomWord(), prio: randomInt(4)};
+    else delete items[randomInt(7)];
 }, 500);
 
 $('div.row.wide', {$height: '250px'}, () => {
@@ -356,155 +416,75 @@ $('div.row.wide', {$height: '250px'}, () => {
             $(`li:${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
         }, item => [-item.prio, item.label]);
     })
+});
+```
+
+### Derived values
+An observer scope doesn't *need* to create DOM elements. It may also perform other side effects, such as modifying other observable scopes. For instance:
+
+```javascript
+// NOTE: See below for a better way.
+const original = proxy(1);
+const derived = proxy();
+$(() => {
+    derived.value = original.value * 42;
+});
+
+$('h3', {text: derived});
+$('button:Increment', {click: () => original.value++});
+```
+
+The {@link aberdeen.observe} function makes the above a little easier. It works just like passing a function to {@link aberdeen.$}, creating an observer, the only difference being that the value returned by the function is reactively assigned to the `value` property of the observable object returned by `observe`. So the above could also be written as:
+
+```javascript
+const original = proxy(1);
+const derived = observe(() => original.value * 42);
+
+$('h3', {text: derived});
+$('button:Increment', {click: () => original.value++});
+```
+
+For deriving values from (possibly large) arrays or objects, Aberdeen provides a set of functions that will allow fast incremental changes: {@link aberdeen.map} (each item becomes zero or one derived item), {@link aberdeen.multiMap} (each item becomes any number of derived items), {@link aberdeen.count} (reactively counts the number of object properties), {@link aberdeen.isEmpty} (true when the object/array has no items) and {@link aberdeen.partition} (sorts each item into one or more buckets). An example:
+
+```javascript
+import * as aberdeen from 'aberdeen';
+const {$, proxy} = aberdeen;
+
+// Create some random data
+const people = proxy({});
+const randomInt = (max) => parseInt(Math.random() * max);
+setInterval(() => {
+    people[randomInt(250)] = {height: 150+randomInt(60), weight: 45+randomInt(90)};
+}, 250);
+
+// Do some mapping, counting and observing
+const totalCount = aberdeen.count(people);
+const bmis = aberdeen.map(people,
+    person => Math.round(person.weight / ((person.height/100) ** 2))
+);
+const overweightBmis = aberdeen.map(bmis, // Use map() as a filter
+    bmi => bmi > 25 ? bmi : undefined
+); 
+const overweightCount = aberdeen.count(overweightBmis);
+const message = aberdeen.observe(
+    () => `There are ${totalCount.value} people, of which ${overweightCount.value} are overweight.`
+);
+
+// Show the results
+$('p', {text: message});
+$(() => {
+    // isEmpty only causes a re-run when count changes between zero and non-zero
+    if (aberdeen.isEmpty(overweightBmis)) return;
+    $('p:These are their BMIs:', () => {
+        aberdeen.onEach(overweightBmis, bmi => $(': '+bmi), bmi => -bmi);
+        // Sort by descending BMI
+    });
 })
 ```
 
-### Computed values and side effects
-While Aberdeen doesn't have explicit computed properties, you can create derived values within observer functions:
+### Further reading
 
-```javascript
-const cart = proxy([
-    { name: 'Item 1', price: 10, quantity: 2 },
-    { name: 'Item 2', price: 15, quantity: 1 }
-]);
+If you've understood all/most of the above, you should be ready to get going with Aberdeen! You may also find these helpful:
 
-$('div', () => {
-    // Calculate total whenever cart changes
-    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    
-    $('p', `:Total: $${total.toFixed(2)}`);
-});
-```
-
-For side effects, you can use the `observe` function:
-
-```javascript
-import { observe } from 'aberdeen';
-
-// Run this function whenever user.name changes
-observe(() => {
-    console.log(`Name changed to: ${user.name}`);
-    // You could also save to localStorage, make API calls, etc.
-});
-```
-
-### Putting it all together
-Here's a more complete example combining these concepts:
-
-```javascript
-import { $, proxy, ref, onEach, observe } from 'aberdeen';
-import { grow, shrink } from 'aberdeen/transitions';
-
-// Create our state
-const todos = proxy([]);
-const newTodo = proxy({ text: '' });
-const filter = proxy('all');  // 'all', 'active', or 'completed'
-
-// Add a new todo
-function addTodo() {
-    if (newTodo.text.trim()) {
-        todos.push({
-            id: Date.now(),
-            text: newTodo.text,
-            completed: false
-        });
-        newTodo.text = '';
-    }
-}
-
-// Save todos to localStorage whenever they change
-observe(() => {
-    localStorage.setItem('todos', JSON.stringify(todos));
-}, [todos]);
-
-// Load saved todos on startup
-try {
-    const saved = JSON.parse(localStorage.getItem('todos'));
-    if (Array.isArray(saved)) {
-        todos.push(...saved);
-    }
-} catch (e) {
-    console.error('Failed to load todos', e);
-}
-
-// Render our app
-$('div.todo-app', () => {
-    $('h1:Todo App');
-    
-    // Form to add new todos
-    $('form', {
-        submit: (e) => {
-            e.preventDefault();
-            addTodo();
-        }
-    }, () => {
-        $('input', {
-            placeholder: 'What needs to be done?',
-            bind: ref(newTodo, 'text'),
-            autofocus: true
-        });
-        $('button:Add', { type: 'submit' });
-    });
-    
-    // Filter controls
-    $('div.filters', () => {
-        for (const option of ['all', 'active', 'completed']) {
-            $('button', {
-                class: { selected: filter.value === option },
-                click: () => filter.value = option
-            }, `:${option.charAt(0).toUpperCase() + option.slice(1)}`);
-        }
-    });
-    
-    // Todo list
-    $('ul.todo-list', () => {
-        // Filter todos based on selected filter
-        const filteredTodos = todos.filter(todo => {
-            if (filter.value === 'active') return !todo.completed;
-            if (filter.value === 'completed') return todo.completed;
-            return true;
-        });
-        
-        if (filteredTodos.length === 0) {
-            $('li.empty', `:No ${filter.value} todos`);
-        } else {
-            onEach(filteredTodos, (todo, index) => {
-                $('li', {
-                    class: { completed: todo.completed },
-                    create: grow,
-                    destroy: shrink
-                }, () => {
-                    $('input', {
-                        type: 'checkbox',
-                        checked: todo.completed,
-                        change: () => todo.completed = !todo.completed
-                    });
-                    $('span', `:${todo.text}`);
-                    $('button:×', {
-                        click: () => {
-                            const idx = todos.findIndex(t => t.id === todo.id);
-                            if (idx >= 0) todos.splice(idx, 1);
-                        }
-                    });
-                });
-            }, todo => todo.id);
-        }
-    });
-    
-    // Footer with stats
-    $('footer', () => {
-        const remaining = todos.filter(t => !t.completed).length;
-        $(`span:${remaining} item${remaining === 1 ? '' : 's'} left`);
-        
-        if (todos.some(t => t.completed)) {
-            $('button:Clear completed', {
-                click: () => {
-                    for (let i = todos.length - 1; i >= 0; i--) {
-                        if (todos[i].completed) todos.splice(i, 1);
-                    }
-                }
-            });
-        }
-    });
-});
-```
+- [Reference documentation](https://vanviegen.github.io/aberdeen/modules.html)
+- [Examples](https://vanviegen.github.io/aberdeen/README/#example-code)

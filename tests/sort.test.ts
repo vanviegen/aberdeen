@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime } from "./helpers";
+import { assertBody, passTime } from "./helpers";
 import { $, proxy, observe, onEach, mount, invertString } from "../src/aberdeen";
 
 test('uses custom sort orders', async () => {
@@ -23,23 +23,23 @@ test('uses custom sort orders', async () => {
   assertBody(`a b c d e`);
 
   sortFunc.value = (item: any) => ''+item.x;
-  await asyncPassTime();
+  await passTime();
   assertBody(`c d a b e`);
 
   sortFunc.value = (item: any) => item.z;
-  await asyncPassTime();
+  await passTime();
   assertBody(`a c b e d`);
   
   sortFunc.value = (item: any) => [item.y, item.x];
-  await asyncPassTime();
+  await passTime();
   assertBody(`e b a c d`);
 
   sortFunc.value = (item: any) => item.name;
-  await asyncPassTime();
+  await passTime();
   assertBody(`d c a b e`);
 
   sortFunc.value = (item: any) => [123, invertString(item.name), "dummy"];
-  await asyncPassTime();
+  await passTime();
   assertBody(`e b a c d`);
 });
 
@@ -67,13 +67,13 @@ test('changes position when sort key changes', async () => {
   expect(c).toEqual(5);
   
   data.c = -20;
-  await asyncPassTime();
+  await passTime();
   assertBody(`c e d b a`);
   expect(p).toEqual(1);
   expect(c).toEqual(6);
   
   data.e = 4;
-  await asyncPassTime();
+  await passTime();
   assertBody(`c d b e a`);
   expect(p).toEqual(1);
   expect(c).toEqual(7);
@@ -97,7 +97,7 @@ test('have items disappear when the sort key is null', async () => {
   
   data.a = false;
   data.d = true;
-  await asyncPassTime();
+  await passTime();
   assertBody(`c d`);
   expect(p).toEqual(1);
   expect(c).toEqual(3);

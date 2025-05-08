@@ -13,9 +13,11 @@ iframe {
     overflow-y: auto;
     padding: 8px;
 }
+.console-output > *:not(:first-child) { padding: 4px 0; border-top: 1px solid #8883; }
 .console-output > .error { color: #faa; }
 .console-output > .info { color: #afa; font-weight: bold; }
 .console-output > .debug { color: #ccc; }
+.console-output > .orange { color: orange; }
 
 
 .tabs {
@@ -114,6 +116,7 @@ input {
     border: 2px solid white;
     width: 100%;
     margin: 0;
+    font-size: 1rem;
 }
 input:focus {
     border-color: var(--link-color);
@@ -143,6 +146,18 @@ p + p {
 h1:first-child,h2:first-child,h3:first-child,h4:first-child,h5:first-child,h6:first-child {
     margin-top: 0;
 }
+code {
+    border: 1px solid #bebe00;
+    color: #bebe00;
+    padding: 2px 4px;
+    margin: 0 4px;
+    border-radius: 3px;
+}
+a {
+    text-decoration: none;
+    color: var(--link-color);
+    cursor: pointer;
+}
 `;
 
 let iframeCount = 0;
@@ -156,7 +171,7 @@ function iframeCode(iframeId) {
     // Request by parent for an update (when the iframe becomes visible)
     addEventListener('message', update);
     
-    function toLogString(val, maxDepth = 3, indent = "", seen = new WeakMap()) {
+    function toLogString(val, maxDepth = 4, indent = "", seen = new WeakSet()) {
         if (val === null) return "null";
         if (val === undefined) return "undefined";
         if (typeof val === "string") return JSON.stringify(val);
@@ -167,21 +182,25 @@ function iframeCode(iframeId) {
         if (val instanceof Error) return (val.stack || val.message).replace(/\n/g, "\n  " + indent);
         
         if (seen.has(val)) return "<Circular>";
-        seen.set(val, true);
+        seen.add(val);
 
-        const newIndent = indent + '  ';
+        try {
+            const newIndent = indent + '  ';
 
-        if (Array.isArray(val)) {
-            if (!maxDepth) return "[...]";
-            const items = val.map(item => toLogString(item, maxDepth - 1, newIndent, seen)).join('');
-            return `[\n${items}${indent}]`;
+            if (Array.isArray(val)) {
+                if (!maxDepth) return "[...]";
+                const items = val.map(item => `${newIndent}${toLogString(item, maxDepth - 1, newIndent, seen)}\n`).join('');
+                return `[\n${items}${indent}]`;
+            }
+            
+            let name = val.constructor.name || '';
+            if (name === 'Object') name = '';
+            if (!maxDepth) return `${name}{...}`;
+            const props = Object.entries(val).map(([key, val]) => `${newIndent}${key}: ${toLogString(val, maxDepth - 1, newIndent, seen)}\n`).join('');
+            return `${name}{\n${props}${indent}}`
+        } finally {
+            seen.delete(val);
         }
-        
-        const name = val.constructor.name || '';
-        if (name === 'Object') name = '';
-        if (!maxDepth) return `${name}{...}`;
-        const props = Object.entries(val).map(([key, val]) => `${newIndent}${key}: ${toLogString(val, maxDepth - 1, newIndent, seen)}\n`).join('');
-        return `${name}{\n${props}${indent}}`
     }
     
     function createLogFunction(level) {
@@ -196,12 +215,13 @@ function iframeCode(iframeId) {
         log: createLogFunction('log'),
         error: createLogFunction('error'),
         info: createLogFunction('info'),
-        debug: createLogFunction('debug')
+        debug: createLogFunction('debug'),
+        warn: createLogFunction('warn')
     };
     
     // Catch unhandled errors
     window.onerror = (message, source, lineno, colno, error) => {
-        console.error(message);
+        console.error(error);
         return false;
     };
     
@@ -237,7 +257,8 @@ function iframeCode(iframeId) {
 }
 
 addEventListener('DOMContentLoaded', () => {
-    for(let codeE of document.querySelectorAll('code[class="javascript"]')) {
+    for(let codeE of document.querySelectorAll('code[class="javascript"],code[class="typescript"]')) {
+        const language = codeE.getAttribute('class');
         const preE = codeE.parentElement;
         if (preE.tagName !== 'PRE') continue;
         let js = '';
@@ -256,7 +277,7 @@ addEventListener('DOMContentLoaded', () => {
         );
         if (js === orgJs) {
             // No imports have been done, do our default input
-            js = `import {$,clean,clone,copy,countProps,DOM_READ_PHASE,DOM_WRITE_PHASE,dump,getParentElement,immediateObserve,insertCss,invertString,isEmpty,map,MERGE,mount,multiMap,observe,onEach,partition,peek,proxy,ref,runQueue,setErrorHandler,SHALLOW,unmountAll,unproxy} from "${absBase}assets/aberdeen/aberdeen.js";\n\n` + js;
+            js = `import {$,clean,clone,copy,count,dump,getParentElement,immediateObserve,insertCss,invertString,isEmpty,map,MERGE,mount,multiMap,observe,onEach,partition,peek,proxy,ref,runQueue,setErrorHandler,SHALLOW,unmountAll,unproxy} from "${absBase}assets/aberdeen/aberdeen.js";\n\n` + js;
         }
         
         // Create edit button
@@ -267,7 +288,7 @@ addEventListener('DOMContentLoaded', () => {
         editButtonE.addEventListener('click', () => {
             preE.innerHTML = '';
             let reloadTimeout = null;
-            loadEditor(preE, js, (newJs) => {
+            loadEditor(preE, language, js, (newJs) => {
                 js = newJs;
                 clearTimeout(reloadTimeout);
                 reloadTimeout = setTimeout(reloadIframe, 250);
@@ -292,7 +313,7 @@ addEventListener('DOMContentLoaded', () => {
                     htmlE.innerText = e.data.html.trim();
                 }
                 if (e.data.level) {
-                    const msg = document.createElement('li');
+                    const msg = document.createElement('div');
                     msg.className = e.data.level;
                     msg.textContent = e.data.log;
                     consoleE.appendChild(msg);
@@ -346,7 +367,7 @@ addEventListener('DOMContentLoaded', () => {
             tabs[name] = {select, tabE};
         }
         
-        let hasLayout = !!js.match(/\$\(\s*['"`]/);
+        let hasLayout = !!js.match(/\$\(\s*['"`]|\bdump\(|\btext:/);
         let hasInteraction = !!js.match(/\bbind:|\bclick:|\binput:|\bsetInterval\b|\bsetTimeout\b/);
         tabs[hasLayout ? (hasInteraction ? 'Browser' : 'HTML') : 'Console'].select();
         
@@ -373,9 +394,10 @@ addEventListener('DOMContentLoaded', () => {
     <script>
         (${iframeCode.toString()})(${iframeId});
     </script>
-    <script type="module">
-        ${js}
+    <script type="${language==='typescript' ? 'text/typescript' : 'module'}">
+    ${js}
     </script>
+    <script type="module" src="https://unpkg.com/typestripped@latest/browser"></script>
 </head>
 <body>
 </body>
@@ -391,7 +413,7 @@ addEventListener('DOMContentLoaded', () => {
     }
     
 })
-async function loadEditor(preE, js, onChange) {
+async function loadEditor(preE, language, code, onChange) {
     if (!window.monaco) {
         await new Promise(resolve => {
             const script = document.createElement('script');
@@ -412,8 +434,8 @@ async function loadEditor(preE, js, onChange) {
     
     // Create editor
     const editor = monaco.editor.create(container, {
-        value: js,
-        language: 'javascript',
+        value: code,
+        language: language,
         theme: 'vs-dark',
         minimap: {
             enabled: false

@@ -23,8 +23,7 @@ export type DatumType = TargetType | boolean | number | string | null | undefine
 function queue(runner: QueueRunner) {
 	if (!sortedQueue) {
 		sortedQueue = new ReverseSortedSet<QueueRunner>('prio');
-		requestAnimationFrame(runQueue);
-		// setTimeout(runQueue, 0);
+		setTimeout(runQueue, 0);
 	} else if (!(runQueueDepth&1)) {
 		runQueueDepth++; // Make it uneven
 		if (runQueueDepth > 98) {
@@ -50,23 +49,25 @@ function queue(runner: QueueRunner) {
  *
  * @example
  * ```typescript
- * const data = observe("before");
+ * const data = proxy("before");
+ * 
  * $({text: data});
- * // The DOM now contains `before`.
+ * console.log(1, document.body.innerHTML); // before
  *
- * // Schedule an update
+ * // Make an update that should cause the DOM to change.
  * data.value = "after";
  *
  * // Normally, the DOM update would happen after a timeout.
- * // But we need it now:
+ * // But this causes an immediate update:
  * runQueue();
- * // The DOM now contains "after".
+ * 
+ * console.log(2, document.body.innerHTML); // after
  * ```
  */
 export function runQueue(): void {
 	let time = Date.now();
-	while(true) {
-		const runner = sortedQueue!.fetchLast();
+	while(sortedQueue) {
+		const runner = sortedQueue.fetchLast();
 		if (!runner) break;
 		if (runQueueDepth&1) runQueueDepth++; // Make it even
 		runner.queueRun();
@@ -74,105 +75,7 @@ export function runQueue(): void {
 	sortedQueue = undefined;
 	runQueueDepth = 0;
 	time = Date.now() - time;
-	if (time>1) console.debug(`Aberdeen queue took ${time}ms`)
-}
-
-
-let domWaiters: (() => void)[] = [];
-let domInReadPhase = false;
-
-/**
- * A promise-like object that resolves *after* the current batch of reactive DOM updates
- * has completed, but *before* any subsequent DOM writes in the same update cycle begin.
- *
- * This provides a safe point to read DOM properties that depend on the latest layout,
- * such as element dimensions (`offsetHeight`, `offsetWidth`) or positions, without
- * causing layout thrashing. Layout thrashing occurs when the browser is forced to
- * recalculate layouts repeatedly due to interleaved DOM reads and writes within the
- * same synchronous block of code.
- *
- * By awaiting `DOM_READ_PHASE`, you ensure your read operations are batched together
- * after Aberdeen has finished its DOM modifications for the current update cycle.
- *
- * @example
- * ```typescript
- * const show = observe(false);
- *
- * $('div', () => {
- *     if (show.value) {
- *         $('p:Hello', {
- *             create: async (element: HTMLElement) => {
- *                 // Wait until the element is definitely in the DOM and layout is stable
- *                 await DOM_READ_PHASE;
- *                 // Now it's safe to read dimensions
- *                 console.log('Paragraph height:', element.offsetHeight);
- *                
- *                 // If you need to write based on the read, use DOM_WRITE_PHASE
- *                 await DOM_WRITE_PHASE;
- *                 element.style.opacity = '1'; // Start a transition, for example
- *             }
- *         });
- *     }
- * });
- * ```
- *
- * @see {@link DOM_WRITE_PHASE} for the subsequent phase optimal for writing DOM changes.
- */
-export const DOM_READ_PHASE = {
-	/** The promise-like `then` method, which allows this object to be `await`ed. */
-	then: function(fulfilled: () => void) {
-		if (domInReadPhase) fulfilled();
-		else {
-			if (!domWaiters.length) queue(DOM_PHASE_RUNNER);
-			domWaiters.push(fulfilled);
-		}
-		return this;
-	}
-};
-
-
-/**
- * A promise-like object that resolves *after* the {@link DOM_READ_PHASE} (if any reads
- * were scheduled) and after Aberdeen's reactive DOM updates for the current cycle
- * have completed.
- *
- * This provides a safe point to perform manual DOM manipulations or apply styles/classes
- * that might trigger transitions or rely on measurements taken during the read phase.
- * By batching these writes after reads and reactive updates, it helps prevent layout
- * thrashing and visual glitches.
- *
- * Use this when you need to modify the DOM based on its state *after* the latest
- * reactive updates have been applied.
- *
- * @see {@link DOM_READ_PHASE} for the preceding phase optimal for reading DOM properties, and for an example.
- */
-
-export const DOM_WRITE_PHASE = {
-	/** The promise-like `then` method, which allows this object to be `await`ed. */
-	then: function(fulfilled: () => void) {
-		if (!domInReadPhase) fulfilled();
-		else {
-			if (!domWaiters.length) queue(DOM_PHASE_RUNNER);
-			domWaiters.push(fulfilled);
-		}
-		return this;
-	}
-}
-
-const DOM_PHASE_RUNNER = {
-	prio: Number.MIN_SAFE_INTEGER, // after everything else is done
-	queueRun: function() {
-		let waiters = domWaiters;
-		domWaiters = [];
-		domInReadPhase = !domInReadPhase;
-		for(let waiter of waiters) {
-			try {
-				waiter();
-			} catch(e) {
-				handleError(e, false);
-			}
-		}
-	}
+	if (time>1) console.debug(`Aberdeen queue took ${time}ms`);
 }
 
 
@@ -222,15 +125,14 @@ function partToStr(part: number|string): string {
  *
  * @example
  * ```typescript
- * const users = observe([
+ * const users = proxy([
  *     { id: 1, name: 'Charlie', score: 95 },
  *     { id: 2, name: 'Alice', score: 100 },
  *     { id: 3, name: 'Bob', score: 90 },
  * ]);
  *
- * // Sort users by score descending
  * onEach(users, (user) => {
- *     $('p', `${user.name}: ${user.score}`);
+ *     $(`p:${user.name}: ${user.score}`);
  * }, (user) => invertString(user.name)); // Reverse alphabetic order
  * ```
  *
@@ -285,7 +187,12 @@ abstract class Scope implements QueueRunner {
 abstract class ContentScope extends Scope {
 	// The list of clean functions to be called when this scope is cleaned. These can
 	// be for child scopes, subscriptions as well as `clean(..)` hooks.
-	cleaners: Array<{delete: (scope: Scope) => void} | (() => void)> = [];
+	cleaners: Array<{delete: (scope: Scope) => void} | (() => void)>;
+
+	constructor(cleaners: Array<{delete: (scope: Scope) => void} | (() => void)> = []) {
+		super();
+		this.cleaners = cleaners;
+	}
 
 	lastChild: Node | Scope | undefined;
 
@@ -343,8 +250,10 @@ class ChainedScope extends ContentScope {
 	constructor(
 		// The parent DOM element we'll add our child nodes to.
 		public parentElement: Element,
+		// When true, we share our 'cleaners' list with the parent scope.
+		useParentCleaners: boolean = false,
 	) {
-		super();
+		super(useParentCleaners ? currentScope.cleaners : []);
 		if (parentElement === currentScope.parentElement) {
 			// If `currentScope` is not actually a ChainedScope, prevSibling will be undefined, as intended
 			this.prevSibling = currentScope.getChildPrevSibling();
@@ -353,7 +262,7 @@ class ChainedScope extends ContentScope {
 
 		// We're always adding ourselve as a cleaner, in order to run our own cleaners
 		// and to remove ourselve from the queue (if we happen to be in there).
-		currentScope.cleaners.push(this);
+		if (!useParentCleaners) currentScope.cleaners.push(this);
 	}
 
 	getPrecedingNode(): Node | undefined {
@@ -862,21 +771,21 @@ export function onEach<K extends string|number|symbol,T>(target: Record<K,undefi
  *
  * @example Iterating an array
  * ```typescript
- * const items = observe(['apple', 'banana', 'cherry']);
+ * const items = proxy(['apple', 'banana', 'cherry']);
  *
  * // Basic iteration
  * onEach(items, (item, index) => $(`li:${item} (#${index})`));
  *
  * // Add a new item - the list updates automatically
- * items.push('date');
+ * setTimeout(() => items.push('durian'), 2000);
  * // Same for updates and deletes
- * items[1] = 'berry';
- * delete items[2];
+ * setTimeout(() => items[1] = 'berry', 4000);
+ * setTimeout(() => delete items[2], 6000);
  * ```
  *
  * @example Iterating an array with custom ordering
  * ```typescript
- * const users = observe([
+ * const users = proxy([
  *     { id: 3, group: 1, name: 'Charlie' },
  *     { id: 1, group: 1, name: 'Alice' },
  *     { id: 2, group: 2, name: 'Bob' },
@@ -888,21 +797,21 @@ export function onEach<K extends string|number|symbol,T>(target: Record<K,undefi
  * }, (user) => [user.group, user.name]); // Sort by group, and within each group sort by name
  * ```
  * 
- *  * @example Iterating an object
- * ```typescript
- * const config = observe({ theme: 'dark', fontSize: 14, showTips: true });
+ *  @example Iterating an object
+ * ```javascript
+ * const config = proxy({ theme: 'dark', fontSize: 14, showTips: true });
  *
  * // Display configuration options
  * $('dl', () => {
  *     onEach(config, (value, key) => {
  *         if (key === 'showTips') return; // Don't render this one
  *         $('dt:'+key);
- *         $('dd:'value);
+ *         $('dd:'+value);
  *     });
  * });
  *
  * // Change a value - the display updates automatically
- * config.fontSize = 16;
+ * setTimeout(() => config.fontSize = 16, 2000);
  * ```
  * @see {@link invertString} To easily create keys for reverse sorting.
  */
@@ -932,19 +841,22 @@ function isObjEmpty(obj: object): boolean {
  *
  * @example
  * ```typescript
- * const items = observe([]);
+ * const items = proxy([]);
  *
  * // Reactively display a message if the items array is empty
  * $('div', () => {
  *     if (isEmpty(items)) {
- *         $('p', 'No items yet!');
+ *         $('p', 'i:No items yet!');
  *     } else {
- *         // ... render items using onEach ...
+ * 		   onEach(items, item=>$('p:'+item));
  *     }
  * });
  *
  * // Adding an item will automatically remove the "No items yet!" message
- * items.push('first item');
+ * setInterval(() => {
+ *   if (!items.length || Math.random()>0.5) items.push('Item');
+ *   else items.length = 0;
+ * }, 1000)
  * ```
  */
 export function isEmpty(proxied: TargetType): boolean {
@@ -978,15 +890,15 @@ export interface ValueRef<T> {
  * 
  * @example
  * ```typescript
- * const items = observe({x: 3, y: 7} as any);
- * const count = countProps(items);
+ * const items = proxy({x: 3, y: 7} as any);
+ * const cnt = count(items);
  *
  * // Create a DOM text node for the count:
- * $('div', {text: count});
+ * $('div', {text: cnt});
  * // <div>2</div>
 
  * // Or we can use it in an {@link observe} function:
- * observe(() => console.log("The count is now", count.value));
+ * observe(() => console.log("The count is now", cnt.value));
  * // The count is now 2
  * 
  * // Adding/removing items will update the count
@@ -996,19 +908,20 @@ export interface ValueRef<T> {
  * // The count is now 3
  * ```
  */
-export function countProps(proxied: TargetType): ValueRef<number> {
+export function count(proxied: TargetType): ValueRef<number> {
 	if (proxied instanceof Array) return ref(proxied, 'length');
 
 	const target = (proxied as any)[TARGET_SYMBOL] || proxied;
+	let cnt = 0;
+	for(let k in target) if (target[k] !== undefined) cnt++;
+	
+	const result = proxy(cnt);
 	subscribe(target, ANY_SYMBOL, function(index: any, newData: DatumType, oldData: DatumType) {
 		if (oldData===newData) {}
-		else if (oldData===undefined) result.value++;
-		else if (newData===undefined) result.value--;
+		else if (oldData===undefined) result.value = ++cnt;
+		else if (newData===undefined) result.value = --cnt;
 	});
 
-	let initial = 0;
-	for(let k in target) if (target[k] !== undefined) initial++;
-	const result = proxy(initial);
 	return result;
 }
 
@@ -1154,24 +1067,38 @@ export function proxy<T extends DatumType>(target: T): ValueRef<T extends number
  * @template T - The type of the data being proxied.
  *
  * @example Object
- * ```typescript
+ * ```javascript
  * const state = proxy({ count: 0, message: 'Hello' });
  * observe(() => console.log(state.message)); // Subscribes to message
  * setTimeout(() => state.message = 'World', 1000); // Triggers the observe function
+ * setTimeout(() => state.count++, 2000); // Triggers nothing
  * ```
  *
  * @example Array
- * ```typescript
+ * ```javascript
  * const items = proxy(['a', 'b']);
  * observe(() => console.log(items.length)); // Subscribes to length
- * setTimeou(() => items.push('c'), 1000); // Triggers the observe function
+ * setTimeout(() => items.push('c'), 2000); // Triggers the observe function
  * ```
  *
  * @example Primitive
- * ```typescript
+ * ```javascript
  * const name = proxy('Aberdeen');
  * observe(() => console.log(name.value)); // Subscribes to value
- * setTimeout(() => name.value = 'UI', 1000); // Triggers the observe function
+ * setTimeout(() => name.value = 'UI', 2000); // Triggers the observe function
+ * ```
+ * 
+ * @example Class instance
+ * ```typescript
+ * class Widget {
+ *   constructor(public name: string, public width: number, public height: number) {}
+ *   grow() { this.width *= 2; }
+ *   toString() { return `${this.name}Widget (${this.width}x${this.height})`; }
+ * }
+ * let graph: Widget = proxy(new Widget('Graph', 200, 100));
+ * observe(() => console.log(''+graph));
+ * setTimeout(() => graph.grow(), 2000);
+ * setTimeout(() => graph.grow(), 4000);
  * ```
  */
 export function proxy(target: TargetType): TargetType {
@@ -1206,7 +1133,10 @@ export function proxy(target: TargetType): TargetType {
  * setTimeout(() => rawUser.name += '?', 2000);
  * 
  * // Both userProxy and rawUser end up as `{name: 'Frank!?'}`
- * setTimeout(() => console.log('final values', userProxy, rawUser), 3000);
+ * setTimeout(() => {
+ *   console.log('final proxied', userProxy)
+ *   console.log('final unproxied', rawUser)
+ * }, 3000);
  * ```
  */
 export function unproxy<T>(target: T): T {
@@ -1216,10 +1146,10 @@ export function unproxy<T>(target: T): T {
 let onDestroyMap: WeakMap<Node, string | Function | true> = new WeakMap();
 
 function destroyWithClass(element: Element, cls: string) {
-	element.classList.add(cls);
+	const classes = cls.split('.').filter(c=>c);
+	element.classList.add(...classes);
 	setTimeout(() => element.remove(), 2000);
 }
-
 
 /**
  * Recursively copies properties or array items from `src` to `dst`.
@@ -1244,21 +1174,25 @@ function destroyWithClass(element: Element, cls: string) {
  * ```typescript
  * const source = proxy({ a: 1, b: { c: 2 } });
  * const dest = proxy({ b: { d: 3 } });
- * copy(dest, source); // dest is now { a: 1, b: { c: 2 } }
+ * copy(dest, source);
+ * console.log(dest); // proxy({ a: 1, b: { c: 2 } })
  * ```
  *
  * @example MERGE
  * ```typescript
  * const source = { b: { c: 99 }, d: undefined }; // d: undefined will delete
  * const dest = proxy({ a: 1, b: { x: 5 }, d: 4 });
- * copy(dest, source, MERGE); // dest is now proxy({ a: 1, b: { c: 99, x: 5 } })
+ * copy(dest, source, MERGE);
+ * console.log(dest); // proxy({ a: 1, b: { c: 99, x: 5 } })
  * ```
  *
  * @example Partial Array Update with MERGE
  * ```typescript
  * const messages = proxy(['msg1', 'msg2', 'msg3']);
  * const update = { 1: 'updated msg2' }; // Update using object key as index
- * copy(messages, update, MERGE); // messages is now proxy(['msg1', 'updated msg2', 'msg3'])
+ * copy(messages, update, MERGE);
+ * console.log(messages); // proxy(['msg1', 'updated msg2', 'msg3'])
+ * ```
  *
  * @example SHALLOW
  * ```typescript
@@ -1266,8 +1200,7 @@ function destroyWithClass(element: Element, cls: string) {
  * const dest = {};
  * copy(dest, source, SHALLOW);
  * dest.nested.push(3);
- * console.log(source.nested); // Output: [1, 2, 3] (source was modified)
- * ```
+ * console.log(source.nested); // [1, 2, 3] (source was modified)
  * ```
  */
 export function copy<T extends object>(dst: T, src: T, flags: number = 0) {
@@ -1416,21 +1349,24 @@ const refHandler: ProxyHandler<RefTarget> = {
  * @returns A reference object with a `value` property linked to the specified proxy property.
  *
  * @example
- * ```typescript
- * const formData = proxy({ username: '', velocity: 42 });
+ * ```javascript
+ * const formData = proxy({ color: 'orange', velocity: 42 });
  *
  * // Usage with `bind`
  * $('input', {
  *   type: 'text',
  *   // Creates a two-way binding between the input's value and formData.username
- *   bind: ref(formData, 'username')
+ *   bind: ref(formData, 'color')
  * });
  *
  * // Usage as a dynamic property, causes a TextNode with just the name to be created and live-updated
- * $('p:Entered: ', {text: ref(formData, 'username'});
+ * $('p:Selected color: ', {
+ *   text: ref(formData, 'color'),
+ *   $color: ref(formData, 'color')
+ * });
  * 
- * // Changes are actually stored in formData - this causes logs like `{username: "Frank", velocity 42}`
- * $(() => console.log(JSON.stringify(formData)))
+ * // Changes are actually stored in formData - this causes logs like `{color: "Blue", velocity 42}`
+ * $(() => console.log(formData))
  * ```
  */
 export function ref<T extends TargetType, K extends keyof T>(target: T, index: K): ValueRef<T[K]> {
@@ -1473,12 +1409,11 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
 		if (typeof value === 'function') {
 			value(el);
 		} else {
-			el.classList.add(value);
-			(async function(){
-				await DOM_READ_PHASE;
-				(el as HTMLElement).offsetHeight;
-				await DOM_WRITE_PHASE;
-				el.classList.remove(value);
+			const classes = value.split('.').filter((c: any)=>c);
+			el.classList.add(...classes);
+			(async function(){ // attempt to prevent layout trashing
+				(el as HTMLElement).offsetHeight; // trigger layout
+				el.classList.remove(...classes);
 			})();
 		}
 	},
@@ -1522,14 +1457,14 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
  *   - `{".class": boolean}`: If the key starts with a `.` character, its either added to or removed from the *current* element as a CSS class, based on the truthiness of the value. So `{".hidden": hide}` would toggle the `hidden` CSS class.
  *   - `{<eventName>: function}`: If the value is a `function` it is set as an event listener for the event with the name given by the key. For example: `{click: myClickHandler}`.
  *   - `{$<styleProp>: value}`: If the key starts with a `$` character, set a CSS style property with the name of the rest of the key to the given value. Example: `{$backgroundColor: 'red'}`.
- *   - `{create: string}`: Add the value string as a CSS class to the *current* element, *after* the browser has finished doing a layout pass. This behavior only triggers when the scope setting the `create` is the top-level scope being (re-)run. This allows for creation transitions, without triggering the transitions for deeply nested elements being drawn as part of a larger component.
- *   - `{destroy: string}`: When the *current* element is a top-level element to be removed (due to reactivity cleanup), actual removal from the DOM is delayed by 2 seconds, and in the mean time the value string is added as a CSS class to the element, allowing for a deletion transition.
+ *   - `{create: string}`: Add the value string as a CSS class to the *current* element, *after* the browser has finished doing a layout pass. This behavior only triggers when the scope setting the `create` is the top-level scope being (re-)run. This allows for creation transitions, without triggering the transitions for deeply nested elements being drawn as part of a larger component. The string may also contain multiple dot-separated CSS classes, such as `.fade.grow`.
+ *   - `{destroy: string}`: When the *current* element is a top-level element to be removed (due to reactivity cleanup), actual removal from the DOM is delayed by 2 seconds, and in the mean time the value string is added as a CSS class to the element, allowing for a deletion transition. The string may also contain multiple dot-separated CSS classes, such as `.fade.shrink`.
  *   - `{create: function}` and `{destroy: function}`: The function is invoked when the *current* element is the top-level element being created/destroyed. It can be used for more involved creation/deletion animations. In case of `destroy`, the function is responsible for actually removing the element from the DOM (eventually). See `transitions.ts` in the Aberdeen source code for some examples.
  *   - `{bind: <obsValue>}`: Create a two-way binding element between the `value` property of the given observable (proxy) variable, and the *current* input element (`<input>`, `<select>` or `<textarea>`). This is often used together with {@link ref}, in order to use properties other than `.value`.
  *   - `{<any>: <obsvalue>}`: Create a new observe scope and read the `value` property of the given observable (proxy) variable from within it, and apply the contained value using any of the other rules in this list. Example:
  *      ```typescript
  *      const myColor = proxy('red');
- *      $('p:Test', {$color: myColor}, click: () => myColor.value = 'yellow'})
+ *      $('p:Test', {$color: myColor, click: () => myColor.value = 'yellow'})
  *      // Clicking the text will cause it to change color without recreating the <p> itself
  *      ```
  *      This is often used together with {@link ref}, in order to use properties other than `.value`.
@@ -1540,10 +1475,10 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
  *
  * @example Create Element
  * ```typescript
- * $('button.btn.primary:Submit', {
- *   disabled: false,
+ * $('button.secondary.outline:Submit', {
+ *   disabled: true,
  *   click: () => console.log('Clicked!'),
- *   $color: 'white'
+ *   $color: 'red'
  * });
  * ```
  *
@@ -1552,7 +1487,7 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
  * const state = proxy({ count: 0 });
  * $('div', () => { // Outer element
  *   // This scope re-renders when state.count changes
- *   $(`:Count is ${state.count}`); // Text node, reactive
+ *   $('p:Count is ${state.count}`);
  *   $('button:Increment', { click: () => state.count++ });
  * });
  * ```
@@ -1560,8 +1495,10 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
  * @example Two-way Binding
  * ```typescript
  * const user = proxy({ name: '' });
- * $('input', { bind: ref(user, 'name') });
- * $(`:Hello ${user.name || 'stranger'}`);
+ * $('input', { placeholder: 'Name', bind: ref(user, 'name') });
+ * $('h3', () => { // Reactive scope
+ *   $(`:Hello ${user.name || 'stranger'}`);
+ * });
  * ```
  *
  * @example Conditional Rendering
@@ -1578,8 +1515,7 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
 
 
 export function $(...args: (string | null | undefined | false | (() => void) | Record<string,any>)[]): void {
-	let savedParentElement;
-	let savedLastChild;
+	let savedCurrentScope;
 	let err;
 
 	for(let arg of args) {
@@ -1601,7 +1537,9 @@ export function $(...args: (string | null | undefined | false | (() => void) | R
 				if (classes) {
 					const el = currentScope.parentElement;
 					el.classList.add(...classes.split('.'));
-					clean(() => el.classList.remove(...classes.split('.')));
+					if (!savedCurrentScope) {
+						clean(() => el.classList.remove(...classes.split('.')));
+					}
 				}
 			} else if (arg.indexOf(' ') >= 0) {
 				err = `Tag '${arg}' cannot contain space`;
@@ -1611,12 +1549,13 @@ export function $(...args: (string | null | undefined | false | (() => void) | R
 				if (classes) el.className = classes.replaceAll('.', ' ');
 				if (text) el.textContent = text;
 				addNode(el);
-				if (!savedParentElement) {
-					savedParentElement = currentScope.parentElement;
-					savedLastChild = el;
+				if (!savedCurrentScope) {
+					savedCurrentScope = currentScope;
 				}
-				currentScope.parentElement = el;
-				currentScope.lastChild = el.lastChild || undefined;
+				let newScope = new ChainedScope(el, true);
+				newScope.lastChild = el.lastChild || undefined;
+				if (topRedrawScope === currentScope) topRedrawScope = newScope;
+				currentScope = newScope;
 			}
 		}
 		else if (typeof arg === 'object') {
@@ -1635,9 +1574,8 @@ export function $(...args: (string | null | undefined | false | (() => void) | R
 			break;
 		}
 	}
-	if (savedParentElement) {
-		currentScope.parentElement = savedParentElement;
-		currentScope.lastChild = savedLastChild;
+	if (savedCurrentScope) {
+		currentScope = savedCurrentScope;
 	}
 	if (err) throw new Error(err);
 }
@@ -1665,10 +1603,10 @@ let cssCount = 0;
  * @example Scoped Styles
  * ```typescript
  * const scopeClass = insertCss({
- *   color: 'navy',
+ *   color: 'red',
  *   padding: '10px',
  *   '&:hover': { // Use '&' for the root scoped selector
- *     backgroundColor: 'lightgrey'
+ *     backgroundColor: '#535'
  *   },
  *   '.child-element': { // Nested selector
  *     fontWeight: 'bold'
@@ -1682,20 +1620,23 @@ let cssCount = 0;
  * // Apply the styles
  * $(scopeClass, () => { // Add class to the div
  *   $(`:Scoped content`);
- *   $('span.child-element:Child'); // .AbdStl1 .child-element rule applies
+ *   $('div.child-element:Child'); // .AbdStl1 .child-element rule applies
  * });
  * ```
  *
  * @example Global Styles
  * ```typescript
  * insertCss({
- *   'body': { // Targeting a global element
- *     fontFamily: 'sans-serif'
+ *   '*': {
+ *     fontFamily: 'monospace',
  *   },
- *   'a.external-link': {
- *     textDecoration: 'underline'
+ *   'a': {
+ *     textDecoration: 'none',
+ *     color: "#107ab0",
  *   }
  * }, true); // Pass true for global
+ * 
+ * $('a:Styled link');
  * ```
  */
 export function insertCss(style: object, global: boolean = false): string {
@@ -1787,13 +1728,30 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
  *
  *   try {
  *     // Attempt to show a custom message in the UI
- *     $('div.error-display:Oops, something went wrong!');
+ *     $('div.error-message:Oops, something went wrong!');
  *   } catch (e) {
  *     // Ignore errors during error handling itself
  *   }
  *
  *   return false; // Suppress default console log and DOM error message
  * });
+ * 
+ * // Styling for our custom error message
+ * insertCss({
+ *   '.error-message': {
+ *     backgroundColor: '#e31f00',
+ *     display: 'inline-block',
+ *     color: 'white',
+ *     borderRadius: '3px',
+ *     padding: '2px 4px',
+ *   }
+ * }, true); // global style
+ * 
+ * // Cause an error within a render scope.
+ * $('div.box', () => {
+ *   // Will cause our error handler to insert an error message within the box
+ *   noSuchFunction();
+ * })
  * ```
  */
 export function setErrorHandler(handler?: (error: Error) => boolean | undefined) {
@@ -1814,13 +1772,14 @@ export function setErrorHandler(handler?: (error: Error) => boolean | undefined)
  *
  * @example Get parent for attaching a third-party library
  * ```typescript
- * import someLibrary from './some-library';
+ * function thirdPartyLibInit(parentElement) {
+ *   parentElement.innerHTML = "This element is managed by a <em>third party</em> lib."
+ * }
  *
- * $('div.widget-container', () => {
- *   // Get the div.widget-container element just created
+ * $('div.box', () => {
+ *   // Get the div.box element just created
  *   const containerElement = getParentElement();
- *   // Initialize the library
- *   someLibrary.init(containerElement);
+ *   thirdPartyLibInit(containerElement);
  * });
  * ```
  */
@@ -1848,9 +1807,13 @@ export function getParentElement(): Element {
  *
  * // Show the array items and maintain the sum
  * onEach(myArray, (item, index) => {
- *     $(`code:${index}→${item} `);
- *     sum.value += item;
- *     // Cleans gets called before each rerun for a certain item index
+ *     $(`code:${index}→${item}`);
+ *     // We'll update sum.value using peek, as += first does a read, but
+ *     // we don't want to subscribe.
+ *     peek(() => sum.value += item);
+ *     // Clean gets called before each rerun for a certain item index
+ *     // No need for peek here, as the clean code doesn't run in an 
+ *     // observe scope.
  *     clean(() => sum.value -= item);
  * })
  * 
@@ -1859,7 +1822,7 @@ export function getParentElement(): Element {
  * 
  * // Make random changes to the array
  * const rnd = () => 0|(Math.random()*20);
- * setInterval(() => myArray[rnd()] = rnd(), 1000));
+ * setInterval(() => myArray[rnd()] = rnd(), 1000);
  * ```
  */
 
@@ -1884,14 +1847,18 @@ export function clean(cleaner: () => void) {
  *
  * @example Observation creating a UI components
  * ```typescript
- * const data = proxy({ user: 'Frank', notifications: 0 });
+ * const data = proxy({ user: 'Frank', notifications: 42 });
  *
  * $('main', () => {
- *   $('p:Welcome, ' + data.user); // Reactive text
+ *   console.log('Welcome');
+ *   $('h3:Welcome, ' + data.user); // Reactive text
  *
  *   observe(() => {
- * 	   // When data.notifications changes, only this inner scope reruns, leaving the `<p>Welcome, ..</p>` untouched.
- *     $('div.notification-badge:' + data.notifications);
+ *     // When data.notifications changes, only this inner scope reruns,
+ *     // leaving the `<p>Welcome, ..</p>` untouched.
+ *     console.log('Notifications');
+ *     $('code.notification-badge:' + data.notifications);
+ *     $('a:Notify!', {click: () => data.notifications++});
  *   });
  * });
  * ```
@@ -1904,7 +1871,7 @@ export function clean(cleaner: () => void) {
  * setInterval(() => counter.value++, 1000);
  * const double = observe(() => counter.value * 2);
  *
- * $('h1', () => {
+ * $('h3', () => {
  *     $(`:counter=${counter.value} double=${double.value}`);
  * })
  * ```
@@ -1931,17 +1898,17 @@ export function observe<T extends (DatumType | void)>(func: () => T): ValueRef<T
  * @param func - The function to execute reactively and synchronously.
  *
  * @example
- * ```typescript
- * const state = proxy({ single: 'A' } as any);
+ * ```javascript
+ * const state = proxy({ single: 'A' });
  *
  * immediateObserve(() => {
  *   state.double = state.single + state.single
  * });
- * // state.double == 'AA'
+ * console.log(state.double); // 'AA'
  *
- * state.value = 'B';
+ * state.single = 'B';
  * // Synchronously:
- * // state.double == 'BB'
+ * console.log(state.double); // 'BB'
  * ```
  */
 export function immediateObserve(func: () => void) {
@@ -1967,17 +1934,28 @@ export function immediateObserve(func: () => void) {
  * @param func - The function that defines the UI fragment, typically containing calls to {@link $}.
  *
  * @example Basic Mount
- * ```typescript
- * import { mount, $, proxy } from './aberdeen';
+ * ```javascript
+ * // Create a pre-existing DOM structure (without Aberdeen)
+ * document.body.innerHTML = `<h3>Static content <span id="title-extra"></span></h3><div class="box" id="app-root"></div>`;
+ * 
+ * import { mount, $, proxy } from 'aberdeen';
  *
- * const appState = proxy({ time: new Date() });
- * setInterval(() => appState.time = new Date(), 1000);
+ * const runTime = proxy(0);
+ * setInterval(() => runTime.value++, 1000);
  *
  * mount(document.getElementById('app-root'), () => {
- *   $('h1:Aberdeen App');
- *   $('p:Current time: ' + appState.time.toLocaleTimeString()); // Updates every second
+ *   $('h4:Aberdeen App');
+ *   $(`p:Run time: ${runTime.value}s`);
+ *   // Conditionally render some content somewhere else in the static page
+ *   if (runTime.value&1) {
+ *     mount(document.getElementById('title-extra'), () =>
+ *       $(`i:(${runTime.value}s)`)
+ *     );
+ *   }
  * });
  * ```
+ * 
+ * Note how the inner mount behaves reactively as well, automatically unmounting when it's parent observer scope re-runs.
  */
 
 export function mount(parentElement: Element, func: () => void) {
@@ -2069,8 +2047,10 @@ export function map<IN,OUT>(source: Array<IN>, func: (value: IN, index: number) 
  *
  * const activeUserNames = map(users, (user) => user.active ? user.name : undefined);
  * // activeUserNames is proxy({ u1: 'Alice', u3: 'Charlie' })
+ * observe(() => console.log(Object.values(activeUserNames)));
  *
- * users.u2.active = true; // activeUserNames becomes proxy({ u1: 'Alice', u2: 'Bob', u3: 'Charlie' })
+ * users.u2.active = true;
+ * // activeUserNames becomes proxy({ u1: 'Alice', u2: 'Bob', u3: 'Charlie' })
  * ```
  */
 export function map(source: any, func: (value: DatumType, key: any) => any): any {
@@ -2120,10 +2100,16 @@ export function multiMap<K extends string|number|symbol,IN,OUT extends {[key: st
  *   { id: 'a', value: 10 },
  *   { id: 'b', value: 20 },
  * ]);
- * const itemsById = multiMap(items, (item) => ({ [item.id]: item.value }));
- * // itemsById is proxy({ a: 10, b: 20 })
+ * const itemsById = multiMap(items, (item) => ({
+ *   [item.id]: item.value,
+ *   [item.id+item.id]: item.value*10,
+ * }));
+ * // itemsById is proxy({ a: 10, aa: 100, b: 20, bb: 200 })
+ * 
+ * $(() => console.log(itemsById));
  *
- * items.push({ id: 'c', value: 30 }); // itemsById becomes proxy({ a: 10, b: 20, c: 30 })
+ * items.push({ id: 'c', value: 30 });
+ * // itemsById becomes proxy({ a: 10, aa: 100, b: 20, bb: 200, c: 30, cc: 300 })
  * ```
  */
 export function multiMap(source: any, func: (value: DatumType, key: any) => Record<string|symbol,DatumType>): any {
@@ -2189,19 +2175,12 @@ export function partition<IN_K extends string|number|symbol, OUT_K extends strin
  * // Partition products by category. Output keys are categories (string).
  * // Inner keys are original array indices (number).
  * const productsByCategory = partition(products, (product) => product.category);
- *
- * // productsByCategory looks like (reactively):
- * // {
- * //   Fruit: { 0: { id: 'p1', ... }, 2: { id: 'p3', ... } },
- * //   Veg:   { 1: { id: 'p2', ... } }
- * // }
- *
- * // Accessing items:
- * console.log(productsByCategory.Fruit[0].name); // Output: Apple
- *
- * // Change category, product automatically moves buckets
- * products[0].category = 'Snack';
- * // productsByCategory updates: Fruit bucket loses item 0, Snack bucket gains item 0.
+ * 
+ * // Reactively show the data structure
+ * dump(productsByCategory);
+ * 
+ * // Make random changes to the categories, to show reactiveness
+ * setInterval(() => products[0|(Math.random()*3)].category = ['Snack','Fruit','Veg'][0|(Math.random()*3)], 2000);
  * ```
  *
  * @example Item in multiple buckets
@@ -2216,11 +2195,7 @@ export function partition<IN_K extends string|number|symbol, OUT_K extends strin
  * // Inner keys are original object keys (string: 'u1', 'u2').
  * const usersByTag = partition(users, (user) => user.tags);
  *
- * // usersByTag looks like (reactively):
- * // {
- * //   active: { u1: { name: 'Alice', ... }, u2: { name: 'Bob', ... } },
- * //   new:    { u1: { name: 'Alice', ... } }
- * // }
+ * console.log(usersByTag);
  * ```
  */
 export function partition<IN_K extends string|number|symbol, OUT_K extends string|number|symbol, IN_V>(source: Record<IN_K,IN_V>, func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[]): Record<OUT_K,Record<IN_K,IN_V>> {
@@ -2261,17 +2236,15 @@ export function partition<IN_K extends string|number|symbol, OUT_K extends strin
  *
  * @example Dumping reactive state
  * ```typescript
- * import { $, proxy, dump } from './aberdeen';
+ * import { $, proxy, dump } from 'aberdeen';
  *
  * const state = proxy({
  *   user: { name: 'Frank', kids: 1 },
  *   items: ['a', 'b']
  * });
  *
- * $(() => {
- *   $('h2:Live State Dump');
- *   dump(state); // Renders the state structure below the h2
- * });
+ * $('h2:Live State Dump');
+ * dump(state);
  *
  * // Change state later, the dump in the DOM will update
  * setTimeout(() => { state.user.kids++; state.items.push('c'); }, 2000);
@@ -2306,7 +2279,9 @@ function internalError(code: number): never {
 function handleError(e: any, showMessage: boolean) {
 	try {
 		if (onError(e) === false) showMessage = false;
-	} catch {}
+	} catch (e) {
+		console.error(e);
+	}
 	try {
 		if (showMessage) $('div.aberdeen-error:Error');
 	} catch {

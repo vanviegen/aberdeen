@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime } from "./helpers";
+import { assertBody, passTime } from "./helpers";
 import { $, proxy, observe, copy, unproxy, ref } from "../src/aberdeen";
 
 test('proxy holds basic types', async () => {
@@ -81,7 +81,7 @@ test('proxy reactively links objects to each other', async () => {
   expect(data2).toEqual({x: {a: 1, b: 200}, y: 3});
   
   copy(data1, {});
-  await asyncPassTime();
+  await passTime();
   expect(data2).toEqual({x: {}, y: 3});
 });
 
@@ -110,11 +110,11 @@ test('proxy reacts on materializing deep trees', async () => {
     deepValue = data.a?.b;
   });
   
-  await asyncPassTime();
+  await passTime();
   expect(deepValue).toEqual(undefined);
   
   data.a = {b: 42};
-  await asyncPassTime();
+  await passTime();
   expect(deepValue).toEqual(42);
 });
 
@@ -191,13 +191,13 @@ test(`proxy 'has'`, async () => {
   expect(cnt).toEqual(3);
 
   delete data.x;
-  await asyncPassTime();
+  await passTime();
   assertBody('"x=false" "y=true" "z=false"')
   expect(cnt).toEqual(4);
 
   delete data.y;
   data.z = 42;
-  await asyncPassTime();
+  await passTime();
   assertBody('"x=false" "y=false" "z=true"')
   expect(cnt).toEqual(6);
 })
@@ -227,13 +227,13 @@ test('unproxies refs', async () => {
   assertBody('"1"');
 
   unproxy(a).value = 2;
-  await asyncPassTime();
+  await passTime();
   expect(a.value).toEqual(2);
   expect(obj.a).toEqual(2);
   assertBody('"1"');
 
   a.value = 3;
-  await asyncPassTime();
+  await passTime();
   expect(a.value).toEqual(3);
   expect(obj.a).toEqual(3);
   assertBody('"3"');

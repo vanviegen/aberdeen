@@ -1,6 +1,6 @@
 A TypeScript/JavaScript library for quickly building performant declarative user interfaces *without* the use of a virtual DOM.
 
-The key insight is the use of many small anonymous functions, that will automatically rerun when the underlying data changes. In order to trigger updates, that data should be encapsulated in any number of *proxied* JavaScript objects. They can hold anything, from simple values to complex and deeply nested data structures, in which case user-interface functions can (automatically) subscribe to just the parts they depend upon.
+The key insight is the use of many small anonymous functions, that will automatically rerun when the underlying data changes. In order to trigger updates, that data should be encapsulated in any number of *proxied* JavaScript objects. They can hold anything, from simple values to complex, typed and deeply nested data structures, in which case user-interface functions can (automatically) subscribe to just the parts they depend upon.
 
 ## Why use Aberdeen?
 
@@ -16,7 +16,7 @@ The key insight is the use of many small anonymous functions, that will automati
   - Helper functions for reactively working with data, such as for deriving, (multi)mapping, filtering, partitioning and counting.
   - A couple of add/remove transition effects, to get you started.
 
-## Why not use Aberdeen?
+## Why *not* use Aberdeen?
 
 - There are not many of us -Aberdeen developers- yet, so don't expect terribly helpful StackOver/AI answers.
 - You'd have to code things yourself, instead of duct-taping together a gazillion React ecosystem libraries.

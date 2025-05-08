@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime } from "./helpers";
+import { assertBody, passTime } from "./helpers";
 import { $, proxy, observe, copy, onEach, mount, isEmpty, MERGE } from "../src/aberdeen";
 
 test('fires higher-scope isEmpty before getting to content', async () => {
@@ -21,14 +21,14 @@ test('fires higher-scope isEmpty before getting to content', async () => {
 	assertBody(`div{"a"}`);
 
 	data[0] = 'b';
-	await asyncPassTime();
+	await passTime();
 	assertBody(`div{"b"}`);
 	expect([cnt1, cnt2]).toEqual([1, 2]);
 
 	// Clear the array
 	copy(data, [] as string[], MERGE);
 
-	await asyncPassTime();
+	await passTime();
 	assertBody(``);
 	expect([cnt1, cnt2]).toEqual([2, 2]);
 });
@@ -39,18 +39,18 @@ test('reactively get full array', async () => {
 		$({text: JSON.stringify(data)});
 		$({text: JSON.stringify(data[2])});
 	});
-	await asyncPassTime();
+	await passTime();
 	assertBody(`"[3,4,[5,6]]" "[5,6]"`);
 
 	data.push(7);
 	(data[2] as any).push(8);
-	await asyncPassTime();
+	await passTime();
 	assertBody(`"[3,4,[5,6,8],7]" "[5,6,8]"`);
 
 	expect(data[6]).toEqual(undefined);
 
 	data.length = 2;
-	await asyncPassTime();
+	await passTime();
 	assertBody(`"[3,4]"`);
 });
 
@@ -69,29 +69,29 @@ test('merges', async () => {
 	expect([cnt1, cnt2]).toEqual([1, 2]);
 
 	data[1] = 2;
-	await asyncPassTime();
+	await passTime();
 	assertBody(`div{"1"} div{"2"} div{"3"}`);
 	expect([cnt1, cnt2]).toEqual([1, 3]);
 
 	// Merging just replace the entire array
 	copy(data, [1, "two"], MERGE);
-	await asyncPassTime();
+	await passTime();
 	assertBody(`div{"1"} div{"two"}`);
 	expect([cnt1, cnt2]).toEqual([1, 4]);
 
 	data[9] = 'ten';
-	await asyncPassTime();
+	await passTime();
 	assertBody(`div{"1"} div{"two"} div{"ten"}`);
 	expect([cnt1, cnt2]).toEqual([1, 5]);
 
 	data[4] = 'five';
-	await asyncPassTime();
+	await passTime();
 	assertBody(`div{"1"} div{"two"} div{"five"} div{"ten"}`);
 	expect([cnt1, cnt2]).toEqual([1, 6]);
 
 	// Delete element at index 1
 	delete data[1];
-	await asyncPassTime();
+	await passTime();
 	assertBody(`div{"1"} div{"five"} div{"ten"}`);
 	expect([cnt1, cnt2]).toEqual([1, 6]);
 
@@ -99,12 +99,12 @@ test('merges', async () => {
 	delete data[9];
 	data.push("six");
 	expect(data[10]).toEqual("six");
-	await asyncPassTime();
+	await passTime();
 	assertBody(`div{"1"} div{"five"} div{"six"}`);
 	expect([cnt1, cnt2]).toEqual([1, 7]);
 
 	copy(data, [1, undefined, 3], MERGE);
-	await asyncPassTime();
+	await passTime();
 	assertBody(`div{"1"} div{"3"}`);
 	expect([cnt1, cnt2]).toEqual([1, 8]);
 });
@@ -123,11 +123,11 @@ test('array at()', async function() {
 	expect(value).toEqual(4);
 
 	arr[1] = 10;
-	await asyncPassTime();
+	await passTime();
 	expect(value).toEqual(10);
 
 	arr.push(42); // changes `length` so value should now hold arr[2]
-	await asyncPassTime();
+	await passTime();
 	expect(value).toEqual(6);
 });
 
@@ -139,16 +139,16 @@ test('proxy supports array shift and unshift', async () => {
 	  value = [...arr];
 	});
 	
-	await asyncPassTime();
+	await passTime();
 	expect(value).toEqual([1, 2, 3, 4]);
 	
 	const shifted = arr.shift();
 	expect(shifted).toEqual(1);
-	await asyncPassTime();
+	await passTime();
 	expect(value).toEqual([2, 3, 4]);
 	
 	arr.unshift(10, 20);
-	await asyncPassTime();
+	await passTime();
 	expect(value).toEqual([10, 20, 2, 3, 4]);
   });
   
@@ -171,11 +171,11 @@ test('proxy supports array shift and unshift', async () => {
 	  });
 	});
 	
-	await asyncPassTime();
+	await passTime();
 	expect(sum).toEqual(6);
 	
 	arr.push(4);
-	await asyncPassTime();
+	await passTime();
 	expect(sum).toEqual(10);
   });
   
@@ -190,11 +190,11 @@ test('proxy supports array shift and unshift', async () => {
 	expect(result).toEqual([1, 2, 3, 4]);
 	
 	arr1.push(5);
-	await asyncPassTime();
+	await passTime();
 	expect(result).toEqual([1, 2, 5, 3, 4]);
 	
 	arr2.push(6);
-	await asyncPassTime();
+	await passTime();
 	expect(result).toEqual([1, 2, 5, 3, 4, 6]);
   });
   
@@ -212,14 +212,14 @@ test('proxy supports array shift and unshift', async () => {
 	  includesResult = arr.includes(30);
 	});
 	
-	await asyncPassTime();
+	await passTime();
 	expect(everyResult).toEqual(true);
 	expect(filterResult).toEqual([30, 40, 50]);
 	expect(findResult).toEqual(30);
 	expect(includesResult).toEqual(true);
 	
 	arr.unshift(5);
-	await asyncPassTime();
+	await passTime();
 	expect(everyResult).toEqual(false);
 	expect(filterResult).toEqual([30, 40, 50]);
 	expect(findResult).toEqual(30);
@@ -227,14 +227,14 @@ test('proxy supports array shift and unshift', async () => {
 	
 	arr.pop(); // Remove 50
 	arr.shift(); // Remove 5
-	await asyncPassTime();
+	await passTime();
 	expect(everyResult).toEqual(true);
 	expect(filterResult).toEqual([30, 40]);
 	expect(findResult).toEqual(30);
 	expect(includesResult).toEqual(true);
 	
 	arr.splice(2, 1); // Remove 30
-	await asyncPassTime();
+	await passTime();
 	expect(everyResult).toEqual(true);
 	expect(filterResult).toEqual([40]);
 	expect(findResult).toEqual(40);
@@ -265,17 +265,17 @@ test('proxy supports array shift and unshift', async () => {
 	  foundLastIndex = arr.findLastIndex(item => item > 25);
 	});
 	
-	await asyncPassTime();
+	await passTime();
 	expect(foundIndex).toEqual(2); // 30 at index 2
 	expect(foundLastIndex).toEqual(4); // 40 at index 4
 	
 	arr.splice(2, 1); // Remove 30
-	await asyncPassTime();
+	await passTime();
 	expect(foundIndex).toEqual(3); // 40 at index 3 now
 	expect(foundLastIndex).toEqual(3); // 40 at index 3
 	
 	arr.push(60);
-	await asyncPassTime();
+	await passTime();
 	expect(foundIndex).toEqual(3); // Still 40 at index 3
 	expect(foundLastIndex).toEqual(4); // 60 at index 4
   });
@@ -288,15 +288,15 @@ test('proxy supports array shift and unshift', async () => {
 	  joined = arr.join('-');
 	});
 	
-	await asyncPassTime();
+	await passTime();
 	expect(joined).toEqual('a-b-c');
 	
 	arr.push('d');
-	await asyncPassTime();
+	await passTime();
 	expect(joined).toEqual('a-b-c-d');
 	
 	arr.splice(1, 1);
-	await asyncPassTime();
+	await passTime();
 	expect(joined).toEqual('a-c-d');
   });
   
@@ -308,19 +308,19 @@ test('proxy supports array shift and unshift', async () => {
 	  mappedValues = [...arr.map(item => item * 10)];
 	});
 	
-	await asyncPassTime();
+	await passTime();
 	expect(mappedValues).toEqual([10, 20, 30]);
 	
 	arr.push(4);
-	await asyncPassTime();
+	await passTime();
 	expect(mappedValues).toEqual([10, 20, 30, 40]);
 	
 	arr[1] = 5;
-	await asyncPassTime();
+	await passTime();
 	expect(mappedValues).toEqual([10, 50, 30, 40]);
 	
 	arr.splice(0, 2);
-	await asyncPassTime();
+	await passTime();
 	expect(mappedValues).toEqual([30, 40]);
   });
   
@@ -340,17 +340,17 @@ test('proxy supports array shift and unshift', async () => {
 	  lastB = arr.findLast(item => item.value === 'b');
 	});
 	
-	await asyncPassTime();
+	await passTime();
 	expect(firstB).toEqual({ id: 2, value: 'b' });
 	expect(lastB).toEqual({ id: 4, value: 'b' });
 	
 	arr[1].value = 'x';
-	await asyncPassTime();
+	await passTime();
 	expect(firstB).toEqual({ id: 4, value: 'b' });
 	expect(lastB).toEqual({ id: 4, value: 'b' });
 	
 	arr.push({ id: 5, value: 'b' });
-	await asyncPassTime();
+	await passTime();
 	expect(firstB).toEqual({ id: 4, value: 'b' });
 	expect(lastB).toEqual({ id: 5, value: 'b' });
   });

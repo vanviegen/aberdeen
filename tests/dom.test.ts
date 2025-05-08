@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime, assertDomUpdates, assertThrow } from "./helpers";
+import { assertBody, passTime, assertDomUpdates, assertThrow } from "./helpers";
 import { $, proxy, observe, unproxy, copy, dump, mount, unmountAll, MERGE } from "../src/aberdeen";
 
 test('adds nodes', async () => {
   $('p');
-  await asyncPassTime();
+  await passTime();
   assertBody(`p`);
 });
 
@@ -14,19 +14,19 @@ test('refuses tags containing spaces', () => {
 
 test('adds classes', async () => {
   $('p.a.b');
-  await asyncPassTime();
+  await passTime();
   assertBody(`p.a.b`);
 });
 
 test('sets attributes', async () => {
   $('div', {class: 'C', text: "T"}, {id: 'I', index: 1});
-  await asyncPassTime();
+  await passTime();
   assertBody(`div.C{id=I index=1 "T"}`);
 });
 
 test('sets properties', async () => {
   $('p.C', {class: 'C', value: 3});
-  await asyncPassTime();
+  await passTime();
   assertBody(`p.C{value->3}`);
 });
 
@@ -38,7 +38,7 @@ test('nests elements', async () => {
       });
     });
   });
-  await asyncPassTime();
+  await passTime();
   assertBody(`p{a{i{"contents"}}}`);
 });
 
@@ -50,7 +50,7 @@ test('sets properties from the inner scope', async () => {
       disabled: true,
     });
   });
-  await asyncPassTime();
+  await passTime();
   assertBody(`a{href=/ target=_blank disabled->true}`);
 });
 
@@ -83,7 +83,7 @@ test('unmounts', async () => {
   unmountAll();
   assertBody(``);
   proxied.value = 'Updated';
-  await asyncPassTime();
+  await passTime();
   expect(cnt).toEqual(1);
 });
 
@@ -101,7 +101,7 @@ test('creates text nodes', async () => {
     $({text: cases[index.value][0]});
   });
   while(true) {
-    await asyncPassTime();
+    await passTime();
     assertBody('' + cases[unproxy(index).value][1]);
     if (unproxy(index).value >= cases.length-1) {
       break;
@@ -168,10 +168,10 @@ test('adds html', async () => {
   });
   assertBody(`main{hr fake-emulated-html{"test"} img}`);
   data.value = "";
-  await asyncPassTime();
+  await passTime();
   assertBody(`main{hr img}`);
   data.value = 123;
-  await asyncPassTime();
+  await passTime();
   assertBody(`main{hr fake-emulated-html{"123"} img}`);
 });
 
@@ -187,7 +187,7 @@ test('only unlinks the top parent of the tree being removed', async () => {
   assertBody(`main{a b c}`);
   assertDomUpdates({new: 4, changed: 4});
   data.value = false;
-  await asyncPassTime();
+  await passTime();
   assertBody(``);
   assertDomUpdates({new: 4, changed: 5});
 });
@@ -204,7 +204,7 @@ test('merges objects collapsing changes', async () => {
   assertBody(`"4"`);
   
   copy(data, {a: 3, b: 4});
-  await asyncPassTime();
+  await passTime();
   assertBody(`"10"`);
   expect(cnt).toEqual(2);
   

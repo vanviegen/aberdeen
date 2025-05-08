@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime } from "./helpers";
+import { assertBody, passTime } from "./helpers";
 import { $, proxy, observe, peek, onEach, clean, unmountAll, unproxy } from "../src/aberdeen";
 
 test('rerenders only the inner scope', async () => {
@@ -19,7 +19,7 @@ test('rerenders only the inner scope', async () => {
   assertBody(`a{span{"before"}}`);
   data.value = "after";
   assertBody(`a{span{"before"}}`);
-  await asyncPassTime();
+  await passTime();
   assertBody(`a{span{"after"}}`);
   expect(cnt1).toEqual(1);
   expect(cnt2).toEqual(2);
@@ -41,7 +41,7 @@ test('adds and removes elements', async () => {
   const values = [true, false, true, false];
   for(let val of values) {
     data.value = val;
-    await asyncPassTime();
+    await passTime();
     assertBody(val ? `a{i}` : `a`);
   }
   expect(cnt1).toEqual(1);
@@ -65,7 +65,7 @@ test('refreshes standalone observe()s', async () => {
   const values = [true, false, true, false];
   for(let val of values) {
     data.value = val;
-    await asyncPassTime();
+    await passTime();
     assertBody(val ? `a i` : `a`);
   }
   expect(cnt1).toEqual(1);
@@ -104,7 +104,7 @@ test('uses observe()s as reference for DOM insertion', async () => {
   for(let [val1, val2] of testCases) {
     data1.value = val1;
     data2.value = val2;
-    await asyncPassTime();
+    await passTime();
     assertBody(`i ${val1 ? 'a ' : ''}${val2 ? 'b ' : ''}p`);
   }
   expect(cnt0).toEqual(1);
@@ -160,7 +160,7 @@ test('refrains from rerendering dead scopes', async () => {
   expect(cnts).toEqual([1, 1, 1, 1]);
   data.value = 'b';
   expect(cnts).toEqual([1, 1, 1, 1]);
-  await asyncPassTime();
+  await passTime();
   expect(cnts).toEqual([1, 1, 2, 1]);
 });
 
@@ -189,7 +189,7 @@ test('inserts higher priority updates', async () => {
   
   assertBody(`a b`);
   children.value = true;
-  await asyncPassTime();
+  await passTime();
   assertBody(``);
   expect(pcnt).toEqual(2);
   expect(ccnt).toEqual(3); // only a *or* b should have executed a second time, triggering parent
@@ -212,7 +212,7 @@ test('does not rerender on peek', async () => {
   
   assertBody(`a{span{"before" "before"}}`);
   data.value = "after";
-  await asyncPassTime();
+  await passTime();
   assertBody(`a{span{"before" "before"}}`);
   expect(cnt1).toEqual(1);
   expect(cnt2).toEqual(1);
@@ -240,32 +240,32 @@ test('allows modifying proxied objects from within scopes', async () => {
     });
   });
   
-  await asyncPassTime();
+  await passTime();
   assertBody(``);
   expect([cnt0, cnt1, cnt2, cnt3]).toEqual([1, 0, 0, 0]);
   
   data[1] = 'b';
-  await asyncPassTime();
+  await passTime();
   assertBody(`"b=1"`);
   expect([cnt0, cnt1, cnt2, cnt3]).toEqual([1, 1, 0, 1]);
   
   data[2] = 'a';
-  await asyncPassTime();
+  await passTime();
   assertBody(`"a=2" "b=1"`);
   expect([cnt0, cnt1, cnt2, cnt3]).toEqual([1, 2, 0, 2]);
   
   data[3] = 'c';
-  await asyncPassTime();
+  await passTime();
   assertBody(`"a=2" "b=1" "c=3"`);
   expect([cnt0, cnt1, cnt2, cnt3]).toEqual([1, 3, 0, 3]);
   
   data[3] = 'd';
-  await asyncPassTime();
+  await passTime();
   assertBody(`"a=2" "b=1" "d=3"`);
   expect([cnt0, cnt1, cnt2, cnt3]).toEqual([1, 4, 1, 4]);
   
   delete data[1];
-  await asyncPassTime();
+  await passTime();
   assertBody(`"a=2" "d=3"`);
   expect([cnt0, cnt1, cnt2, cnt3]).toEqual([1, 4, 2, 4]);
   
@@ -283,7 +283,7 @@ test('returns a reactive value when only a function is given', async () => {
   assertBody(`p{"22"}`)
 
   data.value *= 2
-  await asyncPassTime();
+  await passTime();
   expect(plus2.value).toEqual(42)
   assertBody(`p{"42"}`)
 })

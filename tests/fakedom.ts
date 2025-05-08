@@ -287,18 +287,26 @@ const setTimeout = function(func: () => void, time: number): void {
   timeouts.push({func, time: time + currentTime});
 };
 
-export const passTime = function(ms?: number): number {
+export const passTime = async function(ms?: number): Promise<number> {
   let count = 0;
   let targetTime = ms == null ? undefined : currentTime + ms;
-  while(timeouts.length) {
+  while(true) {
+    // Allow all async tasks that are ready (or become ready during another task) to run.
+    await new Promise(resolve => realSetTimeout(resolve, 0));
+
+    // If there are no timeouts left, we're done.
+    if (!timeouts.length) break;
+
     // Find the timeout that should occur first
     let smallestIdx = 0;
     for(let idx = 1; idx < timeouts.length; idx++) {
       if (timeouts[idx].time < timeouts[smallestIdx].time) smallestIdx = idx;
     }
     let timeout = timeouts[smallestIdx];
+
     // If this timeout is not due yet, we're done
     if (targetTime != null && timeout.time > targetTime) break;
+    
     // Timeout is due! Remove it from the list, update the currentTime, and fire the callback!
     timeouts.splice(smallestIdx, 1);
     currentTime = timeout.time;
@@ -307,16 +315,6 @@ export const passTime = function(ms?: number): number {
   }
   currentTime = targetTime == null ? 0 : targetTime;
   return count;
-};
-
-export const asyncPassTime = async function(ms?: number): Promise<void> {
-  while(true) {
-    // Allow all async tasks that are ready (or become ready during another task) to run.
-    await new Promise(resolve => realSetTimeout(resolve, 0));
-    // Trigger virtual setTimeout, until there are none left. (They can be set from an async task.)
-    if (!passTime(ms)) break;
-    ms = 0;
-  }
 };
 
 const IGNORE_OUTPUT = new Set("tag-> attrs-> events-> childNodes-> parentNode-> class=".split(" "));

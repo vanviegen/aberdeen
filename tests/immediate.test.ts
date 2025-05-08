@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { asyncPassTime } from "./helpers";
+import { passTime } from "./helpers";
 import { setErrorHandler, proxy, observe, immediateObserve } from "../src/aberdeen";
 
 test('immediateObserve runs immediately', async () => {
@@ -16,7 +16,7 @@ test('immediateObserve runs immediately', async () => {
     expect(data.b).toEqual(6);
     expect(count).toEqual(2);
 
-    await asyncPassTime(); // shouldn't change anything
+    await passTime(); // shouldn't change anything
     expect(data.b).toEqual(6);
     expect(count).toEqual(2);
 });
@@ -75,7 +75,7 @@ test('immediateObserve stops when its containing scope re-runs and removes it', 
     expect(data.b).toEqual(6);
 
     data.stop = true;
-    await asyncPassTime(); // Allow the outer observe to rerun, which will *not* re-create the immediateObserve
+    await passTime(); // Allow the outer observe to rerun, which will *not* re-create the immediateObserve
 
     data.a = 5;
     // The immediateObserve is gone, so 'b' is not updated
@@ -105,3 +105,5 @@ test('immediateObserve throws an error if a loop does not stabilize', () => {
         });
     });
 });
+
+

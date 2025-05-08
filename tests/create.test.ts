@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime, assertDomUpdates, getBody } from "./helpers";
+import { assertBody, passTime, assertDomUpdates, getBody } from "./helpers";
 import { $, proxy, observe, copy, onEach } from "../src/aberdeen";
 import { grow } from "../src/transitions";
 
@@ -20,13 +20,13 @@ test('Create event works at top-level', async () => {
     assertDomUpdates({new: 0, changed: 0});
     
     data.value = true;
-    await asyncPassTime(0);
+    await passTime(0);
+    assertBody(`b`);
     // We don't have a good way to know if the class has been set and immediately
     // removed, so we'll just look at the number of changes, which would have
     // been 1 (just inserting the newly created DOM element) without the
     // create-transition.
     assertDomUpdates({new: 1, changed: 3});
-    assertBody(`b`);
 });
 
 test('Create event does not apply when it is part of a larger whole newly rendered', async () => {
@@ -37,7 +37,7 @@ test('Create event does not apply when it is part of a larger whole newly render
     
     assertBody(``);
     data.value = true;
-    await asyncPassTime(0);
+    await passTime(0);
     // We don't have a good way to know if the class has been set and immediately
     // removed, so we'll just look at the number of changes, which would have
     // been 4 (2 $ insert + 1 class add + 1 class remove) with the
@@ -55,7 +55,7 @@ test('Create event works in an onEach', async () => {
     });
     
     copy(data, ['a', undefined, 'c']);
-    await asyncPassTime(0);
+    await passTime(0);
     // We don't have a good way to know if the class has been set and immediately
     // removed, so we'll just look at the number of changes, which would have
     // been 2 (just inserting the newly created DOM elements) without the
@@ -74,10 +74,10 @@ test('Create event performs a grow animation', async() => {
     assertBody(`div{display:flex}`);
     
     data.value = true;
-    await asyncPassTime(0);
+    await passTime(0);
     expect(getBody().startsWith('div{display:flex a')).toBe(true);
     expect(getBody().indexOf('transition') >= 0).toBe(true);
-    await asyncPassTime(2000);
+    await passTime(2000);
     assertBody(`div{display:flex a}`);
 });
 
@@ -92,6 +92,6 @@ test('Create event aborts a grow animation', async () => {
     assertBody(``);
     
     data.value = true; // Naughty render function will set this back to false
-    await asyncPassTime();
+    await passTime();
     assertBody(``);
 });

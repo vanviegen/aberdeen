@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, assertThrow, asyncPassTime } from "./helpers";
+import { assertBody, assertThrow, passTime } from "./helpers";
 import { $, setErrorHandler, proxy, observe, onEach, mount } from "../src/aberdeen";
 
 async function captureOnError(message: string, func: () => void, showMsg: boolean = true) {
@@ -47,7 +47,7 @@ test('Error handling - continues rendering after an error', async () => {
     assertBody(`a{b c} d`);
     await captureOnError('FakeError', async () => {
         error.value = true;
-        await asyncPassTime();
+        await passTime();
     });
     assertBody(`a{b div.aberdeen-error{"Error"}} d`);
 });
@@ -61,7 +61,7 @@ test('Error handling - can disable the default error message', async () => {
             });
             $('d');
         });
-        await asyncPassTime();
+        await passTime();
     }, false);
     assertBody(`a{b} d`);
 });
@@ -78,12 +78,12 @@ test('Error handling - continue rendering after an error in onEach', async () =>
                 $({text: item});
             });
         });
-        await asyncPassTime();
+        await passTime();
     }, false);
     assertBody(`"a" "c"`);
     data.push('d');
     data.push('e');
-    await captureOnError('noSuchFunction', asyncPassTime, false);
+    await captureOnError('noSuchFunction', passTime, false);
     assertBody(`"a" "c" "e"`);
 });
 
@@ -101,12 +101,12 @@ test('Error handling - continue rendering after an error in onEach sort', async 
                 return -index;
             });
         });
-        await asyncPassTime();
+        await passTime();
     });
     assertBody(`"c" "a"`);
     data.push('d');
     data.push('e');
-    await captureOnError('noSuchFunction', asyncPassTime);
+    await captureOnError('noSuchFunction', passTime);
     assertBody(`"e" "c" "a"`);
 });
 
@@ -135,5 +135,5 @@ test('Error handling - breaks up long update->observe recursions', async () => {
     observe(() => {
         data.b = data.a + 1;
     });
-    await captureOnError('recursive', asyncPassTime);
+    await captureOnError('recursive', passTime);
 });

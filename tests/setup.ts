@@ -10,6 +10,6 @@ beforeEach(() => {
 
 afterEach(async () => {
 	unmountAll()
-	await fakedom.asyncPassTime(2001) // wait for deletion transitions
+	await fakedom.passTime(2001) // wait for deletion transitions
 	assertBody(``)
 })

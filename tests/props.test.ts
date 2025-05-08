@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime } from "./helpers";
+import { assertBody, passTime } from "./helpers";
 import { $, copy, proxy, observe, getParentElement, mount, MERGE } from "../src/aberdeen";
 
 test('Sets and unsets classes', async () => {
@@ -15,16 +15,16 @@ test('Sets and unsets classes', async () => {
             });
         });
     });
-    await asyncPassTime();
+    await passTime();
     assertBody(`div.b`);
     
     copy(classObj, {".a": true, ".d": true}, MERGE);
-    await asyncPassTime();
+    await passTime();
     assertBody(`div.a.b.d`);
     
     classObj[".a"] = false;
     delete classObj[".b"]; // Won't remove class, as '.props' don't set a cleaner
-    await asyncPassTime();
+    await passTime();
     assertBody(`div.b.d`);
     
     expect([cnt1, cnt2, cnt3]).toEqual([1, 1, 3]);
@@ -42,11 +42,11 @@ test('Defines and removes event listeners', async () => {
         });
     });
     
-    await asyncPassTime();
+    await passTime();
     expect(el!.events).toEqual({click: new Set([myFunc])});
     
     data.value = false;
-    await asyncPassTime();
+    await passTime();
     expect(el!.events).toEqual({click: new Set()});
 });
 
@@ -66,11 +66,11 @@ test('Styles elements', async () => {
         });
     });
     
-    await asyncPassTime();
+    await passTime();
     assertBody(`div{backgroundColor:red color:blue margin:10px}`);
     
     colorData.value = 'orange';
-    await asyncPassTime();
+    await passTime();
     assertBody(`div{backgroundColor:red color:orange margin:10px}`);
     
     expect(count).toEqual(1);

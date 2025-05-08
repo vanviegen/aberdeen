@@ -70,7 +70,6 @@ export async function assertThrow(a: any, b?: any): Promise<void> {
 }
 
 export const passTime = fakedom.passTime
-export const asyncPassTime = fakedom.asyncPassTime
 
 export function assertDomUpdates(expected: {new?: number, changed?: number}) {
 	const counts = fakedom.getCounts()

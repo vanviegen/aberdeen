@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { assertBody, asyncPassTime, getBody } from "./helpers";
-import { $, proxy, observe, copy, onEach, clean, unmountAll, map } from "../src/aberdeen";
+import { assertBody, passTime, getBody } from "./helpers";
+import { $, proxy, observe, copy, onEach, clean, unmountAll, map, count } from "../src/aberdeen";
 
 test('onEach does nothing for an empty object', () => {
   let cnt = 0;
@@ -70,7 +70,7 @@ test('onEach rerenders items on unrelated observable changes', async () => {
   assertBody(`div{"42=Pete"} div{"1=Hank"} div{"123=Jack"}`);
   
   data[1].name = "Hack";
-  await asyncPassTime();
+  await passTime();
   expect(cnt).toEqual(4);
   assertBody(`div{"42=Pete"} div{"1=Hack"} div{"123=Jack"}`);
 })
@@ -99,14 +99,14 @@ test('onEach maintains position for items', async () => {
   expect(cnts).toEqual([1, 1, 1, 1]);
   
   data[1] = true;
-  await asyncPassTime();
+  await passTime();
   assertBody(`p{id=1}`);
   expect(cnts).toEqual([1, 2, 1, 1]);
   
   data[0] = true;
   data[2] = true;
   data[3] = true;
-  await asyncPassTime();
+  await passTime();
   assertBody(`p{id=0} p{id=1} p{id=2} p{id=3}`);
   expect(cnts).toEqual([2, 2, 2, 2]);
 });
@@ -125,7 +125,7 @@ test('onEach adds items in the right position', async () => {
     seen.push(item);
     seen.sort();
     data[item] = true;
-    await asyncPassTime();
+    await passTime();
     assertBody(seen.join(' '));
   }
 });
@@ -154,7 +154,7 @@ test('onEach removes items and calls cleaners', async () => {
     
     delete data[item];
     cleanedExpected.push(item);
-    await asyncPassTime();
+    await passTime();
     assertBody(current.join(' '));
     expect(cleaned).toEqual(cleanedExpected);
   }
@@ -181,7 +181,7 @@ test('onEach removes an entire object and calls cleaners', async () => {
   assertBody(`a b c`);
   
   showOnEach.value = false;
-  await asyncPassTime();
+  await passTime();
   assertBody(``);
   expect(cleaned).toEqual({a: true, b: true, c: true});
   expect(cnt).toEqual(3);
@@ -205,7 +205,7 @@ test('onEach should ignore on delete followed by set', async () => {
   expect(data).toEqual({b: 2});
   
   data.a = 3;
-  await asyncPassTime();
+  await passTime();
   assertBody(`a b`);
   expect(cnt).toEqual(3); // In the new API, this will trigger again
 });
@@ -228,7 +228,7 @@ test('onEach should do nothing on set followed by delete', async () => {
   expect(data).toEqual({a: 1, b: 2});
   
   delete data.b;
-  await asyncPassTime();
+  await passTime();
   assertBody(`a`);
   expect(cnt).toEqual(1);
 });
@@ -245,15 +245,15 @@ test('onEach should handle items with identical sort keys', async () => {
   expect(getBody().split(' ').sort().join(' ')).toEqual(`a b c d`);
   
   delete data.b;
-  await asyncPassTime();
+  await passTime();
   expect(getBody().split(' ').sort().join(' ')).toEqual(`a c d`);
   
   delete data.d;
-  await asyncPassTime();
+  await passTime();
   expect(getBody().split(' ').sort().join(' ')).toEqual(`a c`);
   
   delete data.a;
-  await asyncPassTime();
+  await passTime();
   expect(getBody().split(' ').sort().join(' ')).toEqual(`c`);
 });
 
@@ -271,27 +271,27 @@ test('onEach keeps two onEaches in order', async () => {
   assertBody(`c1 c2`);
   
   data1[1] = 'b1';
-  await asyncPassTime();
+  await passTime();
   assertBody(`c1 b1 c2`);
   
   copy(data2, ['b2', 'c2', 'd2']);
-  await asyncPassTime();
+  await passTime();
   assertBody(`c1 b1 b2 c2 d2`);
   
   copy(data1, []);
-  await asyncPassTime();
+  await passTime();
   assertBody(`b2 c2 d2`);
   
   copy(data2, []);
-  await asyncPassTime();
+  await passTime();
   assertBody(``);
   
   copy(data2, ['c2', 'b2']);
-  await asyncPassTime();
+  await passTime();
   assertBody(`b2 c2`);
   
   copy(data1, ['c1', 'b1']);
-  await asyncPassTime();
+  await passTime();
   assertBody(`c1 b1 b2 c2`);
 });
 
@@ -310,7 +310,7 @@ test('onEach iterates arrays', async () => {
   assertBody(`h0 h1 h2 h3 i2 i1 i3 i0`);
   
   data[4] = 'c';
-  await asyncPassTime();
+  await passTime();
   assertBody(`h0 h1 h2 h3 h4 i2 i1 i4 i3 i0`);
 });
 
@@ -328,7 +328,7 @@ test('onEach iterates arrays that are pushed into', async () => {
   
   data.push('c');
   
-  await asyncPassTime();
+  await passTime();
   assertBody(`h0 h1 h2 h3 h4 i2 i1 i4 i3 i0`);
 });
 
@@ -351,7 +351,7 @@ test('onEach removes all children before redrawing', async () => {
   assertBody(`a`);
   
   select.value = 2;
-  await asyncPassTime();
+  await passTime();
   assertBody(`b`);
 });
 
@@ -370,13 +370,13 @@ test('onEach should handle items that don\'t create DOM elements', async () => {
   
   data[5] = undefined;
   data[3] = undefined;
-  await asyncPassTime();
+  await passTime();
   assertBody(`"7a" "7a" "1b" "2c"`);
   
   data[0] = undefined;
   data[3] = undefined;
   data[5] = undefined;
-  await asyncPassTime();
+  await passTime();
   assertBody(`"7a" "7a" "1b" "2c"`);
 });
 
@@ -392,7 +392,7 @@ test('onEach filters when there is no sort key', async () => {
   assertBody(`a c`);
   
   copy(data, []);
-  await asyncPassTime();
+  await passTime();
   assertBody(``);
 });
 
@@ -403,15 +403,27 @@ test('onEach can run outside of any scope with map', async () => {
   expect([...incr]).toEqual([4, 8]);
   
   data.push(11);
-  await asyncPassTime();
+  await passTime();
   expect([...incr]).toEqual([4, 8, 12]);
   
   data[1] = 0;
-  await asyncPassTime();
+  await passTime();
   expect([...incr]).toEqual([4, 1, 12]);
   
   unmountAll();
   data.push(19);
-  await asyncPassTime();
+  await passTime();
   expect([...incr]).toEqual([undefined, undefined, undefined]); // map() should have stopped!
+});
+
+test('fail', async () => {
+  const data = proxy([22]);
+  $('h1');
+  $(() => {
+    $('ul', () => {
+      onEach(data, item => $('li:'+item));
+    });
+  });
+
+  assertBody(`h1 ul{li{"22"}}`);
 });
