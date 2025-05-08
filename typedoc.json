@@ -13,11 +13,20 @@
         "html"
     ],
     "searchInComments": true,
+    "searchInDocuments": true,
+    "headings": {
+        "readme": false
+    },
+    "plugin": [
+    ],
+    "theme": "default",
     "navigationLinks": {
         "What's this?": "https://aberdeenjs.org/",
         "Tutorial": "https://aberdeenjs.org/Tutorial/",
         "GitHub": "https://github.com/vanviegen/aberdeen"
     },
+    "favicon": "./docs/favicon.png",
+    "hideGenerator": true,
     "hostedBaseUrl": "https://aberdeenjs.org/",
     "useFirstParagraphOfCommentAsSummary": true,
     "validation": {

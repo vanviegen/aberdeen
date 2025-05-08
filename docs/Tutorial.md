@@ -2,9 +2,9 @@
 title: Tutorial
 ---
 
-## Tutorial
+# Tutorial
 
-### Creating elements
+## Creating elements
 
 This is a complete Aberdeen application:
 
@@ -75,7 +75,7 @@ $('div.box.row', {id: 'cityContainer'}, () => {
 
 Why are we passing in a function instead of just, say, an array of children? I'm glad you asked! :-) For each such function Aberdeen will create an *observer*, which will play a major part in what comes next...
 
-### Observable objects
+## Observable objects
 Aberdeen's reactivity system is built around observable objects. These are created using the {@link aberdeen.proxy} function:
 
 When you access properties of a proxied object within an observer function (the function passed to {@link aberdeen.$}), Aberdeen automatically tracks these dependencies. If the values change later, the observer function will re-run, updating only the affected parts of the DOM.
@@ -128,7 +128,7 @@ setInterval(() => {
 
 Now, updating `user.name` would only cause the *Hello* text node to be replaced, leaving the `<div>`, `<h3>` and `<p>` elements as they were.
 
-### Conditional rendering
+## Conditional rendering
 
 Within an observer function (such as created by passing a function to {@link aberdeen.$}), you can use regular JavaScript logic. Like `if` and `else`, for instance:
 
@@ -150,7 +150,7 @@ $('div', () => {
 });
 ```
 
-### Observable primitive values
+## Observable primitive values
 
 The {@link aberdeen.proxy} method wraps an object in a JavaScript [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy). As this doesn't work for primitive values (like numbers, strings and booleans), the method will *create* an object in order to make it observable. The observable value is made available as its `.value` property.
 
@@ -168,7 +168,7 @@ The reason that the scope within `div.row` doesn't have to redraw, is that we're
 
 If we would have done `$('div', {text: count.value});` instead, we *would* have subscribed to `count.value` within the `div.row` scope, meaning we'd be redrawing the two buttons and the div every time the count changes.
 
-### Observable arrays
+## Observable arrays
 
 You can create observable arrays too. They work just like regular arrays, apart from being observable.
 
@@ -191,7 +191,7 @@ $('ul', () => {
 $('button:Add', {click: () => items.push(items.length+1)});
 ```
 
-### TypeScript and classes
+## TypeScript and classes
 
 Though this tutorial mostly uses plain JavaScript to explain the concepts, Aberdeen is written in and aimed towards TypeScript.
 
@@ -213,7 +213,7 @@ $('button:Grow', {click: () => graph.grow()});
 The type returned by {@link aberdeen.proxy} matches the input type, meaning the type system does not distinguish proxied and unproxied objects. That makes sense, as they have the exact same methods and properties (though proxied objects may have additional side effects).
 
 
-### Efficient list rendering with onEach
+## Efficient list rendering with onEach
 For rendering lists efficiently, Aberdeen provides the {@link aberdeen.onEach} function. It takes three arguments:
 1. The array to iterate over.
 2. A render function that receives the item and its index.
@@ -278,7 +278,7 @@ $('div.row.wide', {$marginTop: '1em'}, () => {
 
 Note the use of the provided {@link aberdeen.invertString} function to reverse-sort by a string value.
 
-### Two-way binding
+## Two-way binding
 Aberdeen makes it easy to create two-way bindings between form elements (the various `<input>` types, `<textarea>` and `<select>`) and your data, by passing an observable object with a `.value` as `bind:` property to {@link aberdeen.$}.
 
 In order to bind to properties other than `.value`, you can use the {@link aberdeen.ref} function to create a new proxy object with only a `.value` property that maps to a property with any name on any observable object.
@@ -318,7 +318,7 @@ $('div.box', () => {
 });
 ```
 
-### CSS
+## CSS
 Through the {@link aberdeen.insertCss} function, Aberdeen provides a way to create component-local CSS.
 
 ```javascript
@@ -348,7 +348,7 @@ This allows you to create single-file components with advanced CSS rules. By ena
 
 Of course, if you dislike JavaScript-based CSS and/or prefer to use some other way to style your components, you can just ignore this Aberdeen function.
 
-### Transitions
+## Transitions
 Aberdeen allows you to easily apply transitions on element creation and element destruction:
 
 ```javascript
@@ -419,7 +419,7 @@ $('div.row.wide', {$height: '250px'}, () => {
 });
 ```
 
-### Derived values
+## Derived values
 An observer scope doesn't *need* to create DOM elements. It may also perform other side effects, such as modifying other observable scopes. For instance:
 
 ```javascript
@@ -482,7 +482,7 @@ $(() => {
 })
 ```
 
-### Further reading
+## Further reading
 
 If you've understood all/most of the above, you should be ready to get going with Aberdeen! You may also find these helpful:
 

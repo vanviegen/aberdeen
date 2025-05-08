@@ -1,3 +1,5 @@
+# [Aberdeen](https://aberdeenjs.org/) &middot; [![ISC license](https://img.shields.io/badge/license-ISC-blue.svg)](https://github.com/vanviegen/aberdeen/blob/master/LICENSE.txt)
+
 A TypeScript/JavaScript library for quickly building performant declarative user interfaces *without* the use of a virtual DOM.
 
 The key insight is the use of many small anonymous functions, that will automatically rerun when the underlying data changes. In order to trigger updates, that data should be encapsulated in any number of *proxied* JavaScript objects. They can hold anything, from simple values to complex, typed and deeply nested data structures, in which case user-interface functions can (automatically) subscribe to just the parts they depend upon.

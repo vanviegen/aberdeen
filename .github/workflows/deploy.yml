@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: bun install
       - name: Build docs
-        run: npm run build && cp -rav examples dist dist-docs/
+        run: npm run build && cp -ra examples dist dist-docs/
       - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -35,6 +35,13 @@ jobs:
       - name: Deploy docs to GitHub Pages
         uses: actions/deploy-pages@v4
       - name: Test, build and deploy code to NPM
-        run: bun publish
+        run: |
+          output=$(bun publish --access=public 2>&1); ec=$?
+          echo "$output"
+          if [ "$ec" -ne 0 ] && [[ "$output" == *"You cannot publish over the previously published versions"* ]]; then
+            echo "Version already published. Considering this a success."
+            exit 0
+          fi
+          exit "$ec"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
