@@ -1,8 +1,8 @@
 {
     "name": "Aberdeen",
-    "readme": "none",
+    "readme": "README.md",
     "entryPoints": ["src/*.ts"],
-    "projectDocuments": ["README.md", "docs/*.md"],
+    "projectDocuments": ["docs/*.md"],
     "excludeInternal": true,
     "excludePrivate": true,
     "includeVersion": true,
@@ -14,11 +14,11 @@
     ],
     "searchInComments": true,
     "navigationLinks": {
-        "What's this?": "https://vanviegen.github.io/aberdeen/README/",
-        "Tutorial": "https://vanviegen.github.io/aberdeen/Tutorial/",
+        "What's this?": "https://aberdeenjs.org/",
+        "Tutorial": "https://aberdeenjs.org/Tutorial/",
         "GitHub": "https://github.com/vanviegen/aberdeen"
     },
-    "hostedBaseUrl": "https://vanviegen.github.io/aberdeen/",
+    "hostedBaseUrl": "https://aberdeenjs.org/",
     "useFirstParagraphOfCommentAsSummary": true,
     "validation": {
         "notDocumented": true

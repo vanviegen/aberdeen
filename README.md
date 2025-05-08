@@ -165,6 +165,10 @@ Some further examples:
 - [Tutorial](https://vanviegen.github.io/aberdeen/Tutorial/)
 - [Reference documentation](https://vanviegen.github.io/aberdeen/modules.html)
 
+## News
+
+- **2025-5-07**: After five years of working on this library on and off, I'm finally happy with its API and the developer experience it offers. I'm calling it 1.0! To celebrate, I've created some pretty fancy (if I may say so myself) interactive documentation and a tutorial.
+
 ## Roadmap
 
 - [x] Support for (dis)appear transitions.
