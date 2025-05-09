@@ -164,7 +164,7 @@ $('div.row', () => {
 });
 ```
 
-The reason the div.row scope doesn't redraw when cnt.value changes is that we're passing the entire cnt observable object to the text: property. Aberdeen then internally subscribes to cnt.value for just that text node, ensuring minimal updates.
+The reason the `div.row` scope doesn't redraw when `cnt.value` changes is that we're passing the entire `cnt` observable object to the `text:` property. Aberdeen then internally subscribes to `cnt.value` for just that text node, ensuring minimal updates.
 
 If we would have done `$('div', {text: count.value});` instead, we *would* have subscribed to `count.value` within the `div.row` scope, meaning we'd be redrawing the two buttons and the div every time the count changes.
 
@@ -480,6 +480,18 @@ $(() => {
     });
 })
 ```
+
+## html-to-aberdeen
+
+Sometimes, you want to just paste a largish block of HTML into your application (and then maybe modify it to bind some actual data). Having to translate HTML to `$` calls manually is little fun, so there's a tool for that:
+
+```sh
+npx html-to-aberdeen
+```
+
+It takes HTML on stdin (paste it and press `ctrl-d` for end-of-file), and outputs JavaScript on stdout.
+
+> Caveat: This tool has been vibe coded (thanks Claude!) with very little code review. As it doesn't use the filesystem nor the network, I'd say it's safe to use though! :-) Also, it happens to work pretty well.
 
 ## Further reading
 

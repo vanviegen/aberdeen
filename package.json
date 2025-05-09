@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Frank van Viegen",
   "main": "dist-min/aberdeen.js",
   "devDependencies": {
@@ -37,6 +37,9 @@
     "dist-min",
     "src"
   ],
+  "bin": {
+    "html-to-aberdeen": "./html-to-aberdeen"
+  },
   "license": "MIT",
   "scripts": {
     "build": "bun run build:dist && typedoc && rm -rf dist-docs/assets/aberdeen ; cp -r dist dist-docs/assets/aberdeen",
