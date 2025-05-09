@@ -26,7 +26,7 @@ When a string is passed:
 $('button.outline.secondary:Pressing me does nothing!');
 ```
 
-Note that you can play around, modifying any example while seeing its live result by pressing the *Edit* button that appears when hoovering an example!
+Note that you can play around, modifying any example while seeing its live result by pressing the *Edit* button that appears when hovering over an example!
 
 Multiple strings can be passed, so the above could just as well be written as:
 
@@ -164,7 +164,7 @@ $('div.row', () => {
 });
 ```
 
-The reason that the scope within `div.row` doesn't have to redraw, is that we're passing in the observable object `count` as a whole to the `text:` property. When a property receives an observable object as its values, it will reactively read its `.value` property and handle changes.
+The reason the div.row scope doesn't redraw when cnt.value changes is that we're passing the entire cnt observable object to the text: property. Aberdeen then internally subscribes to cnt.value for just that text node, ensuring minimal updates.
 
 If we would have done `$('div', {text: count.value});` instead, we *would* have subscribed to `count.value` within the `div.row` scope, meaning we'd be redrawing the two buttons and the div every time the count changes.
 
@@ -253,7 +253,7 @@ $('div.row.wide', {$height: '250px'}, () => {
 })
 ```
 
-We can also use {@link aberdeen.onEach} to reactively iterate *objects*. In that case, the render and order functions receive `(value, key)` instead of `(value, index)` as their arguments.
+We can also use {@link aberdeen.onEach} to reactively iterate over *objects*. In that case, the render and order functions receive `(value, key)` instead of `(value, index)` as their arguments.
 
 ```javascript
 const pairs = proxy({A: 'Y', B: 'X',});
@@ -281,8 +281,7 @@ Note the use of the provided {@link aberdeen.invertString} function to reverse-s
 ## Two-way binding
 Aberdeen makes it easy to create two-way bindings between form elements (the various `<input>` types, `<textarea>` and `<select>`) and your data, by passing an observable object with a `.value` as `bind:` property to {@link aberdeen.$}.
 
-In order to bind to properties other than `.value`, you can use the {@link aberdeen.ref} function to create a new proxy object with only a `.value` property that maps to a property with any name on any observable object.
-
+To bind to object properties not named .value (e.g., user.name), use {@link aberdeen.ref}. This creates a new observable proxy whose .value property directly maps to the specified property (e.g., name) on your original observable object (e.g., user).
 
 ```javascript
 import { $, proxy, ref } from 'aberdeen';
@@ -383,7 +382,7 @@ $(() => {
 - The creation transition works by briefly adding the given CSS classes on element creation, and immediately removing them after the initial browser layout has taken place.
 - The destruction transition works by delaying the removal of the element from the DOM by two seconds (currently hardcoded - should be enough for any reasonable transition), while adding the given CSS classes.
 
-Though this approach is easy (you just need to provide some CSS), you may require more control over the specifics, for instance in order to animate the layout height (or width) taken by the element as well. (Note how the document height changes in the example above are rather ugly.) For this, `create` and `destroy` may be functions instead of CSS class names. We won't go into the details here, but Aberdeen provides ready-to-use functions (that can be used as examples for your own transition) for smooth element creation and destruction:
+Though this approach is easy (you just need to provide some CSS), you may require more control over the specifics, for instance in order to animate the layout height (or width) taken by the element as well. (Note how the document height changes in the example above are rather ugly.) For this, `create` and `destroy` may be functions instead of CSS class names. For more control, create and destroy can also accept functions. While custom function details are beyond this tutorial, Aberdeen offers ready-made {@link transitions.grow} and {@link transitions.shrink} transition functions (which also serve as excellent examples for creating your own):
 
 ```javascript
 import { $, proxy, onEach } from 'aberdeen';
@@ -420,7 +419,7 @@ $('div.row.wide', {$height: '250px'}, () => {
 ```
 
 ## Derived values
-An observer scope doesn't *need* to create DOM elements. It may also perform other side effects, such as modifying other observable scopes. For instance:
+An observer scope doesn't *need* to create DOM elements. It may also perform other side effects, such as modifying other observable objects. For instance:
 
 ```javascript
 // NOTE: See below for a better way.
@@ -444,7 +443,7 @@ $('h3', {text: derived});
 $('button:Increment', {click: () => original.value++});
 ```
 
-For deriving values from (possibly large) arrays or objects, Aberdeen provides a set of functions that will allow fast incremental changes: {@link aberdeen.map} (each item becomes zero or one derived item), {@link aberdeen.multiMap} (each item becomes any number of derived items), {@link aberdeen.count} (reactively counts the number of object properties), {@link aberdeen.isEmpty} (true when the object/array has no items) and {@link aberdeen.partition} (sorts each item into one or more buckets). An example:
+For deriving values from (possibly large) arrays or objects, Aberdeen provides specialized functions that enable fast, incremental updates to derived data: {@link aberdeen.map} (each item becomes zero or one derived item), {@link aberdeen.multiMap} (each item becomes any number of derived items), {@link aberdeen.count} (reactively counts the number of object properties), {@link aberdeen.isEmpty} (true when the object/array has no items) and {@link aberdeen.partition} (sorts each item into one or more buckets). An example:
 
 ```javascript
 import * as aberdeen from 'aberdeen';
@@ -473,7 +472,7 @@ const message = aberdeen.observe(
 // Show the results
 $('p', {text: message});
 $(() => {
-    // isEmpty only causes a re-run when count changes between zero and non-zero
+    // isEmpty only causes a re-run when the count changes between zero and non-zero
     if (aberdeen.isEmpty(overweightBmis)) return;
     $('p:These are their BMIs:', () => {
         aberdeen.onEach(overweightBmis, bmi => $(': '+bmi), bmi => -bmi);
@@ -484,7 +483,7 @@ $(() => {
 
 ## Further reading
 
-If you've understood all/most of the above, you should be ready to get going with Aberdeen! You may also find these helpful:
+If you've understood all/most of the above, you should be ready to get going with Aberdeen! You may also find these links helpful:
 
-- [Reference documentation](https://vanviegen.github.io/aberdeen/modules.html)
-- [Examples](https://vanviegen.github.io/aberdeen/README/#example-code)
+- [Reference documentation](https://aberdeenjs.org/modules.html)
+- [Examples](https://aberdeenjs.org/#examples)

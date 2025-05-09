@@ -1,31 +1,29 @@
-# [Aberdeen](https://aberdeenjs.org/) &middot; [![ISC license](https://img.shields.io/badge/license-ISC-blue.svg)](https://github.com/vanviegen/aberdeen/blob/master/LICENSE.txt)
+# [Aberdeen](https://aberdeenjs.org/) [![](https://img.shields.io/badge/license-ISC-blue.svg)](https://github.com/vanviegen/aberdeen/blob/master/LICENSE.txt) [![](https://badge.fury.io/js/aberdeen.svg)](https://badge.fury.io/js/aberdeen) ![](https://img.shields.io/bundlejs/size/aberdeen) [![](https://img.shields.io/github/last-commit/vanviegen/aberdeen)](https://github.com/vanviegen/aberdeen)
 
-A TypeScript/JavaScript library for quickly building performant declarative user interfaces *without* the use of a virtual DOM.
+Build blazing-fast, declarative UIs in pure TypeScript/JavaScript – no virtual DOM.
 
-The key insight is the use of many small anonymous functions, that will automatically rerun when the underlying data changes. In order to trigger updates, that data should be encapsulated in any number of *proxied* JavaScript objects. They can hold anything, from simple values to complex, typed and deeply nested data structures, in which case user-interface functions can (automatically) subscribe to just the parts they depend upon.
+Aberdeen offers a refreshingly simple approach to reactive UIs. Its core idea:
+
+> Use many small, anonymous functions for emitting DOM elements, and automatically rerun them when their underlying *proxied* data changes. This proxied data can be anything from simple values to complex, typed, and deeply nested data structures.
+
+Now, let's dive into why this matters...
 
 ## Why use Aberdeen?
 
-- It provides a flexible and simple to understand model for reactive user-interface building.
-- It allows you to express user-interfaces in plain JavaScript (or TypeScript) in an easy to read form, without (JSX-like) compilation steps.
-- It's fast, as it doesn't use a *virtual DOM* and only reruns small pieces of code, redrawing minimal pieces of the UI, in response to updated data. 
-- It makes displaying and updating sorted lists very easy and very fast.
-- It's tiny, at about 5kb (minimized and gzipped) and without any run-time dependencies.
-- It comes with batteries included:
-  - Client-side routing.
-  - Revertible patches, for optimistic user-interface updates.
-  - Component-local CSS generator.
-  - Helper functions for reactively working with data, such as for deriving, (multi)mapping, filtering, partitioning and counting.
-  - A couple of add/remove transition effects, to get you started.
+- 🎩 **Elegant and simple:** Express UIs naturally in JavaScript/TypeScript, without complex abstractions, build steps, or JSX. No hooks, no `setState`, no lifting state, no state management libraries. Just proxied data and automatically rerunning functions.
+- ⏩ **Fast:** No virtual DOM. Aberdeen intelligently updates only the minimal, necessary parts of your UI when proxied data changes.
+- 👥 **Awesome lists**: It's very easy and performant to reactively display data sorted by whatever you like.
+- 🔬 **Tiny:** Around 5KB (minimized and gzipped) and with zero runtime dependencies.
+- 🔋 **Batteries included**: Comes with client-side routing, revertible patches for optimistic user-interface updates, component-local CSS, helper functions for transforming reactive data (mapping, partitioning, filtering, etc) and hide/unhide transition effects. No bikeshedding required!
 
 ## Why *not* use Aberdeen?
 
-- There are not many of us -Aberdeen developers- yet, so don't expect terribly helpful StackOver/AI answers.
-- You'd have to code things yourself, instead of duct-taping together a gazillion React ecosystem libraries.
+- 🤷 **Lack of community:** There are not many of us -Aberdeen developers- yet, so don't expect terribly helpful Stack Overflow/AI answers.
+- 📚 **Lack of ecosystem:** You'd have to code things yourself, instead of duct-taping together a gazillion React ecosystem libraries.
 
-## Example code
+## Examples
 
-To get a quick impression of what Aberdeen code looks like, below is a Tic-tac-toe app with undo history. If you're reading this on [the official website](https://vanviegen.github.io/aberdeen/README/) you should see a working demo below the code, and an 'edit' button in the top-right corner of the code, to play around.
+To get a quick impression of what Aberdeen code looks like, below is a Tic-tac-toe app with undo history. If you're reading this on [the official website](https://aberdeenjs.org) you should see a working demo below the code, and an 'edit' button in the top-right corner of the code, to play around.
 
 ```javascript
 import {$, proxy, onEach, insertCss, observe} from "aberdeen";
@@ -156,28 +154,18 @@ drawMain();
 
 Some further examples:
 
-- [Input example demo](https://vanviegen.github.io/aberdeen/examples/input/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/input)
-- [List example demo](https://vanviegen.github.io/aberdeen/examples/list/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/list)
-- [Routing example demo](https://vanviegen.github.io/aberdeen/examples/router/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/router)
-- [JS Framework Benchmark demo](https://vanviegen.github.io/aberdeen/examples/js-framework-benchmark/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/js-framework-benchmark)
+- [Input example demo](https://aberdeenjs.org/examples/input/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/input)
+- [List example demo](https://aberdeenjs.org/examples/list/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/list)
+- [Routing example demo](https://aberdeenjs.org/examples/router/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/router)
+- [JS Framework Benchmark demo](https://aberdeenjs.org/examples/js-framework-benchmark/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/js-framework-benchmark)
 
+## Learning Aberdeen
 
-## Documentation
+- [Tutorial](https://aberdeenjs.org/Tutorial/)
+- [Reference documentation](https://aberdeenjs.org/modules.html)
 
-- [Tutorial](https://vanviegen.github.io/aberdeen/Tutorial/)
-- [Reference documentation](https://vanviegen.github.io/aberdeen/modules.html)
+And you may want to study the examples above, of course!
 
 ## News
 
-- **2025-5-07**: After five years of working on this library on and off, I'm finally happy with its API and the developer experience it offers. I'm calling it 1.0! To celebrate, I've created some pretty fancy (if I may say so myself) interactive documentation and a tutorial.
-
-## Roadmap
-
-- [x] Support for (dis)appear transitions.
-- [x] A better alternative for scheduleTask.
-- [x] A simple router.
-- [x] Optimistic client-side predictions.
-- [x] Performance profiling and tuning regarding lists.
-- [x] Support for (component local) CSS
-- [ ] Architecture document.
-- [ ] SVG support.
+- **2025-05-07**: After five years of working on this library on and off, I'm finally happy with its API and the developer experience it offers. I'm calling it 1.0! To celebrate, I've created some pretty fancy (if I may say so myself) interactive documentation and a tutorial.

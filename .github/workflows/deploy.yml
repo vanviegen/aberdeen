@@ -35,13 +35,6 @@ jobs:
       - name: Deploy docs to GitHub Pages
         uses: actions/deploy-pages@v4
       - name: Test, build and deploy code to NPM
-        run: |
-          output=$(bun publish --access=public 2>&1); ec=$?
-          echo "$output"
-          if [ "$ec" -ne 0 ] && [[ "$output" == *"You cannot publish over the previously published versions"* ]]; then
-            echo "Version already published. Considering this a success."
-            exit 0
-          fi
-          exit "$ec"
+        run: bun publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

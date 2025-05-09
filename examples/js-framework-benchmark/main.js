@@ -12,7 +12,7 @@
  * The idiomatic implementation (with very slow deletes) is in `idiomatic.js`.
  */
 
-import {$, copy, ref, proxy, onEach} from "./dist-min/aberdeen.js";
+import {$, copy, ref, proxy, onEach} from '../../dist/aberdeen.js';
 import { buildData } from "./build-dummy-data.js";
 
 const unproxiedData = []; // [{id, label}, ...]
@@ -94,7 +94,9 @@ $('div', {id: "main"}, 'div.container', () => {
     $('table.table.table-hover.table-striped.test-data', 'tbody', () => {
         onEach(data, (item, index) => {
             $('tr', () => {
-                $({".danger": selected[item.id]})
+                $(() => {
+                    if (selected[item.id]) $('.danger');
+                })
                 $('td.col-md-1:'+item.id);
                 $('td.col-md-4', 'a', {text: ref(item,'label')}, {
                     click: function() {
