@@ -1472,22 +1472,32 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
  *   - `{html: string}`: Add the value as HTML to the *current* element. This should only be used in exceptional situations. And of course, beware of XSS.
  *   - `{element: Node}`: Add a pre-existing HTML `Node` to the *current* element.
  *
+ * @returns The most inner DOM element that was created (not counting text nodes nor elements created by content functions),
+ *          or undefined if no elements were created.
  *
  * @example Create Element
  * ```typescript
  * $('button.secondary.outline:Submit', {
- *   disabled: true,
+ *   disabled: false,
  *   click: () => console.log('Clicked!'),
  *   $color: 'red'
  * });
  * ```
+ * 
+ * @example Create Nested Elements
+ * ```typescript
+ * let inputElement: Element = $('label:Click me', 'input', {type: 'checkbox'});
+ * // You should usually not touch raw DOM elements, unless when integrating
+ * // with non-Aberdeen code. 
+ * console.log('DOM element:', inputElement);
+ * ```
  *
- * @example Nested Elements & Reactive Scope
+ * @example Content Functions & Reactive Scope
  * ```typescript
  * const state = proxy({ count: 0 });
  * $('div', () => { // Outer element
  *   // This scope re-renders when state.count changes
- *   $('p:Count is ${state.count}`);
+ *   $(`p:Count is ${state.count}`);
  *   $('button:Increment', { click: () => state.count++ });
  * });
  * ```
@@ -1514,9 +1524,10 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
  */
 
 
-export function $(...args: (string | null | undefined | false | (() => void) | Record<string,any>)[]): void {
+export function $(...args: (string | null | undefined | false | (() => void) | Record<string,any>)[]): void | Element {
 	let savedCurrentScope;
 	let err;
+	let result;
 
 	for(let arg of args) {
 		if (arg == null || arg === false) continue;
@@ -1545,15 +1556,15 @@ export function $(...args: (string | null | undefined | false | (() => void) | R
 				err = `Tag '${arg}' cannot contain space`;
 				break;
 			} else {
-				const el = document.createElement(arg);
-				if (classes) el.className = classes.replaceAll('.', ' ');
-				if (text) el.textContent = text;
-				addNode(el);
+				result = document.createElement(arg);
+				if (classes) result.className = classes.replaceAll('.', ' ');
+				if (text) result.textContent = text;
+				addNode(result);
 				if (!savedCurrentScope) {
 					savedCurrentScope = currentScope;
 				}
-				let newScope = new ChainedScope(el, true);
-				newScope.lastChild = el.lastChild || undefined;
+				let newScope = new ChainedScope(result, true);
+				newScope.lastChild = result.lastChild || undefined;
 				if (topRedrawScope === currentScope) topRedrawScope = newScope;
 				currentScope = newScope;
 			}
@@ -1578,6 +1589,7 @@ export function $(...args: (string | null | undefined | false | (() => void) | R
 		currentScope = savedCurrentScope;
 	}
 	if (err) throw new Error(err);
+	return result;
 }
 
 let cssCount = 0;
