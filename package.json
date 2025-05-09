@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Frank van Viegen",
   "main": "dist-min/aberdeen.js",
   "devDependencies": {
@@ -31,7 +31,7 @@
     },
     "./package.json": "./package.json"
   },
-  "description": "A TypeScript/JavaScript library for quickly building performant declarative user interfaces without the use of a virtual DOM nor any transpilation.",
+  "description": "A TypeScript/JavaScript library for quickly building performant reactive user interfaces without the use of a virtual DOM nor any transpilation.",
   "files": [
     "dist",
     "dist-min",

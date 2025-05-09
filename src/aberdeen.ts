@@ -1766,7 +1766,7 @@ export function setErrorHandler(handler?: (error: Error) => boolean | undefined)
  * call or a {@link $} element's render function).
  *
  * **Note:** While this provides access to the DOM element, directly manipulating it outside
- * of Aberdeen's control is generally discouraged. Prefer declarative updates using {@link $}.
+ * of Aberdeen's control is generally discouraged. Prefer reactive updates using {@link $}.
  *
  * @returns The current parent `Element` for DOM insertion.
  *

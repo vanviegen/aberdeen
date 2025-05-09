@@ -1,6 +1,6 @@
 # [Aberdeen](https://aberdeenjs.org/) [![](https://img.shields.io/badge/license-ISC-blue.svg)](https://github.com/vanviegen/aberdeen/blob/master/LICENSE.txt) [![](https://badge.fury.io/js/aberdeen.svg)](https://badge.fury.io/js/aberdeen) ![](https://img.shields.io/bundlejs/size/aberdeen) [![](https://img.shields.io/github/last-commit/vanviegen/aberdeen)](https://github.com/vanviegen/aberdeen)
 
-Build blazing-fast, declarative UIs in pure TypeScript/JavaScript – no virtual DOM.
+Build blazing-fast, reactive UIs in pure TypeScript/JavaScript – no virtual DOM.
 
 Aberdeen offers a refreshingly simple approach to reactive UIs. Its core idea:
 
