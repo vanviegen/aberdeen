@@ -47,140 +47,124 @@ $('div.row', {$marginTop: '1em'}, () => {
 });
 ```
 
-What follows is a somewhat more complex app, Tic-tac-toe with undo history.
+Okay, next up is a somewhat more complex app - a todo-list with the following behavior:
+
+- New items open in an 'editing state'.
+- Items that are in 'editing state' show a text input, a save button and a cancel button. Done status cannot be toggled while editing.
+- Pressing one of the buttons, or pressing enter will transition from 'editing state' to 'viewing state', saving the new label text unless cancel was pressed.
+- In 'viewing state', the label is shown as non-editable. There's an 'Edit' link, that will transition the item to 'editing state'. Clicking anywhere else will toggle the done status.
+- The list of items is sorted alphabetically by label. Items move when 'save' changes their label.
+- Items that are created, moved or deleted are grown and shrink as appropriate.
+
+Pfew.. now let's look at the code:
 
 ```typescript
-import {$, proxy, onEach, insertCss, observe} from "aberdeen";
+import {$, proxy, onEach, insertCss, peek, observe, unproxy, ref} from "aberdeen";
+import {grow, shrink} from "aberdeen/transitions";
 
-// UI drawing functions.
+// We'll use a simple class to store our data.
+class TodoItem {
+    constructor(public label: string = '', public done: boolean = false) {}
+    toggle() { this.done = !this.done; }
+}
 
+// The top-level user interface.
 function drawMain() {
-    // Define our state, wrapped by an observable proxy
-    const history = proxy({
-        boards: [[]], // eg. [[], [undefined, 'O', undefined, 'X'], ...]
-        current: 0, // indicates which of the boards is currently showing
-    });
-
-    $('main.row', () => {
-        $('div.box', () => drawBoard(history));
-        $('div.box', {$flex: 1}, () => {
-            drawStatusMessage(history);
-            drawTurns(history);
-        });
-    });
-}
-
-function drawBoard(history) {
-    $('div', boardStyle, () => {
-        for(let pos=0; pos<9; pos++) {
-            $('button.square', () => {
-                let marker = getBoard(history)[pos];
-                if (marker) {
-                    $({ text: marker });
-                } else {
-                    $({ click: () => markSquare(history, pos) });
-                }
-            });
-        }
-    })
-}
-
-function drawStatusMessage(history) {
-    $('h4', () => {
-        // Reruns whenever observable data read by calculateWinner or getCurrentMarker changes
-        const board = getBoard(history);
-        const winner = calculateWinner(board);
-        if (winner) {
-            $(`:Winner: ${winner}!`);
-        } else if (board.filter(square=>square).length === 9) {
-            $(`:It's a draw...`);
-        } else {
-            $(`:Current player: ${getCurrentMarker(board)}`);
-        }
-    });
-}
-
-function drawTurns(history) {
-    $('div:Select a turn:')
-    // Reactively iterate all (historic) board versions
-    onEach(history.boards, (_, index) => {
-        $('button', {
-            // A text node:
-            text: index,
-            // Conditional css class:
-            ".outline": observe(() => history.current != index),
-            // Inline styles:
-            $marginRight: "0.5em",
-            $marginTop: "0.5em",
-            // Event listener:
-            click: () => history.current = index,
-        });
-    });
-}
-
-// Helper functions
-
-function calculateWinner(board) {
-    const lines = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8], // horizontal
-        [0, 3, 6], [1, 4, 7], [2, 5, 8], // vertical
-        [0, 4, 8], [2, 4, 6] // diagonal
-    ];
-    for (const [a, b, c] of lines) {
-        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-            return board[a];
-        }
-    }
-}
-
-function getCurrentMarker(board) {
-	return board.filter(v => v).length % 2 ? "O" : "X";
-}
-
-function getBoard(history) {
-    return history.boards[history.current];
-}
-
-function markSquare(history, position) {
-    const board = getBoard(history);
-
-    // Don't allow markers when we already have a winner
-    if (calculateWinner(board)) return;
-
-    // Copy the current board, and insert the marker into it
-    const newBoard = board.slice();
-    newBoard[position] = getCurrentMarker(board);
+    // Add some initial items. We'll wrap a proxy() around it!
+    let items: TodoItem[] = proxy([
+        new TodoItem('Make todo-list demo', true),
+        new TodoItem('Learn Aberdeen', false),
+    ]);
     
-    // Truncate any future states, and write a new future
-    history.current++;
-    history.boards.length = history.current;
-    history.boards.push(newBoard);
+    // Draw the list, ordered by label.
+    onEach(items, drawItem, item => item.label);
+
+    // Add item and delete checked buttons.
+    $('div.row', () => {
+        $('button:+', {
+            click: () => items.push(new TodoItem("")),
+        });
+        $('button.outline:Delete checked', {
+            click: () => {
+                for(let idx in items) {
+                    if (items[idx].done) delete items[idx];
+                }
+            }
+        });
+    });
+};
+
+// Called for each todo list item.
+function drawItem(item) {
+    // Items without a label open in editing state.
+    // Note that we're creating this proxy outside the `div.row` scope
+    // create below, so that it will persist when that state reruns.
+    let editing: {value: boolean} = proxy(item.label == '');
+
+    $('div.row', todoItemStyle, {create:grow, destroy: shrink}, () => {
+        // Conditionally add a class to `div.row`, based on item.done
+        $({".done": ref(item,'done')});
+
+        // The checkmark is hidden using CSS
+        $('div.checkmark:✅');
+
+        if (editing.value) {
+            // Label <input>. Save using enter or button.
+            function save() {
+                editing.value = false;
+                item.label = inputElement.value;
+            }
+            let inputElement = $('input', {
+                placeholder: 'Label',
+                value: item.label,
+                keydown: e => e.key==='Enter' && save(),
+            });
+            $('button.outline:Cancel', {click: () => editing.value = false});
+            $('button:Save', {click: save});
+        } else {
+            // Label as text. 
+            $('p:' + item.label);
+
+            // Edit icon, if not done.
+            if (!item.done) {
+                $('a:Edit', {
+                    click: e => {
+                        editing.value = true;
+                        e.stopPropagation(); // We don't want to toggle as well.
+                    },
+                });
+            }
+            
+            // Clicking a row toggles done.
+            $({click: () => item.done = !item.done, $cursor: 'pointer'});
+        }
+    });
 }
 
-// Define component-local CSS, which we'll utilize in the drawBoard function.
-// Of course, you can use any other styling solution instead, if you prefer.
-
-const boardStyle = insertCss({
-    display: 'grid',
-    gap: '0.5em',
-    gridTemplateColumns: '1fr 1fr 1fr',
-    '> *': {
-        width: '2em',
-        height: '2em',
-        padding: 0,
+// Insert some component-local CSS, specific for this demo.
+const todoItemStyle = insertCss({
+    marginBottom: "0.5rem",
+    ".checkmark": {
+        opacity: 0.2,
+    },
+    "&.done": {
+        textDecoration: "line-through",
+        ".checkmark": {
+            opacity: 1,
+        },
     },
 });
 
-// Fire it up! Mounts on document.body by default..
-
+// Go!
 drawMain();
 ```
 
 Some further examples:
 
-- [Input example demo](https://aberdeenjs.org/examples/input/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/input)
-- [List example demo](https://aberdeenjs.org/examples/list/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/list)
-- [Routing example demo](https://aberdeenjs.org/examples/router/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/router)
+- [Input demo](https://aberdeenjs.org/examples/input/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/input)
+- [Tic Tac Toe demo](https://aberdeenjs.org/examples/tictactoe/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/tictactoe)
+- [List demo](https://aberdeenjs.org/examples/list/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/list)
+- [Routing demo](https://aberdeenjs.org/examples/router/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/router)
 - [JS Framework Benchmark demo](https://aberdeenjs.org/examples/js-framework-benchmark/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/js-framework-benchmark)
 
 ## Learning Aberdeen
