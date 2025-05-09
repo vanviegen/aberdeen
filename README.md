@@ -23,10 +23,100 @@ Now, let's dive into why this matters...
 
 ## Examples
 
-To get a quick impression of what Aberdeen code looks like, below is a Tic-tac-toe app with undo history. If you're reading this on [the official website](https://aberdeenjs.org) you should see a working demo below the code, and an 'edit' button in the top-right corner of the code, to play around.
+First, let's start with the obligatory reactive counter example. If you're reading this on [the official website](https://aberdeenjs.org) you should see a working demo below the code, and an 'edit' button in the top-right corner of the code, to play around.
+
+```javascript
+import {$, proxy, ref} from 'aberdeen';
+
+// Define some state as a proxied (observable) object
+const state = proxy({question: "How many roads must a man walk down?", answer: 42});
+
+$('h3', () => {
+    // This function reruns whenever the question or the answer changes
+    $(`:${state.question} ↪ ${state.answer || 'Blowing in the wind'}`)
+});
+
+// Two-way bind state.question to an <input>
+$('input', {placeholder: 'Question', bind: ref(state, 'question')})
+
+// Allow state.answer to be modified using both an <input> and buttons
+$('div.row', {$marginTop: '1em'}, () => {
+    $('button:-', {click: () => state.answer--});
+    $('input', {type: 'number', bind: ref(state, 'answer')})
+    $('button:+', {click: () => state.answer++});
+});
+```
+
+What follows is a somewhat more complex app, Tic-tac-toe with undo history.
 
 ```javascript
 import {$, proxy, onEach, insertCss, observe} from "aberdeen";
+
+// UI drawing functions.
+
+function drawMain() {
+    // Define our state, wrapped by an observable proxy
+    const history = proxy({
+        boards: [[]], // eg. [[], [undefined, 'O', undefined, 'X'], ...]
+        current: 0, // indicates which of the boards is currently showing
+    });
+
+    $('main.row', () => {
+        $('div.box', () => drawBoard(history));
+        $('div.box', {$flex: 1}, () => {
+            drawStatusMessage(history);
+            drawTurns(history);
+        });
+    });
+}
+
+function drawBoard(history) {
+    $('div', boardStyle, () => {
+        for(let pos=0; pos<9; pos++) {
+            $('button.square', () => {
+                let marker = getBoard(history)[pos];
+                if (marker) {
+                    $({ text: marker });
+                } else {
+                    $({ click: () => markSquare(history, pos) });
+                }
+            });
+        }
+    })
+}
+
+function drawStatusMessage(history) {
+    $('h4', () => {
+        // Reruns whenever observable data read by calculateWinner or getCurrentMarker changes
+        const board = getBoard(history);
+        const winner = calculateWinner(board);
+        if (winner) {
+            $(`:Winner: ${winner}!`);
+        } else if (board.filter(square=>square).length === 9) {
+            $(`:It's a draw...`);
+        } else {
+            $(`:Current player: ${getCurrentMarker(board)}`);
+        }
+    });
+}
+
+function drawTurns(history) {
+    $('div:Select a turn:')
+    // Reactively iterate all (historic) board versions
+    onEach(history.boards, (_, index) => {
+        $('button', {
+            // A text node:
+            text: index,
+            // Conditional css class:
+            ".outline": observe(() => history.current != index),
+            // Inline styles:
+            $marginRight: "0.5em",
+            $marginTop: "0.5em",
+            // Event listener:
+            click: () => history.current = index,
+        });
+    });
+}
 
 // Helper functions
 
@@ -80,72 +170,6 @@ const boardStyle = insertCss({
         padding: 0,
     },
 });
-
-// UI drawing functions.
-
-function drawBoard(history) {
-    $('div', boardStyle, () => {
-        for(let pos=0; pos<9; pos++) {
-            $('button.square', () => {
-                let marker = getBoard(history)[pos];
-                if (marker) {
-                    $({ text: marker });
-                } else {
-                    $({ click: () => markSquare(history, pos) });
-                }
-            });
-        }
-    })
-}
-
-function drawStatusMessage(history) {
-    $('h4', () => {
-        // Reruns whenever observable data read by calculateWinner or getCurrentMarker changes
-        const board = getBoard(history);
-        const winner = calculateWinner(board);
-        if (winner) {
-            $(`:Winner: ${winner}!`);
-        } else if (board.filter(square=>square).length === 9) {
-            $(`:It's a draw...`);
-        } else {
-            $(`:Current player: ${getCurrentMarker(board)}`);
-        }
-    });
-}
-
-function drawTurns(history) {
-    $('div:Select a turn:')
-    // Reactively iterate all (historic) board versions
-    onEach(history.boards, (_, index) => {
-        $('button', {
-            // A text node:
-            text: index,
-            // Conditional css class:
-            ".outline": observe(() => history.current != index),
-            // Inline styles:
-            $marginRight: "0.5em",
-            $marginTop: "0.5em",
-            // Event listener:
-            click: () => history.current = index,
-        });
-    });
-}
-
-function drawMain() {
-    // Define our state, wrapped by an observable proxy
-    const history = proxy({
-        boards: [[]], // eg. [[], [undefined, 'O', undefined, 'X'], ...]
-        current: 0, // indicates which of the boards is currently showing
-    });
-
-    $('main.row', () => {
-        $('div.box', () => drawBoard(history));
-        $('div.box', {$flex: 1}, () => {
-            drawStatusMessage(history);
-            drawTurns(history);
-        });
-    });
-}
 
 // Fire it up! Mounts on document.body by default..
 
