@@ -10,7 +10,7 @@ Now, let's dive into why this matters...
 
 ## Why use Aberdeen?
 
-- 🎩 **Elegant and simple:** Express UIs naturally in JavaScript/TypeScript, without complex abstractions, build steps, or JSX. No hooks, no `setState`, no lifting state, no state management libraries. Just proxied data and automatically rerunning functions.
+- 🎩 **Simple:** Express UIs naturally in JavaScript/TypeScript, without build steps or JSX, and with a minimal amount of concepts you need to learn.
 - ⏩ **Fast:** No virtual DOM. Aberdeen intelligently updates only the minimal, necessary parts of your UI when proxied data changes.
 - 👥 **Awesome lists**: It's very easy and performant to reactively display data sorted by whatever you like.
 - 🔬 **Tiny:** Around 5KB (minimized and gzipped) and with zero runtime dependencies.
@@ -49,7 +49,7 @@ $('div.row', {$marginTop: '1em'}, () => {
 
 What follows is a somewhat more complex app, Tic-tac-toe with undo history.
 
-```javascript
+```typescript
 import {$, proxy, onEach, insertCss, observe} from "aberdeen";
 
 // UI drawing functions.
