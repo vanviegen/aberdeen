@@ -44,7 +44,7 @@ function calculateWinner(board) {
 }
 
 function getCurrentMarker(board) {
-	return board.filter(v => v).length % 2 ? "O" : "X";
+    return board.filter(v => v).length % 2 ? "O" : "X";
 }
 
 function getBoard(history) {
