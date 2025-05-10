@@ -12,22 +12,22 @@
     ".": {
       "default": "./dist-min/aberdeen.js",
       "development": "./dist/aberdeen.js",
-      "types`": "./dist/aberdeen.d.ts"
+      "types": "./dist/aberdeen.d.ts"
     },
     "./route": {
       "default": "./dist-min/route.js",
       "development": "./dist/route.js",
-      "types`": "./dist/route.d.ts"
+      "types": "./dist/route.d.ts"
     },
     "./transition": {
       "default": "./dist-min/transition.js",
       "development": "./dist/transition.js",
-      "types`": "./dist/transition.d.ts"
+      "types": "./dist/transition.d.ts"
     },
     "./prediction": {
       "default": "./dist-min/prediction.js",
       "development": "./dist/prediction.js",
-      "types`": "./dist/prediction.d.ts"
+      "types": "./dist/prediction.d.ts"
     },
     "./package.json": "./package.json"
   },
