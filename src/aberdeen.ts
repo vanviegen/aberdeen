@@ -1,4 +1,5 @@
 import { ReverseSortedSet } from "./helpers/reverseSortedSet.js";
+import type { ReverseSortedSetPointer } from "./helpers/reverseSortedSet.js";
 
 /*
  * QueueRunner
@@ -9,6 +10,8 @@ import { ReverseSortedSet } from "./helpers/reverseSortedSet.js";
 interface QueueRunner {
 	prio: number; // Higher values have higher priority
 	queueRun(): void;
+
+	[ptr: ReverseSortedSetPointer]: QueueRunner;
 }
 
 let sortedQueue: ReverseSortedSet<QueueRunner> | undefined; // When set, a runQueue is scheduled or currently running.
@@ -167,6 +170,8 @@ abstract class Scope implements QueueRunner {
 	// handled before their children (as they should), and observes are executed in the
 	// order of the source code.
 	prio: number = --lastPrio;
+
+	[ptr: ReverseSortedSetPointer]: this;
 
 	abstract onChange(index: any, newData: DatumType, oldData: DatumType): void;
 	abstract queueRun(): void;
