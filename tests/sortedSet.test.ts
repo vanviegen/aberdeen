@@ -18,7 +18,7 @@ declare module 'bun:test' {
     }
 }
 
-let list: ReverseSortedSet<{id: number}>;
+let list: ReverseSortedSet<{id: number}, 'id'>;
 beforeEach(() => {
     list = new ReverseSortedSet('id');
 });
