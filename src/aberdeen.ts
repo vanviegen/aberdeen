@@ -1,30 +1,36 @@
 import { ReverseSortedSet } from "./helpers/reverseSortedSet.js";
 
 /*
-* QueueRunner
-*
-* `queue()`d runners are executed on the next timer tick, by order of their
-* `prio` values.
-*/
+ * QueueRunner
+ *
+ * `queue()`d runners are executed on the next timer tick, by order of their
+ * `prio` values.
+ */
 interface QueueRunner {
 	prio: number; // Higher values have higher priority
 	queueRun(): void;
 }
 
 let sortedQueue: ReverseSortedSet<QueueRunner> | undefined; // When set, a runQueue is scheduled or currently running.
-let runQueueDepth = 0 // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
-let topRedrawScope: Scope | undefined // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
+let runQueueDepth = 0; // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
+let topRedrawScope: Scope | undefined; // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 
 /** @internal */
-export type TargetType = any[] | {[key: string]: any};
+export type TargetType = any[] | { [key: string]: any };
 /** @internal */
-export type DatumType = TargetType | boolean | number | string | null | undefined;
+export type DatumType =
+	| TargetType
+	| boolean
+	| number
+	| string
+	| null
+	| undefined;
 
 function queue(runner: QueueRunner) {
 	if (!sortedQueue) {
-		sortedQueue = new ReverseSortedSet<QueueRunner>('prio');
+		sortedQueue = new ReverseSortedSet<QueueRunner>("prio");
 		setTimeout(runQueue, 0);
-	} else if (!(runQueueDepth&1)) {
+	} else if (!(runQueueDepth & 1)) {
 		runQueueDepth++; // Make it uneven
 		if (runQueueDepth > 98) {
 			throw new Error("Too many recursive updates from observes");
@@ -50,7 +56,7 @@ function queue(runner: QueueRunner) {
  * @example
  * ```typescript
  * const data = proxy("before");
- * 
+ *
  * $({text: data});
  * console.log(1, document.body.innerHTML); // before
  *
@@ -60,57 +66,61 @@ function queue(runner: QueueRunner) {
  * // Normally, the DOM update would happen after a timeout.
  * // But this causes an immediate update:
  * runQueue();
- * 
+ *
  * console.log(2, document.body.innerHTML); // after
  * ```
  */
 export function runQueue(): void {
 	let time = Date.now();
-	while(sortedQueue) {
+	while (sortedQueue) {
 		const runner = sortedQueue.fetchLast();
 		if (!runner) break;
-		if (runQueueDepth&1) runQueueDepth++; // Make it even
+		if (runQueueDepth & 1) runQueueDepth++; // Make it even
 		runner.queueRun();
 	}
 	sortedQueue = undefined;
 	runQueueDepth = 0;
 	time = Date.now() - time;
-	if (time>1) console.debug(`Aberdeen queue took ${time}ms`);
+	if (time > 1) console.debug(`Aberdeen queue took ${time}ms`);
 }
 
-
 /**
- * A sort key, as used by {@link onEach}, is a value that determines the order of items. It can	
+ * A sort key, as used by {@link onEach}, is a value that determines the order of items. It can
  * be a number, string, or an array of numbers/strings. The sort key is used to sort items
  * based on their values. The sort key can also be `undefined`, which indicates that the item
  * should be ignored.
  * @private
  */
-export type SortKeyType = number | string | Array<number|string> | undefined;
+export type SortKeyType = number | string | Array<number | string> | undefined;
 
 /**
-* Given an integer number or a string, this function returns a string that can be concatenated
-* with other strings to create a composed sort key, that follows natural number ordering.
-*/
-function partToStr(part: number|string): string {
-	if (typeof part === 'string') {
-		return part + '\x01'; // end-of-string
+ * Given an integer number or a string, this function returns a string that can be concatenated
+ * with other strings to create a composed sort key, that follows natural number ordering.
+ */
+function partToStr(part: number | string): string {
+	if (typeof part === "string") {
+		return `${part}\x01`; // end-of-string
 	}
-	let result = '';
+	let result = "";
 	let num = Math.abs(Math.round(part));
 	const negative = part < 0;
-	while(num > 0) {
+	while (num > 0) {
 		/*
-		* We're reserving a few character codes:
-		* 0 - for compatibility
-		* 1 - separator between string array items
-		* 65535 - for compatibility
-		*/
-		result += String.fromCharCode(negative ? 65534 - (num % 65533) : 2 + (num % 65533));
+		 * We're reserving a few character codes:
+		 * 0 - for compatibility
+		 * 1 - separator between string array items
+		 * 65535 - for compatibility
+		 */
+		result += String.fromCharCode(
+			negative ? 65534 - (num % 65533) : 2 + (num % 65533),
+		);
 		num = Math.floor(num / 65533);
 	}
 	// Prefix the number of digits, counting down from 128 for negative and up for positive
-	return String.fromCharCode(128 + (negative ? -result.length : result.length)) + result;
+	return (
+		String.fromCharCode(128 + (negative ? -result.length : result.length)) +
+		result
+	);
 }
 
 /**
@@ -141,13 +151,12 @@ function partToStr(part: number|string): string {
  * @see {@link onEach} for usage with sorting.
  */
 export function invertString(input: string): string {
-	let result = '';
+	let result = "";
 	for (let i = 0; i < input.length; i++) {
 		result += String.fromCodePoint(65535 - input.charCodeAt(i));
 	}
 	return result;
 }
-
 
 // Each new scope gets a lower prio than all scopes before it, by decrementing
 // this counter.
@@ -161,7 +170,7 @@ abstract class Scope implements QueueRunner {
 
 	abstract onChange(index: any, newData: DatumType, oldData: DatumType): void;
 	abstract queueRun(): void;
-	
+
 	abstract getLastNode(): Node | undefined;
 	abstract getPrecedingNode(): Node | undefined;
 	abstract delete(): void;
@@ -187,9 +196,11 @@ abstract class Scope implements QueueRunner {
 abstract class ContentScope extends Scope {
 	// The list of clean functions to be called when this scope is cleaned. These can
 	// be for child scopes, subscriptions as well as `clean(..)` hooks.
-	cleaners: Array<{delete: (scope: Scope) => void} | (() => void)>;
+	cleaners: Array<{ delete: (scope: Scope) => void } | (() => void)>;
 
-	constructor(cleaners: Array<{delete: (scope: Scope) => void} | (() => void)> = []) {
+	constructor(
+		cleaners: Array<{ delete: (scope: Scope) => void } | (() => void)> = [],
+	) {
 		super();
 		this.cleaners = cleaners;
 	}
@@ -197,7 +208,7 @@ abstract class ContentScope extends Scope {
 	lastChild: Node | Scope | undefined;
 
 	// Should be subclassed in most cases..
-	redraw() {};
+	redraw() {}
 
 	abstract parentElement: Element;
 
@@ -210,8 +221,8 @@ abstract class ContentScope extends Scope {
 	 * It is called `delete`, so that the list of cleaners can also contain `Set`s.
 	 */
 	delete(/* ignore observer argument */) {
-		for(let cleaner of this.cleaners) {
-			if (typeof cleaner === 'function') cleaner();
+		for (const cleaner of this.cleaners) {
+			if (typeof cleaner === "function") cleaner();
 			else cleaner.delete(this); // pass in observer argument, in case `cleaner` is a `Set`
 		}
 		this.cleaners.length = 0;
@@ -220,13 +231,13 @@ abstract class ContentScope extends Scope {
 		// To prepare for a redraw or to help GC when we're being removed:
 		this.lastChild = undefined;
 	}
-	
+
 	queueRun() {
 		this.remove();
-		
-		topRedrawScope = this
+
+		topRedrawScope = this;
 		this.redraw();
-		topRedrawScope = undefined
+		topRedrawScope = undefined;
 	}
 
 	getInsertAfterNode() {
@@ -242,7 +253,6 @@ abstract class ContentScope extends Scope {
 	}
 }
 
-
 class ChainedScope extends ContentScope {
 	// The node or scope right before this scope that has the same `parentElement`.
 	public prevSibling: Node | Scope | undefined;
@@ -251,7 +261,7 @@ class ChainedScope extends ContentScope {
 		// The parent DOM element we'll add our child nodes to.
 		public parentElement: Element,
 		// When true, we share our 'cleaners' list with the parent scope.
-		useParentCleaners: boolean = false,
+		useParentCleaners = false,
 	) {
 		super(useParentCleaners ? currentScope.cleaners : []);
 		if (parentElement === currentScope.parentElement) {
@@ -268,25 +278,25 @@ class ChainedScope extends ContentScope {
 	getPrecedingNode(): Node | undefined {
 		return findLastNodeInPrevSiblings(this.prevSibling);
 	}
-	
+
 	getChildPrevSibling() {
 		return this.lastChild || this.prevSibling;
 	}
 }
 
 /**
-* @internal
-* A `RegularScope` is created with a `render` function that is run initially,
-* and again when any of the `Store`s that this function reads are changed. Any
-* DOM elements that is given a `render` function for its contents has its own scope.
-* The `Scope` manages the position in the DOM tree elements created by `render`
-* are inserted at. Before a rerender, all previously created elements are removed
-* and the `clean` functions for the scope and all sub-scopes are called.
-*/
+ * @internal
+ * A `RegularScope` is created with a `render` function that is run initially,
+ * and again when any of the `Store`s that this function reads are changed. Any
+ * DOM elements that is given a `render` function for its contents has its own scope.
+ * The `Scope` manages the position in the DOM tree elements created by `render`
+ * are inserted at. Before a rerender, all previously created elements are removed
+ * and the `clean` functions for the scope and all sub-scopes are called.
+ */
 class RegularScope extends ChainedScope {
 	constructor(
 		parentElement: Element,
-		// The function that will be reactively called. Elements it creates using `$` are 
+		// The function that will be reactively called. Elements it creates using `$` are
 		// added to the appropriate position within `parentElement`.
 		public renderer: () => any,
 	) {
@@ -297,18 +307,17 @@ class RegularScope extends ChainedScope {
 	}
 
 	redraw() {
-		let savedScope = currentScope;
+		const savedScope = currentScope;
 		currentScope = this;
 		try {
 			this.renderer();
-		} catch(e) {
+		} catch (e) {
 			// Throw the error async, so the rest of the rendering can continue
 			handleError(e, true);
 		}
 		currentScope = savedScope;
 	}
 }
-
 
 class RootScope extends ContentScope {
 	parentElement = document.body;
@@ -321,12 +330,12 @@ class MountScope extends ContentScope {
 	constructor(
 		// The parent DOM element we'll add our child nodes to
 		public parentElement: Element,
-		// The function that 
+		// The function that
 		public renderer: () => any,
 	) {
 		super();
 		this.redraw();
-		currentScope.cleaners.push(this)
+		currentScope.cleaners.push(this);
 	}
 
 	redraw() {
@@ -350,16 +359,18 @@ class MountScope extends ContentScope {
 	}
 }
 
-
 // Remove node and all its preceding siblings (uptil and excluding preNode)
 // from the DOM, using onDestroy if applicable.
-function removeNodes(node: Node | null | undefined, preNode: Node | null | undefined) {
-	while(node && node !== preNode) {
+function removeNodes(
+	node: Node | null | undefined,
+	preNode: Node | null | undefined,
+) {
+	while (node && node !== preNode) {
 		const prevNode: Node | null = node.previousSibling;
-		let onDestroy = onDestroyMap.get(node);
+		const onDestroy = onDestroyMap.get(node);
 		if (onDestroy && node instanceof Element) {
 			if (onDestroy !== true) {
-				if (typeof onDestroy === 'function') {
+				if (typeof onDestroy === "function") {
 					onDestroy(node);
 				} else {
 					destroyWithClass(node, onDestroy);
@@ -369,7 +380,7 @@ function removeNodes(node: Node | null | undefined, preNode: Node | null | undef
 			}
 			// Ignore the deleting element
 		} else {
-			(node as Element|Text).remove();
+			(node as Element | Text).remove();
 		}
 		node = prevNode;
 	}
@@ -377,14 +388,15 @@ function removeNodes(node: Node | null | undefined, preNode: Node | null | undef
 
 // Get a reference to the last node within `sibling` or any of its preceding siblings.
 // If a `Node` is given, that node is returned.
-function findLastNodeInPrevSiblings(sibling: Node | Scope | undefined): Node | undefined {
+function findLastNodeInPrevSiblings(
+	sibling: Node | Scope | undefined,
+): Node | undefined {
 	if (!sibling || sibling instanceof Node) return sibling;
 	return sibling.getLastNode() || sibling.getPrecedingNode();
 }
 
-
-class ResultScope<T extends DatumType | void> extends ChainedScope {
-	public result: ValueRef<T> = optProxy({value: undefined});
+class ResultScope<T> extends ChainedScope {
+	public result: ValueRef<T> = optProxy({ value: undefined });
 
 	constructor(
 		parentElement: Element,
@@ -396,11 +408,11 @@ class ResultScope<T extends DatumType | void> extends ChainedScope {
 	}
 
 	redraw() {
-		let savedScope = currentScope;
+		const savedScope = currentScope;
 		currentScope = this;
 		try {
 			this.result.value = this.renderer();
-		} catch(e) {
+		} catch (e) {
 			// Throw the error async, so the rest of the rendering can continue
 			handleError(e, true);
 		}
@@ -410,28 +422,27 @@ class ResultScope<T extends DatumType | void> extends ChainedScope {
 
 /**
  * A `Scope` subclass optimized for reactively setting just a single element property
- * based on a proxied reference. 
+ * based on a proxied reference.
  */
 
 class SetArgScope extends ChainedScope {
 	constructor(
 		parentElement: Element,
 		public key: string,
-		public target: {value: DatumType},
+		public target: { value: DatumType },
 	) {
 		super(parentElement);
 		this.redraw();
 	}
 	redraw() {
-		let savedScope = currentScope;
+		const savedScope = currentScope;
 		currentScope = this;
-		applyArg(this.key, this.target.value)
+		applyArg(this.key, this.target.value);
 		currentScope = savedScope;
 	}
 }
 
-
-let immediateQueue: ReverseSortedSet<Scope> = new ReverseSortedSet('prio');
+let immediateQueue: ReverseSortedSet<Scope> = new ReverseSortedSet("prio");
 
 class ImmediateScope extends RegularScope {
 	onChange(index: any, newData: DatumType, oldData: DatumType) {
@@ -441,16 +452,20 @@ class ImmediateScope extends RegularScope {
 
 let immediateQueueRunning = false;
 function runImmediateQueue() {
-	for(let count=0; !immediateQueue.isEmpty() && !immediateQueueRunning; count++) {
+	for (
+		let count = 0;
+		!immediateQueue.isEmpty() && !immediateQueueRunning;
+		count++
+	) {
 		if (count > 42) {
 			immediateQueue.clear();
 			throw new Error("Too many immediate-mode recursive updates");
 		}
 		immediateQueueRunning = true;
-		let copy = immediateQueue;
-		immediateQueue = new ReverseSortedSet('prio');
+		const copy = immediateQueue;
+		immediateQueue = new ReverseSortedSet("prio");
 		try {
-			for(const scope of copy) {
+			for (const scope of copy) {
 				// On exception, the exception will be bubbled up to the call site, discarding any
 				// remaining immediate scopes from the queue. This behavior is perhaps debatable,
 				// but getting a synchronous exception at the call site can be very helpful.
@@ -462,7 +477,6 @@ function runImmediateQueue() {
 	}
 }
 
-
 /** @internal */
 class OnEachScope extends Scope {
 	parentElement: Element = currentScope.parentElement;
@@ -470,26 +484,29 @@ class OnEachScope extends Scope {
 
 	/** The data structure we are iterating */
 	target: TargetType;
-	
+
 	/** All item scopes, by array index or object key. This is used for removing an item scope when its value
 	 * disappears, and calling all subscope cleaners. */
-	byIndex: Map<any,OnEachItemScope> = new Map();
+	byIndex: Map<any, OnEachItemScope> = new Map();
 
 	/** The reverse-ordered list of item scopes, not including those for which makeSortKey returned undefined. */
-	sortedSet: ReverseSortedSet<OnEachItemScope> = new ReverseSortedSet('sortKey');
+	sortedSet: ReverseSortedSet<OnEachItemScope> = new ReverseSortedSet(
+		"sortKey",
+	);
 
 	/** Indexes that have been created/removed and need to be handled in the next `queueRun`. */
 	changedIndexes: Set<any> = new Set();
-	
+
 	constructor(
 		proxy: TargetType,
 		/** A function that renders an item */
-		public renderer: (value: DatumType, key: any, ) => void,
+		public renderer: (value: DatumType, key: any) => void,
 		/** A function returning a number/string/array that defines the position of an item */
 		public makeSortKey?: (value: DatumType, key: any) => SortKeyType,
 	) {
 		super();
-		const target: TargetType = this.target = (proxy as any)[TARGET_SYMBOL] || proxy;
+		const target: TargetType = (this.target =
+			(proxy as any)[TARGET_SYMBOL] || proxy);
 
 		subscribe(target, ANY_SYMBOL, this);
 		this.prevSibling = currentScope.getChildPrevSibling();
@@ -499,13 +516,13 @@ class OnEachScope extends Scope {
 
 		// Do _addChild() calls for initial items
 		if (target instanceof Array) {
-			for(let i=0; i<target.length; i++) {
-				if (target[i]!==undefined) {
+			for (let i = 0; i < target.length; i++) {
+				if (target[i] !== undefined) {
 					new OnEachItemScope(this, i, false);
 				}
 			}
 		} else {
-			for(const key in target) {
+			for (const key in target) {
 				if (target[key] !== undefined) {
 					new OnEachItemScope(this, key, false);
 				}
@@ -516,16 +533,17 @@ class OnEachScope extends Scope {
 	getPrecedingNode(): Node | undefined {
 		return findLastNodeInPrevSiblings(this.prevSibling);
 	}
-	
+
 	onChange(index: any, newData: DatumType, oldData: DatumType) {
-		if (!(this.target instanceof Array) || typeof index === 'number') this.changedIndexes.add(index);
+		if (!(this.target instanceof Array) || typeof index === "number")
+			this.changedIndexes.add(index);
 		queue(this);
 	}
-	
+
 	queueRun() {
-		let indexes = this.changedIndexes;
+		const indexes = this.changedIndexes;
 		this.changedIndexes = new Set();
-		for(let index of indexes) {
+		for (const index of indexes) {
 			const oldScope = this.byIndex.get(index);
 			if (oldScope) oldScope.remove();
 
@@ -537,23 +555,24 @@ class OnEachScope extends Scope {
 		}
 		topRedrawScope = undefined;
 	}
-	
+
 	delete() {
 		// Propagate to all our subscopes
 		for (const scope of this.byIndex.values()) {
 			scope.delete();
 		}
-		
+
 		// Help garbage collection:
 		this.byIndex.clear();
 		setTimeout(() => {
 			// Unsure if this is a good idea. It takes time, but presumably makes things a lot easier for GC...
-			this.sortedSet.clear(); 
+			this.sortedSet.clear();
 		}, 1);
 	}
-	
+
 	getLastNode(): Node | undefined {
-		for(let scope of this.sortedSet) { // Iterates starting at last child scope.
+		for (const scope of this.sortedSet) {
+			// Iterates starting at last child scope.
 			const node = scope.getActualLastNode();
 			if (node) return node;
 		}
@@ -564,7 +583,7 @@ class OnEachScope extends Scope {
 class OnEachItemScope extends ContentScope {
 	sortKey: string | number | undefined; // When undefined, this scope is currently not showing in the list
 	public parentElement: Element;
-	
+
 	constructor(
 		public parent: OnEachScope,
 		public itemIndex: any,
@@ -592,7 +611,7 @@ class OnEachItemScope extends ContentScope {
 		// of the sortedSet now (if we weren't already).
 		// This will do nothing and barely take any time of `this` is already part of the set:
 		this.parent.sortedSet.add(this);
-		
+
 		const preScope = this.parent.sortedSet.prev(this);
 		// As preScope should have inserted itself as its first child, this should
 		// recursively call getPrecedingNode() on preScope in case it doesn't
@@ -610,7 +629,7 @@ class OnEachItemScope extends ContentScope {
 	getActualLastNode(): Node | undefined {
 		let child = this.lastChild;
 
-		while(child && child !== this) {
+		while (child && child !== this) {
 			if (child instanceof Node) return child;
 			const node = child.getLastNode();
 			if (node) return node;
@@ -621,7 +640,7 @@ class OnEachItemScope extends ContentScope {
 	queueRun() {
 		/* c8 ignore next */
 		if (currentScope !== ROOT_SCOPE) internalError(4);
-			
+
 		// We're not calling `remove` here, as we don't want to remove ourselves from
 		// the sorted set. `redraw` will take care of that, if needed.
 		// Also, we can't use `getLastNode` here, as we've hacked it to return the
@@ -633,12 +652,12 @@ class OnEachItemScope extends ContentScope {
 
 		this.delete();
 		this.lastChild = this; // apply the hack (see constructor) again
-		
+
 		topRedrawScope = this;
 		this.redraw();
 		topRedrawScope = undefined;
 	}
-	
+
 	redraw() {
 		// Have the makeSortKey function return an ordering int/string/array.
 
@@ -646,22 +665,28 @@ class OnEachItemScope extends ContentScope {
 		// a wildcard subscription to delete/recreate any scopes when that changes.
 		// We ARE creating a proxy around the value though (in case its an object/array),
 		// so we'll have our own scope subscribe to changes on that.
-		const value: DatumType = optProxy((this.parent.target as any)[this.itemIndex]);
+		const value: DatumType = optProxy(
+			(this.parent.target as any)[this.itemIndex],
+		);
 
 		// Since makeSortKey may get() the Store, we'll need to set currentScope first.
-		let savedScope = currentScope;
+		const savedScope = currentScope;
 		currentScope = this;
-		
-		let sortKey : undefined | string | number;
+
+		let sortKey: undefined | string | number;
 		try {
 			if (this.parent.makeSortKey) {
-				let rawSortKey = this.parent.makeSortKey(value, this.itemIndex);
-				if (rawSortKey != null) sortKey = rawSortKey instanceof Array ? rawSortKey.map(partToStr).join('') : rawSortKey;
+				const rawSortKey = this.parent.makeSortKey(value, this.itemIndex);
+				if (rawSortKey != null)
+					sortKey =
+						rawSortKey instanceof Array
+							? rawSortKey.map(partToStr).join("")
+							: rawSortKey;
 			} else {
 				sortKey = this.itemIndex;
 			}
-			if (typeof sortKey === 'number') sortKey = partToStr(sortKey);
-			
+			if (typeof sortKey === "number") sortKey = partToStr(sortKey);
+
 			if (this.sortKey !== sortKey) {
 				// If the sortKey is changed, make sure `this` is removed from the
 				// set before setting the new sortKey to it.
@@ -673,8 +698,8 @@ class OnEachItemScope extends ContentScope {
 			// in case no nodes are created. We'll do it just-in-time in `getPrecedingNode`.
 
 			if (sortKey != null) this.parent.renderer(value, this.itemIndex);
-		} catch(e) {
-			handleError(e, sortKey!=null);
+		} catch (e) {
+			handleError(e, sortKey != null);
 		}
 
 		currentScope = savedScope;
@@ -705,64 +730,89 @@ class OnEachItemScope extends ContentScope {
 function addNode(node: Node) {
 	const parentEl = currentScope.parentElement;
 	const prevNode = currentScope.getInsertAfterNode();
-	parentEl.insertBefore(node, prevNode ? prevNode.nextSibling : parentEl.firstChild);
+	parentEl.insertBefore(
+		node,
+		prevNode ? prevNode.nextSibling : parentEl.firstChild,
+	);
 	currentScope.lastChild = node;
 }
 
-
 /**
-* This global is set during the execution of a `Scope.render`. It is used by
-* functions like `$` and `clean`.
-*/
+ * This global is set during the execution of a `Scope.render`. It is used by
+ * functions like `$` and `clean`.
+ */
 const ROOT_SCOPE = new RootScope();
 let currentScope: ContentScope = ROOT_SCOPE;
 
 /**
-* A special Node observer index to subscribe to any value in the map changing.
-*/
-const ANY_SYMBOL = Symbol('any');
+ * A special Node observer index to subscribe to any value in the map changing.
+ */
+const ANY_SYMBOL = Symbol("any");
 
 /**
  * When our proxy objects need to lookup `obj[TARGET_SYMBOL]` it returns its
  * target, to be used in our wrapped methods.
  */
-const TARGET_SYMBOL = Symbol('target');
+const TARGET_SYMBOL = Symbol("target");
 
-
-const subscribers = new WeakMap<TargetType, Map<any, Set<Scope | ((index: any, newData: DatumType, oldData: DatumType) => void)>>>;
+const subscribers = new WeakMap<
+	TargetType,
+	Map<
+		any,
+		Set<Scope | ((index: any, newData: DatumType, oldData: DatumType) => void)>
+	>
+>();
 let peeking = 0; // When > 0, we're not subscribing to any changes
 
-function subscribe(target: any, index: symbol|string|number, observer: Scope | ((index: any, newData: DatumType, oldData: DatumType) => void) = currentScope) {
+function subscribe(
+	target: any,
+	index: symbol | string | number,
+	observer:
+		| Scope
+		| ((
+				index: any,
+				newData: DatumType,
+				oldData: DatumType,
+		  ) => void) = currentScope,
+) {
 	if (observer === ROOT_SCOPE || peeking) return;
 
 	let byTarget = subscribers.get(target);
-	if (!byTarget) subscribers.set(target, byTarget = new Map());
+	if (!byTarget) subscribers.set(target, (byTarget = new Map()));
 
 	// No need to subscribe to specific keys if we're already subscribed to ANY
 	if (index !== ANY_SYMBOL && byTarget.get(ANY_SYMBOL)?.has(observer)) return;
 
 	let byIndex = byTarget.get(index);
-	if (!byIndex) byTarget.set(index, byIndex = new Set());
+	if (!byIndex) byTarget.set(index, (byIndex = new Set()));
 
 	if (byIndex.has(observer)) return;
 
 	byIndex.add(observer);
-	
+
 	if (observer === currentScope) {
 		currentScope.cleaners.push(byIndex);
 	} else {
-		currentScope.cleaners.push(function() {
+		currentScope.cleaners.push(() => {
 			byIndex.delete(observer);
 		});
 	}
 }
 
-export function onEach<T>(target: Array<undefined|T>, render: (value: T, index: number) => void, makeKey?: (value: T, key: any) => SortKeyType): void;
-export function onEach<K extends string|number|symbol,T>(target: Record<K,undefined|T>, render: (value: T, index: K) => void, makeKey?: (value: T, key: K) => SortKeyType): void;
+export function onEach<T>(
+	target: Array<undefined | T>,
+	render: (value: T, index: number) => void,
+	makeKey?: (value: T, key: any) => SortKeyType,
+): void;
+export function onEach<K extends string | number | symbol, T>(
+	target: Record<K, undefined | T>,
+	render: (value: T, index: K) => void,
+	makeKey?: (value: T, key: K) => SortKeyType,
+): void;
 
 /**
  * Reactively iterates over the items of an observable array or object, optionally rendering content for each item.
- * 
+ *
  * Automatically updates when items are added, removed, or modified.
  *
  * @param target The observable array or object to iterate over. Values that are `undefined` are skipped.
@@ -796,7 +846,7 @@ export function onEach<K extends string|number|symbol,T>(target: Record<K,undefi
  *     $(`p:${user.name} (id=${user.id})`);
  * }, (user) => [user.group, user.name]); // Sort by group, and within each group sort by name
  * ```
- * 
+ *
  *  @example Iterating an object
  * ```javascript
  * const config = proxy({ theme: 'dark', fontSize: 14, showTips: true });
@@ -815,15 +865,20 @@ export function onEach<K extends string|number|symbol,T>(target: Record<K,undefi
  * ```
  * @see {@link invertString} To easily create keys for reverse sorting.
  */
-export function onEach(target: TargetType, render: (value: DatumType, index: any) => void, makeKey?: (value: DatumType, key: any) => SortKeyType): void {
-	if (!target || typeof target !== 'object') throw new Error('onEach requires an object');
+export function onEach(
+	target: TargetType,
+	render: (value: DatumType, index: any) => void,
+	makeKey?: (value: DatumType, key: any) => SortKeyType,
+): void {
+	if (!target || typeof target !== "object")
+		throw new Error("onEach requires an object");
 	target = (target as any)[TARGET_SYMBOL] || target;
 
 	new OnEachScope(target, render, makeKey);
 }
 
 function isObjEmpty(obj: object): boolean {
-	for(let k in obj) return false;
+	for (const k in obj) return false;
 	return true;
 }
 
@@ -864,17 +919,24 @@ export function isEmpty(proxied: TargetType): boolean {
 	const scope = currentScope;
 
 	if (target instanceof Array) {
-		subscribe(target, 'length', function(index: any, newData: DatumType, oldData: DatumType) {
-			if (!newData !== !oldData) queue(scope);
-		});
+		subscribe(
+			target,
+			"length",
+			(index: any, newData: DatumType, oldData: DatumType) => {
+				if (!newData !== !oldData) queue(scope);
+			},
+		);
 		return !target.length;
-	} else {
-		const result = isObjEmpty(target);
-		subscribe(target, ANY_SYMBOL, function(index: any, newData: DatumType, oldData: DatumType) {
-			if (result ? oldData===undefined : newData===undefined) queue(scope);
-		});
-		return result;
 	}
+	const result = isObjEmpty(target);
+	subscribe(
+		target,
+		ANY_SYMBOL,
+		(index: any, newData: DatumType, oldData: DatumType) => {
+			if (result ? oldData === undefined : newData === undefined) queue(scope);
+		},
+	);
+	return result;
 }
 
 /** @private */
@@ -909,53 +971,62 @@ export interface ValueRef<T> {
  * ```
  */
 export function count(proxied: TargetType): ValueRef<number> {
-	if (proxied instanceof Array) return ref(proxied, 'length');
+	if (proxied instanceof Array) return ref(proxied, "length");
 
 	const target = (proxied as any)[TARGET_SYMBOL] || proxied;
 	let cnt = 0;
-	for(let k in target) if (target[k] !== undefined) cnt++;
-	
+	for (const k in target) if (target[k] !== undefined) cnt++;
+
 	const result = proxy(cnt);
-	subscribe(target, ANY_SYMBOL, function(index: any, newData: DatumType, oldData: DatumType) {
-		if (oldData===newData) {}
-		else if (oldData===undefined) result.value = ++cnt;
-		else if (newData===undefined) result.value = --cnt;
-	});
+	subscribe(
+		target,
+		ANY_SYMBOL,
+		(index: any, newData: DatumType, oldData: DatumType) => {
+			if (oldData === newData) {
+			} else if (oldData === undefined) result.value = ++cnt;
+			else if (newData === undefined) result.value = --cnt;
+		},
+	);
 
 	return result;
 }
 
 /** @internal */
-export function defaultEmitHandler(target: TargetType, index: string|symbol|number, newData: DatumType, oldData: DatumType) {
+export function defaultEmitHandler(
+	target: TargetType,
+	index: string | symbol | number,
+	newData: DatumType,
+	oldData: DatumType,
+) {
 	// We're triggering for values changing from undefined to undefined, as this *may*
 	// indicate a change from or to `[empty]` (such as `[,1][0]`).
 	if (newData === oldData && newData !== undefined) return;
-	
-	const byTarget = subscribers.get(target);
-	if (byTarget===undefined) return;
 
-	for(const what of [index, ANY_SYMBOL]) {
-		let byIndex = byTarget.get(what);
+	const byTarget = subscribers.get(target);
+	if (byTarget === undefined) return;
+
+	for (const what of [index, ANY_SYMBOL]) {
+		const byIndex = byTarget.get(what);
 		if (byIndex) {
-			for(let observer of byIndex) {
-				if (typeof observer === 'function') observer(index, newData, oldData);
-				else observer.onChange(index, newData, oldData)	
+			for (const observer of byIndex) {
+				if (typeof observer === "function") observer(index, newData, oldData);
+				else observer.onChange(index, newData, oldData);
 			}
 		}
 	}
 }
 let emit = defaultEmitHandler;
 
-
 const objectHandler: ProxyHandler<any> = {
 	get(target: any, prop: any) {
-		if (prop===TARGET_SYMBOL) return target;
+		if (prop === TARGET_SYMBOL) return target;
 		subscribe(target, prop);
 		return optProxy(target[prop]);
 	},
 	set(target: any, prop: any, newData: any) {
 		// Make sure newData is unproxied
-		if (typeof newData === 'object' && newData) newData = (newData as any)[TARGET_SYMBOL] || newData;
+		if (typeof newData === "object" && newData)
+			newData = (newData as any)[TARGET_SYMBOL] || newData;
 		const oldData = target[prop];
 		if (newData !== oldData) {
 			target[prop] = newData;
@@ -979,32 +1050,33 @@ const objectHandler: ProxyHandler<any> = {
 	ownKeys(target: any) {
 		subscribe(target, ANY_SYMBOL);
 		return Reflect.ownKeys(target);
-	}
+	},
 };
 
 function arraySet(target: any, prop: any, newData: any) {
 	// Make sure newData is unproxied
-	if (typeof newData === 'object' && newData) newData = (newData as any)[TARGET_SYMBOL] || newData;
+	if (typeof newData === "object" && newData)
+		newData = (newData as any)[TARGET_SYMBOL] || newData;
 	const oldData = target[prop];
 	if (newData !== oldData) {
-		let oldLength = target.length;
-				
-		if (prop === 'length') {
+		const oldLength = target.length;
+
+		if (prop === "length") {
 			target.length = newData;
 
 			// We only need to emit for shrinking, as growing just adds undefineds
-			for(let i=newData; i<oldLength; i++) {
+			for (let i = newData; i < oldLength; i++) {
 				emit(target, i, undefined, target[i]);
 			}
 		} else {
-			const intProp = parseInt(prop)
+			const intProp = Number.parseInt(prop);
 			if (intProp.toString() === prop) prop = intProp;
 
 			target[prop] = newData;
 			emit(target, prop, newData, oldData);
 		}
 		if (target.length !== oldLength) {
-			emit(target, 'length', target.length, oldLength);
+			emit(target, "length", target.length, oldLength);
 		}
 		runImmediateQueue();
 	}
@@ -1013,40 +1085,66 @@ function arraySet(target: any, prop: any, newData: any) {
 
 const arrayHandler: ProxyHandler<any[]> = {
 	get(target: any, prop: any) {
-		if (prop===TARGET_SYMBOL) return target;
+		if (prop === TARGET_SYMBOL) return target;
 		let subProp = prop;
-		if (typeof prop !== 'symbol') {
-			const intProp = parseInt(prop);
+		if (typeof prop !== "symbol") {
+			const intProp = Number.parseInt(prop);
 			if (intProp.toString() === prop) subProp = intProp;
 		}
 		subscribe(target, subProp);
 		return optProxy(target[prop]);
 	},
 	set: arraySet,
-	deleteProperty(target: any, prop: string|symbol) {
+	deleteProperty(target: any, prop: string | symbol) {
 		return arraySet(target, prop, undefined);
 	},
 };
 
-const proxyMap = new WeakMap<TargetType, /*Proxy*/TargetType>();
+const proxyMap = new WeakMap<TargetType, /*Proxy*/ TargetType>();
 
 function optProxy(value: any): any {
 	// If value is a primitive type or already proxied, just return it
-	if (typeof value !== 'object' || !value || value[TARGET_SYMBOL] !== undefined) {
+	if (
+		typeof value !== "object" ||
+		!value ||
+		value[TARGET_SYMBOL] !== undefined
+	) {
 		return value;
 	}
 	let proxied = proxyMap.get(value);
-	if (proxied) return proxied // Only one proxy per target!
-	
-	proxied = new Proxy(value, value instanceof Array ? arrayHandler : objectHandler);
+	if (proxied) return proxied; // Only one proxy per target!
+
+	proxied = new Proxy(
+		value,
+		value instanceof Array ? arrayHandler : objectHandler,
+	);
 	proxyMap.set(value, proxied as TargetType);
 	return proxied;
 }
 
-
-export function proxy<T extends DatumType>(target: Array<T>): Array<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
+export function proxy<T extends DatumType>(
+	target: Array<T>,
+): Array<
+	T extends number
+		? number
+		: T extends string
+			? string
+			: T extends boolean
+				? boolean
+				: T
+>;
 export function proxy<T extends object>(target: T): T;
-export function proxy<T extends DatumType>(target: T): ValueRef<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
+export function proxy<T extends DatumType>(
+	target: T,
+): ValueRef<
+	T extends number
+		? number
+		: T extends string
+			? string
+			: T extends boolean
+				? boolean
+				: T
+>;
 
 /**
  * Creates a reactive proxy around the given data.
@@ -1087,7 +1185,7 @@ export function proxy<T extends DatumType>(target: T): ValueRef<T extends number
  * observe(() => console.log(name.value)); // Subscribes to value
  * setTimeout(() => name.value = 'UI', 2000); // Triggers the observe function
  * ```
- * 
+ *
  * @example Class instance
  * ```typescript
  * class Widget {
@@ -1102,7 +1200,9 @@ export function proxy<T extends DatumType>(target: T): ValueRef<T extends number
  * ```
  */
 export function proxy(target: TargetType): TargetType {
-    return optProxy(typeof target === 'object' && target !== null ? target : {value: target});
+	return optProxy(
+		typeof target === "object" && target !== null ? target : { value: target },
+	);
 }
 
 /**
@@ -1125,13 +1225,13 @@ export function proxy(target: TargetType): TargetType {
  * $(() => console.log('proxied', userProxy.name));
  * // The following will only ever log once, as we're not subscribing to any observable
  * $(() => console.log('unproxied', rawUser.name));
- * 
+ *
  * // This cause the first log to run again:
  * setTimeout(() => userProxy.name += '!', 1000);
- * 
+ *
  * // This doesn't cause any new logs:
  * setTimeout(() => rawUser.name += '?', 2000);
- * 
+ *
  * // Both userProxy and rawUser end up as `{name: 'Frank!?'}`
  * setTimeout(() => {
  *   console.log('final proxied', userProxy)
@@ -1143,10 +1243,10 @@ export function unproxy<T>(target: T): T {
 	return target ? (target as any)[TARGET_SYMBOL] || target : target;
 }
 
-let onDestroyMap: WeakMap<Node, string | Function | true> = new WeakMap();
+const onDestroyMap: WeakMap<Node, string | Function | true> = new WeakMap();
 
 function destroyWithClass(element: Element, cls: string) {
-	const classes = cls.split('.').filter(c=>c);
+	const classes = cls.split(".").filter((c) => c);
 	element.classList.add(...classes);
 	setTimeout(() => element.remove(), 2000);
 }
@@ -1203,7 +1303,7 @@ function destroyWithClass(element: Element, cls: string) {
  * console.log(source.nested); // [1, 2, 3] (source was modified)
  * ```
  */
-export function copy<T extends object>(dst: T, src: Partial<T>, flags: number = 0) {
+export function copy<T extends object>(dst: T, src: Partial<T>, flags = 0) {
 	copyRecurse(dst, src, flags);
 	runImmediateQueue();
 }
@@ -1216,14 +1316,14 @@ const COPY_EMIT = 64;
 
 /**
  * Clone an (optionally proxied) object or array.
- * 
+ *
  * @param src The object or array to clone. If it is proxied, `clone` will subscribe to any changes to the (nested) data structure.
- * @param flags 
+ * @param flags
  *   - {@link SHALLOW}: Performs a shallow clone, meaning that only the top-level array or object will be copied, while object/array values will just be references to the original data in `src`.
  * @template T - The type of the objects being copied.
  * @returns A new unproxied array or object (of the same type as `src`), containing a deep (by default) copy of `src`.
  */
-export function clone<T extends object>(src: T, flags: number = 0): T {
+export function clone<T extends object>(src: T, flags = 0): T {
 	const dst = Object.create(Object.getPrototypeOf(src)) as T;
 	copyRecurse(dst, src, flags);
 	return dst;
@@ -1245,94 +1345,100 @@ function copyRecurse(dst: any, src: any, flags: number) {
 		if (currentScope !== ROOT_SCOPE && !peeking) flags |= COPY_SUBSCRIBE;
 	}
 
-	if (flags&COPY_SUBSCRIBE) subscribe(src, ANY_SYMBOL);
-    if (src instanceof Array) {
-        if (!(dst instanceof Array)) throw new Error("Cannot copy array into object");
+	if (flags & COPY_SUBSCRIBE) subscribe(src, ANY_SYMBOL);
+	if (src instanceof Array) {
+		if (!(dst instanceof Array))
+			throw new Error("Cannot copy array into object");
 		const dstLen = dst.length;
 		const srcLen = src.length;
-        for(let i=0; i<srcLen; i++) {
-            copyValue(dst, src, i, flags)
-        }
+		for (let i = 0; i < srcLen; i++) {
+			copyValue(dst, src, i, flags);
+		}
 		// Leaving additional values in the old array doesn't make sense
 		if (srcLen !== dstLen) {
-			if (flags&COPY_EMIT) {
-				for(let i=srcLen; i<dstLen; i++) {
+			if (flags & COPY_EMIT) {
+				for (let i = srcLen; i < dstLen; i++) {
 					const old = dst[i];
 					dst[i] = undefined;
 					emit(dst, i, undefined, old);
 				}
 				dst.length = srcLen;
-				emit(dst, 'length', srcLen, dstLen);
+				emit(dst, "length", srcLen, dstLen);
 			} else {
 				dst.length = srcLen;
 			}
 		}
-    } else {
-        for(let k in src) {
-            copyValue(dst, src, k, flags);
-        }
+	} else {
+		for (const k in src) {
+			copyValue(dst, src, k, flags);
+		}
 		if (!(flags & MERGE)) {
-			for(let k in dst) {
+			for (const k in dst) {
 				if (!(k in src)) {
 					const old = dst[k];
 					delete dst[k];
-					if (flags&COPY_EMIT && old !== undefined) {
+					if (flags & COPY_EMIT && old !== undefined) {
 						emit(dst, k, undefined, old);
 					}
 				}
 			}
 		}
-    }
+	}
 }
 
 function copyValue(dst: any, src: any, index: any, flags: number) {
-	let dstValue = dst[index];
-    let srcValue = src[index];
+	const dstValue = dst[index];
+	let srcValue = src[index];
 	if (srcValue !== dstValue) {
-		if (srcValue && dstValue && typeof srcValue === 'object' && typeof dstValue === 'object' && (srcValue.constructor === dstValue.constructor || (flags&MERGE && dstValue instanceof Array))) {
+		if (
+			srcValue &&
+			dstValue &&
+			typeof srcValue === "object" &&
+			typeof dstValue === "object" &&
+			(srcValue.constructor === dstValue.constructor ||
+				(flags & MERGE && dstValue instanceof Array))
+		) {
 			copyRecurse(dstValue, srcValue, flags);
 			return;
 		}
-		
-		if (!(flags&SHALLOW) && srcValue && typeof srcValue === 'object') {
+
+		if (!(flags & SHALLOW) && srcValue && typeof srcValue === "object") {
 			// Create an empty object of the same type
-			let copy = Object.create(Object.getPrototypeOf(srcValue));
+			const copy = Object.create(Object.getPrototypeOf(srcValue));
 			// Copy all properties to it. This doesn't need to emit anything
 			// and MERGE does not apply as this is a new branch.
 			copyRecurse(copy, srcValue, 0);
 			srcValue = copy;
 		}
 		const old = dst[index];
-		if (flags&MERGE && srcValue == null) delete dst[index];
+		if (flags & MERGE && srcValue == null) delete dst[index];
 		else dst[index] = srcValue;
-		if (flags&COPY_EMIT) emit(dst, index, srcValue, old)
+		if (flags & COPY_EMIT) emit(dst, index, srcValue, old);
 	}
 }
 
-
 interface RefTarget {
-	proxy: TargetType
-	index: any
+	proxy: TargetType;
+	index: any;
 }
 const refHandler: ProxyHandler<RefTarget> = {
 	get(target: RefTarget, prop: any) {
-		if (prop===TARGET_SYMBOL) {
+		if (prop === TARGET_SYMBOL) {
 			// Create a ref to the unproxied version of the target
 			return ref(unproxy(target.proxy), target.index);
 		}
-		if (prop==="value") {
+		if (prop === "value") {
 			return (target.proxy as any)[target.index];
 		}
 	},
 	set(target: any, prop: any, value: any) {
-		if (prop==="value") {
+		if (prop === "value") {
 			(target.proxy as any)[target.index] = value;
 			return true;
 		}
 		return false;
 	},
 };
-
 
 /**
  * Creates a reactive reference (`{ value: T }`-like object) to a specific value
@@ -1364,33 +1470,43 @@ const refHandler: ProxyHandler<RefTarget> = {
  *   text: ref(formData, 'color'),
  *   $color: ref(formData, 'color')
  * });
- * 
+ *
  * // Changes are actually stored in formData - this causes logs like `{color: "Blue", velocity 42}`
  * $(() => console.log(formData))
  * ```
  */
-export function ref<T extends TargetType, K extends keyof T>(target: T, index: K): ValueRef<T[K]> {
-	return new Proxy({proxy: target, index}, refHandler) as any as ValueRef<T[K]>;
+export function ref<T extends TargetType, K extends keyof T>(
+	target: T,
+	index: K,
+): ValueRef<T[K]> {
+	return new Proxy({ proxy: target, index }, refHandler) as any as ValueRef<
+		T[K]
+	>;
 }
-
 
 function applyBind(el: HTMLInputElement, target: any) {
 	let onProxyChange: () => void;
 	let onInputChange: () => void;
-	let type = el.getAttribute('type');
-	let value = unproxy(target).value;
-	if (type === 'checkbox') {
+	const type = el.getAttribute("type");
+	const value = unproxy(target).value;
+	if (type === "checkbox") {
 		if (value === undefined) target.value = el.checked;
-		onProxyChange = () => el.checked = target.value;
-		onInputChange = () => target.value = el.checked;
-	} else if (type === 'radio') {
+		onProxyChange = () => (el.checked = target.value);
+		onInputChange = () => (target.value = el.checked);
+	} else if (type === "radio") {
 		if (value === undefined && el.checked) target.value = el.value;
-		onProxyChange = () => el.checked = (target.value === el.value);
+		onProxyChange = () => (el.checked = target.value === el.value);
 		onInputChange = () => {
 			if (el.checked) target.value = el.value;
-		}
+		};
 	} else {
-		onInputChange = () => target.value = type==='number' || type==='range' ? (el.value==='' ? null : +el.value) : el.value;
+		onInputChange = () =>
+			(target.value =
+				type === "number" || type === "range"
+					? el.value === ""
+						? null
+						: +el.value
+					: el.value);
 		if (value === undefined) onInputChange();
 		onProxyChange = () => {
 			el.value = target.value;
@@ -1398,46 +1514,48 @@ function applyBind(el: HTMLInputElement, target: any) {
 		}
 	}
 	observe(onProxyChange);
-	el.addEventListener('input', onInputChange);
+	el.addEventListener("input", onInputChange);
 	clean(() => {
-		el.removeEventListener('input', onInputChange);
+		el.removeEventListener("input", onInputChange);
 	});
 }
 
-const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
-	create: function(value: any) {
+const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
+	create: (value: any) => {
 		const el = currentScope.parentElement;
 		if (currentScope !== topRedrawScope) return;
-		if (typeof value === 'function') {
+		if (typeof value === "function") {
 			value(el);
 		} else {
-			const classes = value.split('.').filter((c: any)=>c);
+			const classes = value.split(".").filter((c: any) => c);
 			el.classList.add(...classes);
-			(async function(){ // attempt to prevent layout trashing
+			(async () => {
+				// attempt to prevent layout trashing
 				(el as HTMLElement).offsetHeight; // trigger layout
 				el.classList.remove(...classes);
 			})();
 		}
 	},
-	destroy: function(value: any) {
+	destroy: (value: any) => {
 		const el = currentScope.parentElement;
 		onDestroyMap.set(el, value);
 	},
-	html: function(value: any) {
-		let tmpParent = document.createElement(currentScope.parentElement.tagName);
-		tmpParent.innerHTML = ''+value;
-		while(tmpParent.firstChild) addNode(tmpParent.firstChild);
+	html: (value: any) => {
+		const tmpParent = document.createElement(
+			currentScope.parentElement.tagName,
+		);
+		tmpParent.innerHTML = `${value}`;
+		while (tmpParent.firstChild) addNode(tmpParent.firstChild);
 	},
-	text: function(value: any) {
+	text: (value: any) => {
 		addNode(document.createTextNode(value));
 	},
-	element: function(value: any) {
-		if (!(value instanceof Node)) throw new Error(`Unexpected element-argument: ${JSON.parse(value)}`);
+	element: (value: any) => {
+		if (!(value instanceof Node))
+			throw new Error(`Unexpected element-argument: ${JSON.parse(value)}`);
 		addNode(value);
 	},
-}
-
-
+};
 
 /**
  * The core function for building reactive user interfaces in Aberdeen. It creates and inserts new DOM elements
@@ -1485,12 +1603,12 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
  *   $color: 'red'
  * });
  * ```
- * 
+ *
  * @example Create Nested Elements
  * ```typescript
  * let inputElement: Element = $('label:Click me', 'input', {type: 'checkbox'});
  * // You should usually not touch raw DOM elements, unless when integrating
- * // with non-Aberdeen code. 
+ * // with non-Aberdeen code.
  * console.log('DOM element:', inputElement);
  * ```
  *
@@ -1525,62 +1643,71 @@ const SPECIAL_PROPS: {[key: string]: (value: any) => void} = {
  * ```
  */
 
+export function $(
+	...args: (
+		| string
+		| null
+		| undefined
+		| false
+		| (() => void)
+		| Record<string, any>
+	)[]
+): undefined | Element {
+	let savedCurrentScope: undefined | ContentScope;
+	let err: undefined | string;
+	let result: undefined | Element;
 
-export function $(...args: (string | null | undefined | false | (() => void) | Record<string,any>)[]): void | Element {
-	let savedCurrentScope;
-	let err;
-	let result;
-
-	for(let arg of args) {
+	for (let arg of args) {
 		if (arg == null || arg === false) continue;
-		if (typeof arg === 'string') {
-			let text, classes: undefined | string;
-			const textPos = arg.indexOf(':');
+		if (typeof arg === "string") {
+			let text: undefined | string;
+			let classes: undefined | string;
+			const textPos = arg.indexOf(":");
 			if (textPos >= 0) {
-				text = arg.substring(textPos+1);
-				arg = arg.substring(0,textPos);
+				text = arg.substring(textPos + 1);
+				arg = arg.substring(0, textPos);
 			}
-			const classPos = arg.indexOf('.');
+			const classPos = arg.indexOf(".");
 			if (classPos >= 0) {
-				classes = arg.substring(classPos+1);
+				classes = arg.substring(classPos + 1);
 				arg = arg.substring(0, classPos);
 			}
-			if (arg === '') { // Add text or classes to parent
+			if (arg === "") {
+				// Add text or classes to parent
 				if (text) addNode(document.createTextNode(text));
 				if (classes) {
 					const el = currentScope.parentElement;
-					el.classList.add(...classes.split('.'));
+					el.classList.add(...classes.split("."));
 					if (!savedCurrentScope) {
-						clean(() => el.classList.remove(...classes.split('.')));
+						clean(() => el.classList.remove(...classes.split(".")));
 					}
 				}
-			} else if (arg.indexOf(' ') >= 0) {
+			} else if (arg.indexOf(" ") >= 0) {
 				err = `Tag '${arg}' cannot contain space`;
 				break;
 			} else {
 				result = document.createElement(arg);
-				if (classes) result.className = classes.replaceAll('.', ' ');
+				if (classes) result.className = classes.replaceAll(".", " ");
 				if (text) result.textContent = text;
 				addNode(result);
 				if (!savedCurrentScope) {
 					savedCurrentScope = currentScope;
 				}
-				let newScope = new ChainedScope(result, true);
+				const newScope = new ChainedScope(result, true);
 				newScope.lastChild = result.lastChild || undefined;
 				if (topRedrawScope === currentScope) topRedrawScope = newScope;
 				currentScope = newScope;
 			}
-		}
-		else if (typeof arg === 'object') {
+		} else if (typeof arg === "object") {
 			if (arg.constructor !== Object) {
 				err = `Unexpected argument: ${arg}`;
 				break;
 			}
-			for(const key in arg) {
+			for (const key in arg) {
 				const val = arg[key];
 				applyArg(key, val);
 			}
-		} else if (typeof arg === 'function') {
+		} else if (typeof arg === "function") {
 			new RegularScope(currentScope.parentElement, arg);
 		} else {
 			err = `Unexpected argument: ${arg}`;
@@ -1649,71 +1776,88 @@ let cssCount = 0;
  *     color: "#107ab0",
  *   }
  * }, true); // Pass true for global
- * 
+ *
  * $('a:Styled link');
  * ```
  */
-export function insertCss(style: object, global: boolean = false): string {
-	const prefix = global ? "" : ".AbdStl" + ++cssCount;
-	let css = styleToCss(style, prefix);
-	if (css) $('style:'+css);
+export function insertCss(style: object, global = false): string {
+	const prefix = global ? "" : `.AbdStl${++cssCount}`;
+	const css = styleToCss(style, prefix);
+	if (css) $(`style:${css}`);
 	return prefix;
 }
 
 function styleToCss(style: object, prefix: string): string {
-	let props = '';
-	let rules = '';
-	for(const kOr in style) {
+	let props = "";
+	let rules = "";
+	for (const kOr in style) {
 		const v = (style as any)[kOr];
-		for(const k of kOr.split(/, ?/g)) {
-			if (v && typeof v === 'object') {
-				if (k.startsWith('@')) { // media queries
-					rules += k + '{\n' + styleToCss(v, prefix) + '}\n';
+		for (const k of kOr.split(/, ?/g)) {
+			if (v && typeof v === "object") {
+				if (k.startsWith("@")) {
+					// media queries
+					rules += `${k}{\n${styleToCss(v, prefix)}}\n`;
 				} else {
-					rules += styleToCss(v, k.includes('&') ? k.replace(/&/g, prefix) : prefix+' '+k);
+					rules += styleToCss(
+						v,
+						k.includes("&") ? k.replace(/&/g, prefix) : `${prefix} ${k}`,
+					);
 				}
 			} else {
-				props += k.replace(/[A-Z]/g, letter => '-'+letter.toLowerCase()) +":"+v+";";
+				props += `${k.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}:${v};`;
 			}
 		}
 	}
-	if (props) rules = (prefix.trimStart() || '*') + '{'+props+'}\n' + rules;
+	if (props) rules = `${prefix.trimStart() || "*"}{${props}}\n${rules}`;
 	return rules;
 }
 
 function applyArg(key: string, value: any) {
 	const el = currentScope.parentElement;
-	if (typeof value === 'object' && value !== null && value[TARGET_SYMBOL]) { // Value is a proxy
+	if (typeof value === 'object' && value !== null && value[TARGET_SYMBOL]) {
+		// Value is a proxy
 		if (key === 'bind') {
 			applyBind(el as HTMLInputElement, value)
 		} else {
-			new SetArgScope(el, key, value)
+			new SetArgScope(el, key, value);
 			// SetArgScope will (repeatedly) call `applyArg` again with the actual value
 		}
-	} else if (key[0] === '.') { // CSS class(es)
-		const classes = key.substring(1).split('.');
+	} else if (key[0] === ".") {
+		// CSS class(es)
+		const classes = key.substring(1).split(".");
 		if (value) el.classList.add(...classes);
 		else el.classList.remove(...classes);
-	} else if (key[0] === '$') { // Style
+	} else if (key[0] === "$") {
+		// Style
 		const name = key.substring(1);
-		if (value==null || value===false) (el as any).style[name] = ''
-		else (el as any).style[name] = ''+value;
-	} else if (value == null) { // Value left empty
+		if (value == null || value === false) (el as any).style[name] = "";
+		else (el as any).style[name] = `${value}`;
+	} else if (value == null) {
+		// Value left empty
 		// Do nothing
-	} else if (key in SPECIAL_PROPS) { // Special property
+	} else if (key in SPECIAL_PROPS) {
+		// Special property
 		SPECIAL_PROPS[key](value);
-	} else if (typeof value === 'function') { // Event listener
+	} else if (typeof value === "function") {
+		// Event listener
 		el.addEventListener(key, value);
 		clean(() => el.removeEventListener(key, value));
-	} else if (value===true || value===false || key==='value' || key==='selectedIndex') { // DOM property
+	} else if (
+		value === true ||
+		value === false ||
+		key === "value" ||
+		key === "selectedIndex"
+	) {
+		// DOM property
 		(el as any)[key] = value;
-	} else { // HTML attribute
+	} else {
+		// HTML attribute
 		el.setAttribute(key, value);
 	}
 }
 
 function defaultOnError(error: Error) {
-	console.error('Error while in Aberdeen render:', error);
+	console.error("Error while in Aberdeen render:", error);
 	return true;
 }
 let onError: (error: Error) => boolean | undefined = defaultOnError;
@@ -1749,7 +1893,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
  *
  *   return false; // Suppress default console log and DOM error message
  * });
- * 
+ *
  * // Styling for our custom error message
  * insertCss({
  *   '.error-message': {
@@ -1760,7 +1904,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
  *     padding: '2px 4px',
  *   }
  * }, true); // global style
- * 
+ *
  * // Cause an error within a render scope.
  * $('div.box', () => {
  *   // Will cause our error handler to insert an error message within the box
@@ -1768,10 +1912,11 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
  * })
  * ```
  */
-export function setErrorHandler(handler?: (error: Error) => boolean | undefined) {
+export function setErrorHandler(
+	handler?: (error: Error) => boolean | undefined,
+) {
 	onError = handler || defaultOnError;
 }
-
 
 /**
  * Gets the parent DOM `Element` where nodes created by {@link $} would currently be inserted.
@@ -1801,7 +1946,6 @@ export function getParentElement(): Element {
 	return currentScope.parentElement;
 }
 
-
 /**
  * Registers a cleanup function to be executed just before the current reactive scope
  * is destroyed or redraws.
@@ -1826,14 +1970,14 @@ export function getParentElement(): Element {
  *     // we don't want to subscribe.
  *     peek(() => sum.value += item);
  *     // Clean gets called before each rerun for a certain item index
- *     // No need for peek here, as the clean code doesn't run in an 
+ *     // No need for peek here, as the clean code doesn't run in an
  *     // observe scope.
  *     clean(() => sum.value -= item);
  * })
- * 
+ *
  * // Show the sum
  * $('h1', {text: sum});
- * 
+ *
  * // Make random changes to the array
  * const rnd = () => 0|(Math.random()*20);
  * setInterval(() => myArray[rnd()] = rnd(), 1000);
@@ -1843,7 +1987,6 @@ export function getParentElement(): Element {
 export function clean(cleaner: () => void) {
 	currentScope.cleaners.push(cleaner);
 }
-
 
 /**
  * Creates a reactive scope that automatically re-executes the provided function
@@ -1876,9 +2019,9 @@ export function clean(cleaner: () => void) {
  *   });
  * });
  * ```
- * 
+ *
  * ***Note*** that the above could just as easily be done using `$(func)` instead of `observe(func)`.
- * 
+ *
  * @example Observation with return value
  * ```typescript
  * const counter = proxy(0);
@@ -1893,8 +2036,10 @@ export function clean(cleaner: () => void) {
  * @overload
  * @param func Func without a return value.
  */
-export function observe<T extends (DatumType | void)>(func: () => T): ValueRef<T> {
-	return (new ResultScope<T>(currentScope.parentElement, func)).result;
+export function observe<T>(
+	func: () => T,
+): ValueRef<T> {
+	return new ResultScope<T>(currentScope.parentElement, func).result;
 }
 
 /**
@@ -1940,7 +2085,7 @@ export function immediateObserve(func: () => void) {
  * Calls to {@link $} inside `func` will append nodes to `parentElement`.
  * You can nest {@link observe} or other {@link $} scopes within `func`.
  * Use {@link unmountAll} to clean up all mounted scopes and their DOM nodes.
- * 
+ *
  * Mounting scopes happens reactively, meaning that if this function is called from within another
  * ({@link observe} or {@link $} or {@link mount}) scope that gets cleaned up, so will the mount.
  *
@@ -1951,7 +2096,7 @@ export function immediateObserve(func: () => void) {
  * ```javascript
  * // Create a pre-existing DOM structure (without Aberdeen)
  * document.body.innerHTML = `<h3>Static content <span id="title-extra"></span></h3><div class="box" id="app-root"></div>`;
- * 
+ *
  * import { mount, $, proxy } from 'aberdeen';
  *
  * const runTime = proxy(0);
@@ -1968,7 +2113,7 @@ export function immediateObserve(func: () => void) {
  *   }
  * });
  * ```
- * 
+ *
  * Note how the inner mount behaves reactively as well, automatically unmounting when it's parent observer scope re-runs.
  */
 
@@ -2021,9 +2166,15 @@ export function peek<T>(func: () => T): T {
 }
 
 /** When using an object as `source`. */
-export function map<IN,OUT>(source: Record<string|symbol,IN>, func: (value: IN, index: string|symbol) => undefined|OUT): Record<string|symbol,OUT>;
+export function map<IN, OUT>(
+	source: Record<string | symbol, IN>,
+	func: (value: IN, index: string | symbol) => undefined | OUT,
+): Record<string | symbol, OUT>;
 /** When using an array as `source`. */
-export function map<IN,OUT>(source: Array<IN>, func: (value: IN, index: number) => undefined|OUT): Array<OUT>;
+export function map<IN, OUT>(
+	source: Array<IN>,
+	func: (value: IN, index: number) => undefined | OUT,
+): Array<OUT>;
 /**
  * Reactively maps/filters items from a proxied source array or object to a new proxied array or object.
  *
@@ -2067,24 +2218,34 @@ export function map<IN,OUT>(source: Array<IN>, func: (value: IN, index: number) 
  * // activeUserNames becomes proxy({ u1: 'Alice', u2: 'Bob', u3: 'Charlie' })
  * ```
  */
-export function map(source: any, func: (value: DatumType, key: any) => any): any {
-	let out = optProxy(source instanceof Array ? [] : {});
-	onEach(source, (item: DatumType, key: symbol|string|number) => {
-		let value = func(item, key);
+export function map(
+	source: any,
+	func: (value: DatumType, key: any) => any,
+): any {
+	const out = optProxy(source instanceof Array ? [] : {});
+	onEach(source, (item: DatumType, key: symbol | string | number) => {
+		const value = func(item, key);
 		if (value !== undefined) {
 			out[key] = value;
 			clean(() => {
 				delete out[key];
-			})
+			});
 		}
-	})
-	return out
+	});
+	return out;
 }
 
 /** When using an array as `source`. */
-export function multiMap<IN,OUT extends {[key: string|symbol]: DatumType}>(source: Array<IN>, func: (value: IN, index: number) => OUT | undefined): OUT;
+export function multiMap<IN, OUT extends { [key: string | symbol]: DatumType }>(
+	source: Array<IN>,
+	func: (value: IN, index: number) => OUT | undefined,
+): OUT;
 /** When using an object as `source`. */
-export function multiMap<K extends string|number|symbol,IN,OUT extends {[key: string|symbol]: DatumType}>(source: Record<K,IN>, func: (value: IN, index: K) => OUT | undefined): OUT;
+export function multiMap<
+	K extends string | number | symbol,
+	IN,
+	OUT extends { [key: string | symbol]: DatumType },
+>(source: Record<K, IN>, func: (value: IN, index: K) => OUT | undefined): OUT;
 /**
  * Reactively maps items from a source proxy (array or object) to a target proxied object,
  * where each source item can contribute multiple key-value pairs to the target.
@@ -2119,31 +2280,44 @@ export function multiMap<K extends string|number|symbol,IN,OUT extends {[key: st
  *   [item.id+item.id]: item.value*10,
  * }));
  * // itemsById is proxy({ a: 10, aa: 100, b: 20, bb: 200 })
- * 
+ *
  * $(() => console.log(itemsById));
  *
  * items.push({ id: 'c', value: 30 });
  * // itemsById becomes proxy({ a: 10, aa: 100, b: 20, bb: 200, c: 30, cc: 300 })
  * ```
  */
-export function multiMap(source: any, func: (value: DatumType, key: any) => Record<string|symbol,DatumType>): any {
-	let out = optProxy({});
-	onEach(source, (item: DatumType, key: symbol|string|number) => {
-		let pairs = func(item, key);
+export function multiMap(
+	source: any,
+	func: (value: DatumType, key: any) => Record<string | symbol, DatumType>,
+): any {
+	const out = optProxy({});
+	onEach(source, (item: DatumType, key: symbol | string | number) => {
+		const pairs = func(item, key);
 		if (pairs) {
-			for(let key in pairs) out[key] = pairs[key];
+			for (const key in pairs) out[key] = pairs[key];
 			clean(() => {
-				for(let key in pairs) delete out[key];
-			})
+				for (const key in pairs) delete out[key];
+			});
 		}
-	})
-	return out
+	});
+	return out;
 }
 
 /** When using an object as `array`. */
-export function partition<OUT_K extends string|number|symbol, IN_V>(source: IN_V[], func: (value: IN_V, key: number) => undefined | OUT_K | OUT_K[]): Record<OUT_K,Record<number,IN_V>>;
+export function partition<OUT_K extends string | number | symbol, IN_V>(
+	source: IN_V[],
+	func: (value: IN_V, key: number) => undefined | OUT_K | OUT_K[],
+): Record<OUT_K, Record<number, IN_V>>;
 /** When using an object as `source`. */
-export function partition<IN_K extends string|number|symbol, OUT_K extends string|number|symbol, IN_V>(source: Record<IN_K,IN_V>, func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[]): Record<OUT_K,Record<IN_K,IN_V>>;
+export function partition<
+	IN_K extends string | number | symbol,
+	OUT_K extends string | number | symbol,
+	IN_V,
+>(
+	source: Record<IN_K, IN_V>,
+	func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[],
+): Record<OUT_K, Record<IN_K, IN_V>>;
 
 /**
  * @overload
@@ -2189,10 +2363,10 @@ export function partition<IN_K extends string|number|symbol, OUT_K extends strin
  * // Partition products by category. Output keys are categories (string).
  * // Inner keys are original array indices (number).
  * const productsByCategory = partition(products, (product) => product.category);
- * 
+ *
  * // Reactively show the data structure
  * dump(productsByCategory);
- * 
+ *
  * // Make random changes to the categories, to show reactiveness
  * setInterval(() => products[0|(Math.random()*3)].category = ['Snack','Fruit','Veg'][0|(Math.random()*3)], 2000);
  * ```
@@ -2212,30 +2386,36 @@ export function partition<IN_K extends string|number|symbol, OUT_K extends strin
  * console.log(usersByTag);
  * ```
  */
-export function partition<IN_K extends string|number|symbol, OUT_K extends string|number|symbol, IN_V>(source: Record<IN_K,IN_V>, func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[]): Record<OUT_K,Record<IN_K,IN_V>> {
-	const unproxiedOut = {} as Record<OUT_K,Record<IN_K,IN_V>>;
+export function partition<
+	IN_K extends string | number | symbol,
+	OUT_K extends string | number | symbol,
+	IN_V,
+>(
+	source: Record<IN_K, IN_V>,
+	func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[],
+): Record<OUT_K, Record<IN_K, IN_V>> {
+	const unproxiedOut = {} as Record<OUT_K, Record<IN_K, IN_V>>;
 	const out = proxy(unproxiedOut);
 	onEach(source, (item: IN_V, key: IN_K) => {
-		let rsp = func(item, key);
+		const rsp = func(item, key);
 		if (rsp != null) {
 			const buckets = rsp instanceof Array ? rsp : [rsp];
 			if (buckets.length) {
-				for(let bucket of buckets) {
+				for (const bucket of buckets) {
 					if (unproxiedOut[bucket]) out[bucket][key] = item;
-					else out[bucket] = {[key]: item} as Record<IN_K, IN_V>;
+					else out[bucket] = { [key]: item } as Record<IN_K, IN_V>;
 				}
 				clean(() => {
-					for(let bucket of buckets) {
+					for (const bucket of buckets) {
 						delete out[bucket][key];
 						if (isObjEmpty(unproxiedOut[bucket])) delete out[bucket];
-					}						
-				})
+					}
+				});
 			}
 		}
-	})
+	});
 	return out;
 }
-
 
 /**
  * Renders a live, recursive dump of a proxied data structure (or any value)
@@ -2265,28 +2445,28 @@ export function partition<IN_K extends string|number|symbol, OUT_K extends strin
  * ```
  */
 export function dump<T>(data: T): T {
-	if (data && typeof data === 'object') {
-		$({text: data instanceof Array ? "<array>" : "<object>"});
-		$('ul', () => {
+	if (data && typeof data === "object") {
+		$({ text: data instanceof Array ? "<array>" : "<object>" });
+		$("ul", () => {
 			onEach(data as any, (value, key) => {
-				$('li:'+JSON.stringify(key)+": ", () => {
-					dump(value)
-				})
-			})
-		})
+				$(`li:${JSON.stringify(key)}: `, () => {
+					dump(value);
+				});
+			});
+		});
 	} else {
-		$({text: JSON.stringify(data)})
+		$({ text: JSON.stringify(data) });
 	}
-	return data
+	return data;
 }
 
 /*
-* Helper functions
-*/
+ * Helper functions
+ */
 
 /* c8 ignore start */
 function internalError(code: number): never {
-	throw new Error("Aberdeen internal error "+code);
+	throw new Error(`Aberdeen internal error ${code}`);
 }
 /* c8 ignore end */
 
@@ -2297,7 +2477,7 @@ function handleError(e: any, showMessage: boolean) {
 		console.error(e);
 	}
 	try {
-		if (showMessage) $('div.aberdeen-error:Error');
+		if (showMessage) $("div.aberdeen-error:Error");
 	} catch {
 		// Error while adding the error marker to the DOM. Apparently, we're in
 		// an awkward context. The error should already have been logged by
@@ -2306,21 +2486,20 @@ function handleError(e: any, showMessage: boolean) {
 }
 
 /** @internal */
-export function withEmitHandler(handler: (target: TargetType, index: any, newData: DatumType, oldData: DatumType) => void, func: ()=>void) {
+export function withEmitHandler(
+	handler: (
+		target: TargetType,
+		index: any,
+		newData: DatumType,
+		oldData: DatumType,
+	) => void,
+	func: () => void,
+) {
 	const oldEmitHandler = emit;
 	emit = handler;
 	try {
 		func();
 	} finally {
 		emit = oldEmitHandler;
-	}
-}
-
-// @ts-ignore
-// c8 ignore next
-if (!String.prototype.replaceAll) String.prototype.replaceAll = function(from, to) { return this.split(from).join(to) }
-declare global {
-	interface String {
-		replaceAll(from: string, to: string): string;
 	}
 }

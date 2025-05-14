@@ -4,6 +4,7 @@
   "author": "Frank van Viegen",
   "main": "dist-min/aberdeen.js",
   "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
     "@types/bun": "latest",
     "typedoc": "^0.28.2",
     "typescript": "^5.8.3"
