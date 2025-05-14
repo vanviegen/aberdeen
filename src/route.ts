@@ -1,90 +1,99 @@
-import {getParentElement, runQueue, clean, proxy, observe, immediateObserve, unproxy, clone} from './aberdeen.js'
+import {
+	clean,
+	clone,
+	getParentElement,
+	immediateObserve,
+	observe,
+	proxy,
+	runQueue,
+	unproxy,
+} from "./aberdeen.js";
 
 /**
  * The class for the singleton `route` object.
- * 
+ *
  */
 
 export class Route {
 	/** The current path of the URL split into components. For instance `/` or `/users/123/feed`. Updates will be reflected in the URL and will *push* a new entry to the browser history. */
-	path!: string
+	path!: string;
 	/** Array containing the path segments. For instance `[]` or `['users', 123, 'feed']`. Updates will be reflected in the URL and will *push* a new entry to the browser history. Also, the values of `p` and `path` will be synced. */
-	p!: string[]
+	p!: string[];
 	/** An observable object containing search parameters (a split up query string). For instance `{order: "date", title: "something"}` or just `{}`. By default, updates will be reflected in the URL, replacing the current history state. */
-	hash!: string
+	hash!: string;
 	/** A part of the browser history *state* that is considered part of the page *identify*, meaning changes will (by default) cause a history push, and when going *back*, it must match. */
-	search!: Record<string, string>
+	search!: Record<string, string>;
 	/** The `hash` interpreted as search parameters. So `"a=x&b=y"` becomes `{a: "x", b: "y"}`. */
-	id!: Record<string, any>
+	id!: Record<string, any>;
 	/** The auxiliary part of the browser history *state*, not considered part of the page *identity*. Changes will be reflected in the browser history using a replace. */
-	aux!: Record<string, any>
+	aux!: Record<string, any>;
 	/** The navigation depth of the current session. Starts at 1. Writing to this property has no effect. */
-	depth: number = 1
+	depth = 1;
 	/** The navigation action that got us to this page. Writing to this property has no effect.
         - `"load"`: An initial page load.
         - `"back"` or `"forward"`: When we navigated backwards or forwards in the stack.
         - `"push"`: When we added a new page on top of the stack. 
     */
-    nav: 'load' | 'back' | 'forward' | 'push' = 'load'
-    /** As described above, this library takes a best guess about whether pushing an item to the browser history makes sense or not. When `mode` is... 
+	nav: "load" | "back" | "forward" | "push" = "load";
+	/** As described above, this library takes a best guess about whether pushing an item to the browser history makes sense or not. When `mode` is... 
    	    - `"push"`: Force creation of a new browser history entry. 
    	    - `"replace"`: Update the current history entry, even when updates to other keys would normally cause a *push*.
  	    - `"back"`: Unwind the history (like repeatedly pressing the *back* button) until we find a page that matches the given `path` and `id` (or that is the first page in our stack), and then *replace* that state by the full given state.
         The `mode` key can be written to `route` but will be immediately and silently removed.
     */
-	mode: 'push' | 'replace' | 'back' | undefined
+	mode: "push" | "replace" | "back" | undefined;
 }
 
 /**
  * The singleton {@link Route} object reflecting the current URL and browser history state. You can make changes to it to affect the URL and browser history. See {@link Route} for details.
  */
-export const route = proxy(new Route())
+export const route = proxy(new Route());
 
 let stateRoute = {
 	nonce: -1,
 	depth: 0,
-}
+};
 
 // Reflect changes to the browser URL (back/forward navigation) in the `route` and `stack`.
 function handleLocationUpdate(event?: PopStateEvent) {
-	let state = event?.state || {}
-	let nav: 'load' | 'back' | 'forward' | 'push' = 'load'
+	const state = event?.state || {};
+	let nav: "load" | "back" | "forward" | "push" = "load";
 	if (state.route?.nonce == null) {
 		state.route = {
 			nonce: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
 			depth: 1,
-		} 
-		history.replaceState(state, '')
+		};
+		history.replaceState(state, "");
 	} else if (stateRoute.nonce === state.route.nonce) {
-		nav = state.route.depth > stateRoute.depth ? 'forward' : 'back'
+		nav = state.route.depth > stateRoute.depth ? "forward" : "back";
 	}
-	stateRoute = state.route
+	stateRoute = state.route;
 
-	if (unproxy(route).mode === 'back') {
-		route.depth = stateRoute.depth
+	if (unproxy(route).mode === "back") {
+		route.depth = stateRoute.depth;
 		// We are still in the process of searching for a page in our navigation history..
-		updateHistory()
-		return
+		updateHistory();
+		return;
 	}
 
-	const search: any= {}
-	for(let [k, v] of new URLSearchParams(location.search)) {
-		search[k] = v
+	const search: any = {};
+	for (const [k, v] of new URLSearchParams(location.search)) {
+		search[k] = v;
 	}
 
-	route.path =  location.pathname
-	route.p =  location.pathname.slice(1).split('/')
-	route.search = search
-	route.hash =  location.hash
-	route.id =  state.id
-	route.aux =  state.aux
-	route.depth =  stateRoute.depth
-	route.nav = nav
+	route.path = location.pathname;
+	route.p = location.pathname.slice(1).split("/");
+	route.search = search;
+	route.hash = location.hash;
+	route.id = state.id;
+	route.aux = state.aux;
+	route.depth = stateRoute.depth;
+	route.nav = nav;
 
 	// Forward or back event. Redraw synchronously, because we can!
 	if (event) runQueue();
 }
-handleLocationUpdate()
+handleLocationUpdate();
 window.addEventListener("popstate", handleLocationUpdate);
 
 // These immediate-mode observers will rewrite the data in `route` to its canonical form.
@@ -92,120 +101,129 @@ window.addEventListener("popstate", handleLocationUpdate);
 // initiated `set` will see the canonical form (instead of doing a rerender shortly after,
 // or crashing due to non-canonical data).
 function updatePath(): void {
-	let path = route.path
+	let path = route.path;
 	if (path == null && unproxy(route).p) {
-		return updateP()
-	} 
-	path = ''+(path || '/')
-	if (!path.startsWith('/')) path = '/'+path
-	route.path = path
-	route.p = path.slice(1).split('/')
+		updateP();
+		return;
+	}
+	path = `${path || "/"}`;
+	if (!path.startsWith("/")) path = `/${path}`;
+	route.path = path;
+	route.p = path.slice(1).split("/");
 }
-immediateObserve(updatePath)
+immediateObserve(updatePath);
 
-function updateP(): void {
-	const p = route.p
+function updateP() {
+	const p = route.p;
 	if (p == null && unproxy(route).path) {
-		return updatePath()
+		updatePath();
+		return;
 	}
 	if (!(p instanceof Array)) {
-		console.error(`aberdeen route: 'p' must be a non-empty array, not ${JSON.stringify(p)}`)
-		route.p = [''] // This will cause a recursive call this observer.
-	} else if (p.length == 0) {
-		route.p = [''] // This will cause a recursive call this observer.
+		console.error(
+			`aberdeen route: 'p' must be a non-empty array, not ${JSON.stringify(p)}`,
+		);
+		route.p = [""]; // This will cause a recursive call this observer.
+	} else if (p.length === 0) {
+		route.p = [""]; // This will cause a recursive call this observer.
 	} else {
-		route.path = '/' + p.join('/')
+		route.path = `/${p.join("/")}`;
 	}
 }
-immediateObserve(updateP)
+immediateObserve(updateP);
 
 immediateObserve(() => {
-	if (!route.search || typeof route.search !== 'object') route.search = {}
-})
+	if (!route.search || typeof route.search !== "object") route.search = {};
+});
 
 immediateObserve(() => {
-	if (!route.id || typeof route.id !== 'object') route.id = {}
-})
+	if (!route.id || typeof route.id !== "object") route.id = {};
+});
 
 immediateObserve(() => {
-	if (!route.aux || typeof route.aux !== 'object') route.aux = {}
-})
+	if (!route.aux || typeof route.aux !== "object") route.aux = {};
+});
 
 immediateObserve(() => {
-	let hash = ''+(route.hash || '')
-	if (hash && !hash.startsWith('#')) hash = '#'+hash
-	route.hash = hash
-})
+	let hash = `${route.hash || ""}`;
+	if (hash && !hash.startsWith("#")) hash = `#${hash}`;
+	route.hash = hash;
+});
 
 function isSamePage(path: string, state: any): boolean {
-	return location.pathname === path && JSON.stringify(history.state.id) === JSON.stringify(state.id)
+	return (
+		location.pathname === path &&
+		JSON.stringify(history.state.id) === JSON.stringify(state.id)
+	);
 }
 
 function updateHistory() {
 	// Get and delete mode without triggering anything.
-	let mode = route.mode
+	let mode = route.mode;
 	const state = {
 		id: clone(route.id),
 		aux: clone(route.aux),
 		route: stateRoute,
-	}
-	
+	};
+
 	// Construct the URL.
-	const path = route.path
+	const path = route.path;
 
 	// Change browser state, according to `mode`.
-	if (mode === 'back') {
-		route.nav = 'back'
-		if (!isSamePage(path, state) && (history.state.route?.depth||0) > 1) {
-			history.back()
-			return
+	if (mode === "back") {
+		route.nav = "back";
+		if (!isSamePage(path, state) && (history.state.route?.depth || 0) > 1) {
+			history.back();
+			return;
 		}
-		mode = 'replace'
+		mode = "replace";
 		// We'll replace the state async, to give the history.go the time to take affect first.
 		//setTimeout(() => history.replaceState(state, '', url), 0)
 	}
 
-	if (mode) route.mode = undefined
-	const search = new URLSearchParams(route.search).toString()
-	const url = (search ? path+'?'+search : path) + route.hash
-		
-	if (mode === 'push' || (!mode && !isSamePage(path, state))) {
-		stateRoute.depth++ // stateRoute === state.route
-		history.pushState(state, '', url)
-		route.nav = 'push'
-		route.depth = stateRoute.depth
+	if (mode) route.mode = undefined;
+	const search = new URLSearchParams(route.search).toString();
+	const url = (search ? `${path}?${search}` : path) + route.hash;
+
+	if (mode === "push" || (!mode && !isSamePage(path, state))) {
+		stateRoute.depth++; // stateRoute === state.route
+		history.pushState(state, "", url);
+		route.nav = "push";
+		route.depth = stateRoute.depth;
 	} else {
 		// Default to `push` when the URL changed or top-level state keys changed.
-		history.replaceState(state, '', url)
+		history.replaceState(state, "", url);
 	}
 }
 
 // This deferred-mode observer will update the URL and history based on `route` changes.
-observe(updateHistory)
-
+observe(updateHistory);
 
 /**
  * Restore and store the vertical and horizontal scroll position for
  * the parent element to the page state.
- * 
+ *
  * @param {string} name - A unique (within this page) name for this
  * scrollable element. Defaults to 'main'.
- * 
+ *
  * The scroll position will be persisted in `route.aux.scroll.<name>`.
  */
-export function persistScroll(name: string = 'main') {
-	const el = getParentElement()
-	el.addEventListener('scroll', onScroll)
-	clean(() => el.removeEventListener('scroll', onScroll))
+export function persistScroll(name = "main") {
+	const el = getParentElement();
+	el.addEventListener("scroll", onScroll);
+	clean(() => el.removeEventListener("scroll", onScroll));
 
-	let restore = unproxy(route).aux.scroll?.name
+	const restore = unproxy(route).aux.scroll?.name;
 	if (restore) {
-		Object.assign(el, restore)
+		Object.assign(el, restore);
 	}
 
 	function onScroll() {
-		route.mode = 'replace'
-		if (!route.aux.scroll) route.aux.scroll = {}
-		route.aux.scroll[name] = {scrollTop: el.scrollTop, scrollLeft: el.scrollLeft}
+		route.mode = "replace";
+		if (!route.aux.scroll) route.aux.scroll = {};
+		route.aux.scroll[name] = {
+			scrollTop: el.scrollTop,
+			scrollLeft: el.scrollLeft,
+		};
 	}
 }
