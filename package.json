@@ -31,7 +31,7 @@
     },
     "./package.json": "./package.json"
   },
-  "description": "A TypeScript/JavaScript library for quickly building performant reactive user interfaces without the use of a virtual DOM nor any transpilation.",
+  "description": "Build fast reactive UIs in pure TypeScript/JavaScript without a virtual DOM.",
   "files": [
     "dist",
     "dist-min",

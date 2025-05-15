@@ -1,12 +1,10 @@
 # [Aberdeen](https://aberdeenjs.org/) [![](https://img.shields.io/badge/license-ISC-blue.svg)](https://github.com/vanviegen/aberdeen/blob/master/LICENSE.txt) [![](https://badge.fury.io/js/aberdeen.svg)](https://badge.fury.io/js/aberdeen) ![](https://img.shields.io/bundlejs/size/aberdeen) [![](https://img.shields.io/github/last-commit/vanviegen/aberdeen)](https://github.com/vanviegen/aberdeen)
 
-Build blazing-fast, reactive UIs in pure TypeScript/JavaScript – no virtual DOM.
+Build fast reactive UIs in pure TypeScript/JavaScript without a virtual DOM.
 
-Aberdeen offers a refreshingly simple approach to reactive UIs. Its core idea:
+Aberdeen's approach is refreshingly simple:
 
-> Use many small, anonymous functions for emitting DOM elements, and automatically rerun them when their underlying *proxied* data changes. This proxied data can be anything from simple values to complex, typed, and deeply nested data structures.
-
-Now, let's dive into why this matters...
+> Use many small anonymous functions for emitting DOM elements, and automatically rerun them when their underlying data changes. JavaScript `Proxy` is used to track reads and updates to this data, which can consist of anything, from simple values to complex, typed, and deeply nested data structures. 
 
 ## Why use Aberdeen?
 
@@ -54,7 +52,7 @@ Okay, next up is a somewhat more complex app - a todo-list with the following be
 - Pressing one of the buttons, or pressing enter will transition from 'editing state' to 'viewing state', saving the new label text unless cancel was pressed.
 - In 'viewing state', the label is shown as non-editable. There's an 'Edit' link, that will transition the item to 'editing state'. Clicking anywhere else will toggle the done status.
 - The list of items is sorted alphabetically by label. Items move when 'save' changes their label.
-- Items that are created, moved or deleted are grown and shrink as appropriate.
+- Items that are created, moved or deleted grow and shrink as appropriate.
 
 Pfew.. now let's look at the code:
 
