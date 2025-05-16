@@ -1203,7 +1203,7 @@ function destroyWithClass(element: Element, cls: string) {
  * console.log(source.nested); // [1, 2, 3] (source was modified)
  * ```
  */
-export function copy<T extends object>(dst: T, src: T, flags: number = 0) {
+export function copy<T extends object>(dst: T, src: Partial<T>, flags: number = 0) {
 	copyRecurse(dst, src, flags);
 	runImmediateQueue();
 }
