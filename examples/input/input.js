@@ -48,11 +48,11 @@ $(() => {
     }
 });
 
-$('select', { bind: ref(data, 'gender') }, () => {
+$('select', () => {
     $('option:Man', { value: "m" });
     $('option:Woman', { value: "w" });
     $('option:Other', { value: "o" });
-});
+}, { bind: ref(data, 'gender') });
 
 $(() => {
     if (data.gender === 'o') {

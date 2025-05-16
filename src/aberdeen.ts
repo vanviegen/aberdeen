@@ -1374,8 +1374,7 @@ export function ref<T extends TargetType, K extends keyof T>(target: T, index: K
 }
 
 
-function applyBind(_el: Element, target: any) {
-	const el = _el as HTMLInputElement;
+function applyBind(el: HTMLInputElement, target: any) {
 	let onProxyChange: () => void;
 	let onInputChange: () => void;
 	let type = el.getAttribute('type');
@@ -1393,7 +1392,10 @@ function applyBind(_el: Element, target: any) {
 	} else {
 		onInputChange = () => target.value = type==='number' || type==='range' ? (el.value==='' ? null : +el.value) : el.value;
 		if (value === undefined) onInputChange();
-		onProxyChange = () => el.value = target.value
+		onProxyChange = () => {
+			el.value = target.value;
+			if (el.tagName==='SELECT' && el.value != target.value) throw new Error(`SELECT has no '${target.value}' OPTION (yet)`);
+		}
 	}
 	observe(onProxyChange);
 	el.addEventListener('input', onInputChange);
@@ -1683,7 +1685,7 @@ function applyArg(key: string, value: any) {
 	const el = currentScope.parentElement;
 	if (typeof value === 'object' && value !== null && value[TARGET_SYMBOL]) { // Value is a proxy
 		if (key === 'bind') {
-			applyBind(el, value)
+			applyBind(el as HTMLInputElement, value)
 		} else {
 			new SetArgScope(el, key, value)
 			// SetArgScope will (repeatedly) call `applyArg` again with the actual value
