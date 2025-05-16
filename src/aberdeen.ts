@@ -479,6 +479,7 @@ function runImmediateQueue() {
 
 /** @internal */
 class OnEachScope extends Scope {
+	// biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: circular, as currentScope is initialized with a Scope
 	parentElement: Element = currentScope.parentElement;
 	prevSibling: Node | Scope | undefined;
 
@@ -1243,7 +1244,8 @@ export function unproxy<T>(target: T): T {
 	return target ? (target as any)[TARGET_SYMBOL] || target : target;
 }
 
-const onDestroyMap: WeakMap<Node, string | Function | true> = new WeakMap();
+const onDestroyMap: WeakMap<Node, string | ((...args: any[]) => void) | true> =
+	new WeakMap();
 
 function destroyWithClass(element: Element, cls: string) {
 	const classes = cls.split(".").filter((c) => c);
@@ -1491,27 +1493,36 @@ function applyBind(el: HTMLInputElement, target: any) {
 	const value = unproxy(target).value;
 	if (type === "checkbox") {
 		if (value === undefined) target.value = el.checked;
-		onProxyChange = () => (el.checked = target.value);
-		onInputChange = () => (target.value = el.checked);
+		onProxyChange = () => {
+			el.checked = target.value;
+		};
+		onInputChange = () => {
+			target.value = el.checked;
+		};
 	} else if (type === "radio") {
 		if (value === undefined && el.checked) target.value = el.value;
-		onProxyChange = () => (el.checked = target.value === el.value);
+		onProxyChange = () => {
+			el.checked = target.value === el.value;
+		};
 		onInputChange = () => {
 			if (el.checked) target.value = el.value;
 		};
 	} else {
-		onInputChange = () =>
-			(target.value =
+		onInputChange = () => {
+			target.value =
 				type === "number" || type === "range"
 					? el.value === ""
 						? null
 						: +el.value
-					: el.value);
+					: el.value;
+		};
 		if (value === undefined) onInputChange();
 		onProxyChange = () => {
 			el.value = target.value;
-			if (el.tagName==='SELECT' && el.value != target.value) throw new Error(`SELECT has no '${target.value}' OPTION (yet)`);
-		}
+			// biome-ignore lint/suspicious/noDoubleEquals: it's fine for numbers to be casts to strings here
+			if (el.tagName === "SELECT" && el.value != target.value)
+				throw new Error(`SELECT has no '${target.value}' OPTION (yet)`);
+		};
 	}
 	observe(onProxyChange);
 	el.addEventListener("input", onInputChange);
@@ -1814,10 +1825,10 @@ function styleToCss(style: object, prefix: string): string {
 
 function applyArg(key: string, value: any) {
 	const el = currentScope.parentElement;
-	if (typeof value === 'object' && value !== null && value[TARGET_SYMBOL]) {
+	if (typeof value === "object" && value !== null && value[TARGET_SYMBOL]) {
 		// Value is a proxy
-		if (key === 'bind') {
-			applyBind(el as HTMLInputElement, value)
+		if (key === "bind") {
+			applyBind(el as HTMLInputElement, value);
 		} else {
 			new SetArgScope(el, key, value);
 			// SetArgScope will (repeatedly) call `applyArg` again with the actual value
@@ -2036,9 +2047,7 @@ export function clean(cleaner: () => void) {
  * @overload
  * @param func Func without a return value.
  */
-export function observe<T>(
-	func: () => T,
-): ValueRef<T> {
+export function observe<T>(func: () => T): ValueRef<T> {
 	return new ResultScope<T>(currentScope.parentElement, func).result;
 }
 

@@ -22,7 +22,12 @@
 		"rules": {
 			"recommended": true,
 			"suspicious": {
-				"useIsArray": "off"
+				"useIsArray": "off",
+				"noExplicitAny": "off",
+				"noAssignInExpressions": "off"
+			},
+			"style": {
+				"noParameterAssign": "off"
 			}
 		}
 	},
