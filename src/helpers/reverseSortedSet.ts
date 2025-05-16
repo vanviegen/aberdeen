@@ -109,7 +109,7 @@ export class ReverseSortedSet<T extends object> {
 	get(indexValue: string | number): T | undefined {
 		const keyProp = this.keyProp;
 		let current = this.tail;
-		let prev;
+		let prev: Item<T> | undefined;
 		for (let l = this.symbols.length - 1; l >= 0; l--) {
 			const symbol = this.symbols[l];
 			while ((prev = current[symbol] as Item<T>) && prev[keyProp] > indexValue)
