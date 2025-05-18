@@ -13,7 +13,7 @@ type SkipItem<T> = { [idx: ReverseSortedSetPointer]: T };
  * It's implemented as a skiplist, maintaining all meta-data as part of the objects that it
  * is tracking, for performance.
  */
-export class ReverseSortedSet<T extends SkipItem<T>> {
+export class ReverseSortedSet<T extends SkipItem<T>, KeyPropT extends keyof T> {
 	// A fake item, that is not actually T, but *does* contain symbols pointing at the first item for each level.
 	private tail: SkipItem<T>;
 	// As every SkipList instance has its own symbols, an object can be included in more than one SkipList.
@@ -26,7 +26,7 @@ export class ReverseSortedSet<T extends SkipItem<T>> {
 	 * using `<` will be done on this property, so it should probably be a number or a string (or something that
 	 * has a useful toString-conversion).
 	 */
-	constructor(private keyProp: string) {
+	constructor(private keyProp: KeyPropT) {
 		this.tail = {} as SkipItem<T>;
 		this.symbols = [Symbol(0)];
 	}
@@ -57,15 +57,14 @@ export class ReverseSortedSet<T extends SkipItem<T>> {
 			this.symbols.push(Symbol(l));
 
 		const keyProp = this.keyProp;
-		const key = (item as any)[keyProp];
+		const key = item[keyProp];
 
 		// prev is always a complete T, current might be tail only contain pointers
 		let prev: T | undefined;
 		let current: SkipItem<T> = this.tail;
 		for (let l = this.symbols.length - 1; l >= 0; l--) {
 			const symbol = this.symbols[l];
-			while ((prev = current[symbol]) && (prev as any)[keyProp] > key)
-				current = prev;
+			while ((prev = current[symbol]) && prev[keyProp] > key) current = prev;
 			if (l < level) {
 				(item as SkipItem<T>)[symbol] = current[symbol];
 				current[symbol] = item;
@@ -112,7 +111,7 @@ export class ReverseSortedSet<T extends SkipItem<T>> {
 	 *
 	 * Time complexity: O(log n)
 	 */
-	get(indexValue: any): T | undefined {
+	get(indexValue: T[KeyPropT]): T | undefined {
 		const keyProp = this.keyProp;
 
 		// prev is always a complete T, current might be tail only contain pointers
@@ -120,10 +119,10 @@ export class ReverseSortedSet<T extends SkipItem<T>> {
 		let current: SkipItem<T> = this.tail;
 		for (let l = this.symbols.length - 1; l >= 0; l--) {
 			const symbol = this.symbols[l];
-			while ((prev = current[symbol]) && (prev as any)[keyProp] > indexValue)
+			while ((prev = current[symbol]) && prev[keyProp] > indexValue)
 				current = prev;
 		}
-		return (current[this.symbols[0]] as any)?.[keyProp] === indexValue
+		return current[this.symbols[0]]?.[keyProp] === indexValue
 			? current[this.symbols[0]]
 			: undefined;
 	}
@@ -162,21 +161,17 @@ export class ReverseSortedSet<T extends SkipItem<T>> {
 	remove(item: T): boolean {
 		if (!(this.symbols[0] in item)) return false;
 		const keyProp = this.keyProp;
-		const prop = (item as any)[keyProp];
+		const prop = item[keyProp];
 
 		// prev is always a complete T, current might be tail only contain pointers
 		let prev: T | undefined;
 		let current: SkipItem<T> = this.tail;
 		for (let l = this.symbols.length - 1; l >= 0; l--) {
 			const symbol = this.symbols[l];
-			while (
-				(prev = current[symbol]) &&
-				(prev as any)[keyProp] >= prop &&
-				prev !== item
-			)
+			while ((prev = current[symbol]) && prev[keyProp] >= prop && prev !== item)
 				current = prev;
 			if (prev === item) {
-				(current as any)[symbol] = prev[symbol];
+				current[symbol] = prev[symbol];
 				delete prev[symbol];
 			}
 		}

@@ -14,7 +14,7 @@ interface QueueRunner {
 	[ptr: ReverseSortedSetPointer]: QueueRunner;
 }
 
-let sortedQueue: ReverseSortedSet<QueueRunner> | undefined; // When set, a runQueue is scheduled or currently running.
+let sortedQueue: ReverseSortedSet<QueueRunner, "prio"> | undefined; // When set, a runQueue is scheduled or currently running.
 let runQueueDepth = 0; // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
 let topRedrawScope: Scope | undefined; // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 
@@ -31,7 +31,7 @@ export type DatumType =
 
 function queue(runner: QueueRunner) {
 	if (!sortedQueue) {
-		sortedQueue = new ReverseSortedSet<QueueRunner>("prio");
+		sortedQueue = new ReverseSortedSet<QueueRunner, "prio">("prio");
 		setTimeout(runQueue, 0);
 	} else if (!(runQueueDepth & 1)) {
 		runQueueDepth++; // Make it uneven
@@ -447,7 +447,9 @@ class SetArgScope extends ChainedScope {
 	}
 }
 
-let immediateQueue: ReverseSortedSet<Scope> = new ReverseSortedSet("prio");
+let immediateQueue: ReverseSortedSet<Scope, "prio"> = new ReverseSortedSet(
+	"prio",
+);
 
 class ImmediateScope extends RegularScope {
 	onChange(index: any, newData: DatumType, oldData: DatumType) {
@@ -496,9 +498,8 @@ class OnEachScope extends Scope {
 	byIndex: Map<any, OnEachItemScope> = new Map();
 
 	/** The reverse-ordered list of item scopes, not including those for which makeSortKey returned undefined. */
-	sortedSet: ReverseSortedSet<OnEachItemScope> = new ReverseSortedSet(
-		"sortKey",
-	);
+	sortedSet: ReverseSortedSet<OnEachItemScope, "sortKey"> =
+		new ReverseSortedSet("sortKey");
 
 	/** Indexes that have been created/removed and need to be handled in the next `queueRun`. */
 	changedIndexes: Set<any> = new Set();
