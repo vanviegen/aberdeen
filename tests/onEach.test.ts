@@ -416,14 +416,19 @@ test('onEach can run outside of any scope with map', async () => {
   expect([...incr]).toEqual([undefined, undefined, undefined]); // map() should have stopped!
 });
 
-test('fail', async () => {
-  const data = proxy([22]);
-  $('h1');
+test('onEach reruns', async () => {
+  const ids = proxy([0])
+    
   $(() => {
-    $('ul', () => {
-      onEach(data, item => $('li:'+item));
-    });
-  });
+    ids.length; // Cause onEach to rerun completely
+    onEach(ids, id => {
+      $("div:" + id)
+    })
+  })
 
-  assertBody(`h1 ul{li{"22"}}`);
-});
+  assertBody(`div{"0"}`);
+  
+  ids.push(1);
+  await passTime();
+  assertBody(`div{"0"} div{"1"}`);
+})

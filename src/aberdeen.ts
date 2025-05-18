@@ -81,7 +81,7 @@ export function runQueue(): void {
 	sortedQueue = undefined;
 	runQueueDepth = 0;
 	time = Date.now() - time;
-	if (time > 1) console.debug(`Aberdeen queue took ${time}ms`);
+	if (time > 9) console.debug(`Aberdeen queue took ${time}ms`);
 }
 
 /**
@@ -562,6 +562,8 @@ class OnEachScope extends Scope {
 		for (const scope of this.byIndex.values()) {
 			scope.delete();
 		}
+
+		sortedQueue?.remove(this); // This is very fast and O(1) when not queued
 
 		// Help garbage collection:
 		this.byIndex.clear();
