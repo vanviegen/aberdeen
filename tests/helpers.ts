@@ -41,7 +41,7 @@ export function assertBody(expected: string): void {
 export function assertCss(...expected: string[]) {
 	const found: string[] = [];
 	(document.body as any).visit(el => {
-		if (el.tag === 'style') {
+		if (el.tagName === 'style') {
 			for(let style of el.textContent.trim().split("\n")) {
 				found.push(style);
 			}

@@ -1,4 +1,5 @@
 import { ReverseSortedSet } from "./helpers/reverseSortedSet.js";
+import type { ReverseSortedSetPointer } from "./helpers/reverseSortedSet.js";
 
 /*
  * QueueRunner
@@ -9,9 +10,11 @@ import { ReverseSortedSet } from "./helpers/reverseSortedSet.js";
 interface QueueRunner {
 	prio: number; // Higher values have higher priority
 	queueRun(): void;
+
+	[ptr: ReverseSortedSetPointer]: QueueRunner;
 }
 
-let sortedQueue: ReverseSortedSet<QueueRunner> | undefined; // When set, a runQueue is scheduled or currently running.
+let sortedQueue: ReverseSortedSet<QueueRunner, "prio"> | undefined; // When set, a runQueue is scheduled or currently running.
 let runQueueDepth = 0; // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
 let topRedrawScope: Scope | undefined; // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 
@@ -28,7 +31,7 @@ export type DatumType =
 
 function queue(runner: QueueRunner) {
 	if (!sortedQueue) {
-		sortedQueue = new ReverseSortedSet<QueueRunner>("prio");
+		sortedQueue = new ReverseSortedSet<QueueRunner, "prio">("prio");
 		setTimeout(runQueue, 0);
 	} else if (!(runQueueDepth & 1)) {
 		runQueueDepth++; // Make it uneven
@@ -168,6 +171,8 @@ abstract class Scope implements QueueRunner {
 	// order of the source code.
 	prio: number = --lastPrio;
 
+	[ptr: ReverseSortedSetPointer]: this;
+
 	abstract onChange(index: any, newData: DatumType, oldData: DatumType): void;
 	abstract queueRun(): void;
 
@@ -197,6 +202,9 @@ abstract class ContentScope extends Scope {
 	// The list of clean functions to be called when this scope is cleaned. These can
 	// be for child scopes, subscriptions as well as `clean(..)` hooks.
 	cleaners: Array<{ delete: (scope: Scope) => void } | (() => void)>;
+
+	// Whether this scope is within an SVG namespace context
+	inSvgNamespace: boolean = false;
 
 	constructor(
 		cleaners: Array<{ delete: (scope: Scope) => void } | (() => void)> = [],
@@ -264,6 +272,10 @@ class ChainedScope extends ContentScope {
 		useParentCleaners = false,
 	) {
 		super(useParentCleaners ? currentScope.cleaners : []);
+		
+		// Inherit SVG namespace state from current scope
+		this.inSvgNamespace = currentScope.inSvgNamespace;
+		
 		if (parentElement === currentScope.parentElement) {
 			// If `currentScope` is not actually a ChainedScope, prevSibling will be undefined, as intended
 			this.prevSibling = currentScope.getChildPrevSibling();
@@ -334,6 +346,10 @@ class MountScope extends ContentScope {
 		public renderer: () => any,
 	) {
 		super();
+		
+		// Inherit SVG namespace state from current scope
+		this.inSvgNamespace = currentScope.inSvgNamespace;
+		
 		this.redraw();
 		currentScope.cleaners.push(this);
 	}
@@ -442,7 +458,9 @@ class SetArgScope extends ChainedScope {
 	}
 }
 
-let immediateQueue: ReverseSortedSet<Scope> = new ReverseSortedSet("prio");
+let immediateQueue: ReverseSortedSet<Scope, "prio"> = new ReverseSortedSet(
+	"prio",
+);
 
 class ImmediateScope extends RegularScope {
 	onChange(index: any, newData: DatumType, oldData: DatumType) {
@@ -491,9 +509,8 @@ class OnEachScope extends Scope {
 	byIndex: Map<any, OnEachItemScope> = new Map();
 
 	/** The reverse-ordered list of item scopes, not including those for which makeSortKey returned undefined. */
-	sortedSet: ReverseSortedSet<OnEachItemScope> = new ReverseSortedSet(
-		"sortKey",
-	);
+	sortedSet: ReverseSortedSet<OnEachItemScope, "sortKey"> =
+		new ReverseSortedSet("sortKey");
 
 	/** Indexes that have been created/removed and need to be handled in the next `queueRun`. */
 	changedIndexes: Set<any> = new Set();
@@ -594,6 +611,9 @@ class OnEachItemScope extends ContentScope {
 	) {
 		super();
 		this.parentElement = parent.parentElement;
+		
+		// Inherit SVG namespace state from current scope
+		this.inSvgNamespace = currentScope.inSvgNamespace;
 
 		this.parent.byIndex.set(this.itemIndex, this);
 
@@ -1699,7 +1719,14 @@ export function $(
 				err = `Tag '${arg}' cannot contain space`;
 				break;
 			} else {
-				result = document.createElement(arg);
+				// Determine which namespace to use for element creation
+				const useNamespace = currentScope.inSvgNamespace || arg === 'svg';
+				if (useNamespace) {
+					result = document.createElementNS('http://www.w3.org/2000/svg', arg);
+				} else {
+					result = document.createElement(arg);
+				}
+				
 				if (classes) result.className = classes.replaceAll(".", " ");
 				if (text) result.textContent = text;
 				addNode(result);
@@ -1707,6 +1734,12 @@ export function $(
 					savedCurrentScope = currentScope;
 				}
 				const newScope = new ChainedScope(result, true);
+				
+				// If we're creating an SVG element, set the SVG namespace flag for child scopes
+				if (arg === 'svg') {
+					newScope.inSvgNamespace = true;
+				}
+				
 				newScope.lastChild = result.lastChild || undefined;
 				if (topRedrawScope === currentScope) topRedrawScope = newScope;
 				currentScope = newScope;

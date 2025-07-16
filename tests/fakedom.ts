@@ -35,7 +35,8 @@ class Node {
 }
 
 class Element extends Node {
-  tag: string;
+  tagName: string;
+  namespaceURI?: string;
   _style: Record<string, string> = {};
   attrs: Record<string, string> = {};
   events: Record<string, Set<Function>> = {};
@@ -45,9 +46,10 @@ class Element extends Node {
     toggle: (name: string, force?: boolean) => void;
   };
 
-  constructor(tag: string) {
+  constructor(tag: string, namespaceURI?: string) {
     super();
-    this.tag = tag;
+    this.tagName = tag;
+    this.namespaceURI = namespaceURI;
     this.childNodes = [];
     newCount++;
   }
@@ -159,6 +161,23 @@ class Element extends Node {
     return text;
   }
 
+  querySelectorAll(selector: string): Element[] {
+    const results: Element[] = [];
+    this._querySelectorAllRecursive(selector, results);
+    return results;
+  }
+
+  private _querySelectorAllRecursive(selector: string, results: Element[]): void {
+    for (const child of this.childNodes) {
+      if (child instanceof Element) {
+        if (child.tagName === selector) {
+          results.push(child);
+        }
+        child._querySelectorAllRecursive(selector, results);
+      }
+    }
+  }
+
   set innerHTML(html: string) {
     this.childNodes = [];
     if (html) {
@@ -208,7 +227,7 @@ class Element extends Node {
     for(let child of this.childNodes) arr.push(child.toString());
 
     const cls = this.attrs['class'] ? "." + this.attrs['class'].replace(/ /g, '.') : '';
-    return this.tag + cls + (arr.length ? `{${arr.join(' ')}}` : '');
+    return this.tagName + cls + (arr.length ? `{${arr.join(' ')}}` : '');
   }
 
   addEventListener(name: string, func: Function): void {
@@ -258,17 +277,18 @@ class Element extends Node {
 
 
 const document = {
-  createElement: (tag: string) => new Element(tag),
+  createElement: (tag: string) => new Element(tag, 'http://www.w3.org/1999/xhtml'),
+  createElementNS: (namespaceURI: string, tag: string) => new Element(tag, namespaceURI),
   createTextNode: (text: string) => new TextNode(text),
   head: {
     appendChild: function(el: Element) {
-      if (el.tag !== 'style') {
+      if (el.tagName !== 'style') {
         throw new Error("only <style> inserts in head can be emulated");
       }
       insertedCss += el.textContent;
     }
   },
-  body: new Element('body')
+  body: new Element('body', 'http://www.w3.org/1999/xhtml')
 };
 
 const window: Record<string, any> = {};
@@ -317,7 +337,7 @@ export const passTime = async function(ms?: number): Promise<number> {
   return count;
 };
 
-const IGNORE_OUTPUT = new Set("tag-> attrs-> events-> childNodes-> parentNode-> class=".split(" "));
+const IGNORE_OUTPUT = new Set("tagName-> attrs-> events-> childNodes-> parentNode-> class= namespaceURI->".split(" "));
 
 class TextNode extends Node {
   textContent: string;
