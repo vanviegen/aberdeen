@@ -35,7 +35,7 @@ class Node {
 }
 
 class Element extends Node {
-  tag: string;
+  tagName: string;
   namespaceURI?: string;
   _style: Record<string, string> = {};
   attrs: Record<string, string> = {};
@@ -48,7 +48,7 @@ class Element extends Node {
 
   constructor(tag: string, namespaceURI?: string) {
     super();
-    this.tag = tag;
+    this.tagName = tag;
     this.namespaceURI = namespaceURI;
     this.childNodes = [];
     newCount++;
@@ -161,11 +161,6 @@ class Element extends Node {
     return text;
   }
 
-  get tagName(): string {
-    // SVG elements keep lowercase tag names, HTML elements are uppercase
-    return this.namespaceURI === 'http://www.w3.org/2000/svg' ? this.tag : this.tag.toUpperCase();
-  }
-
   querySelectorAll(selector: string): Element[] {
     const results: Element[] = [];
     this._querySelectorAllRecursive(selector, results);
@@ -175,7 +170,7 @@ class Element extends Node {
   private _querySelectorAllRecursive(selector: string, results: Element[]): void {
     for (const child of this.childNodes) {
       if (child instanceof Element) {
-        if (child.tag === selector) {
+        if (child.tagName === selector) {
           results.push(child);
         }
         child._querySelectorAllRecursive(selector, results);
@@ -232,7 +227,7 @@ class Element extends Node {
     for(let child of this.childNodes) arr.push(child.toString());
 
     const cls = this.attrs['class'] ? "." + this.attrs['class'].replace(/ /g, '.') : '';
-    return this.tag + cls + (arr.length ? `{${arr.join(' ')}}` : '');
+    return this.tagName + cls + (arr.length ? `{${arr.join(' ')}}` : '');
   }
 
   addEventListener(name: string, func: Function): void {
@@ -287,7 +282,7 @@ const document = {
   createTextNode: (text: string) => new TextNode(text),
   head: {
     appendChild: function(el: Element) {
-      if (el.tag !== 'style') {
+      if (el.tagName !== 'style') {
         throw new Error("only <style> inserts in head can be emulated");
       }
       insertedCss += el.textContent;
@@ -342,7 +337,7 @@ export const passTime = async function(ms?: number): Promise<number> {
   return count;
 };
 
-const IGNORE_OUTPUT = new Set("tag-> attrs-> events-> childNodes-> parentNode-> class= namespaceURI->".split(" "));
+const IGNORE_OUTPUT = new Set("tagName-> attrs-> events-> childNodes-> parentNode-> class= namespaceURI->".split(" "));
 
 class TextNode extends Node {
   textContent: string;
