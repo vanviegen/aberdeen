@@ -203,6 +203,9 @@ abstract class ContentScope extends Scope {
 	// be for child scopes, subscriptions as well as `clean(..)` hooks.
 	cleaners: Array<{ delete: (scope: Scope) => void } | (() => void)>;
 
+	// Whether this scope is within an SVG namespace context
+	inSvgNamespace: boolean = false;
+
 	constructor(
 		cleaners: Array<{ delete: (scope: Scope) => void } | (() => void)> = [],
 	) {
@@ -269,6 +272,10 @@ class ChainedScope extends ContentScope {
 		useParentCleaners = false,
 	) {
 		super(useParentCleaners ? currentScope.cleaners : []);
+		
+		// Inherit SVG namespace state from current scope
+		this.inSvgNamespace = currentScope.inSvgNamespace;
+		
 		if (parentElement === currentScope.parentElement) {
 			// If `currentScope` is not actually a ChainedScope, prevSibling will be undefined, as intended
 			this.prevSibling = currentScope.getChildPrevSibling();
@@ -339,6 +346,10 @@ class MountScope extends ContentScope {
 		public renderer: () => any,
 	) {
 		super();
+		
+		// Inherit SVG namespace state from current scope
+		this.inSvgNamespace = currentScope.inSvgNamespace;
+		
 		this.redraw();
 		currentScope.cleaners.push(this);
 	}
@@ -600,6 +611,9 @@ class OnEachItemScope extends ContentScope {
 	) {
 		super();
 		this.parentElement = parent.parentElement;
+		
+		// Inherit SVG namespace state from current scope
+		this.inSvgNamespace = currentScope.inSvgNamespace;
 
 		this.parent.byIndex.set(this.itemIndex, this);
 
@@ -1705,7 +1719,14 @@ export function $(
 				err = `Tag '${arg}' cannot contain space`;
 				break;
 			} else {
-				result = document.createElement(arg);
+				// Determine which namespace to use for element creation
+				const useNamespace = currentScope.inSvgNamespace || arg === 'svg';
+				if (useNamespace) {
+					result = document.createElementNS('http://www.w3.org/2000/svg', arg);
+				} else {
+					result = document.createElement(arg);
+				}
+				
 				if (classes) result.className = classes.replaceAll(".", " ");
 				if (text) result.textContent = text;
 				addNode(result);
@@ -1713,6 +1734,12 @@ export function $(
 					savedCurrentScope = currentScope;
 				}
 				const newScope = new ChainedScope(result, true);
+				
+				// If we're creating an SVG element, set the SVG namespace flag for child scopes
+				if (arg === 'svg') {
+					newScope.inSvgNamespace = true;
+				}
+				
 				newScope.lastChild = result.lastChild || undefined;
 				if (topRedrawScope === currentScope) topRedrawScope = newScope;
 				currentScope = newScope;

@@ -36,6 +36,7 @@ class Node {
 
 class Element extends Node {
   tag: string;
+  namespaceURI?: string;
   _style: Record<string, string> = {};
   attrs: Record<string, string> = {};
   events: Record<string, Set<Function>> = {};
@@ -45,9 +46,10 @@ class Element extends Node {
     toggle: (name: string, force?: boolean) => void;
   };
 
-  constructor(tag: string) {
+  constructor(tag: string, namespaceURI?: string) {
     super();
     this.tag = tag;
+    this.namespaceURI = namespaceURI;
     this.childNodes = [];
     newCount++;
   }
@@ -159,6 +161,28 @@ class Element extends Node {
     return text;
   }
 
+  get tagName(): string {
+    // SVG elements keep lowercase tag names, HTML elements are uppercase
+    return this.namespaceURI === 'http://www.w3.org/2000/svg' ? this.tag : this.tag.toUpperCase();
+  }
+
+  querySelectorAll(selector: string): Element[] {
+    const results: Element[] = [];
+    this._querySelectorAllRecursive(selector, results);
+    return results;
+  }
+
+  private _querySelectorAllRecursive(selector: string, results: Element[]): void {
+    for (const child of this.childNodes) {
+      if (child instanceof Element) {
+        if (child.tag === selector) {
+          results.push(child);
+        }
+        child._querySelectorAllRecursive(selector, results);
+      }
+    }
+  }
+
   set innerHTML(html: string) {
     this.childNodes = [];
     if (html) {
@@ -258,7 +282,8 @@ class Element extends Node {
 
 
 const document = {
-  createElement: (tag: string) => new Element(tag),
+  createElement: (tag: string) => new Element(tag, 'http://www.w3.org/1999/xhtml'),
+  createElementNS: (namespaceURI: string, tag: string) => new Element(tag, namespaceURI),
   createTextNode: (text: string) => new TextNode(text),
   head: {
     appendChild: function(el: Element) {
@@ -268,7 +293,7 @@ const document = {
       insertedCss += el.textContent;
     }
   },
-  body: new Element('body')
+  body: new Element('body', 'http://www.w3.org/1999/xhtml')
 };
 
 const window: Record<string, any> = {};
@@ -317,7 +342,7 @@ export const passTime = async function(ms?: number): Promise<number> {
   return count;
 };
 
-const IGNORE_OUTPUT = new Set("tag-> attrs-> events-> childNodes-> parentNode-> class=".split(" "));
+const IGNORE_OUTPUT = new Set("tag-> attrs-> events-> childNodes-> parentNode-> class= namespaceURI->".split(" "));
 
 class TextNode extends Node {
   textContent: string;
