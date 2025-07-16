@@ -111,9 +111,9 @@ function partToStr(part: number | string): string {
 		 * 1 - separator between string array items
 		 * 65535 - for compatibility
 		 */
-		result += String.fromCharCode(
+		result = String.fromCharCode(
 			negative ? 65534 - (num % 65533) : 2 + (num % 65533),
-		);
+		) + result;
 		num = Math.floor(num / 65533);
 	}
 	// Prefix the number of digits, counting down from 128 for negative and up for positive
