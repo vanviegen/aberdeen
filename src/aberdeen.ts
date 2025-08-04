@@ -823,7 +823,7 @@ function subscribe(
 }
 
 export function onEach<T>(
-	target: Array<undefined | T>,
+	target: ReadonlyArray<undefined | T>,
 	render: (value: T, index: number) => void,
 	makeKey?: (value: T, key: any) => SortKeyType,
 ): void;
