@@ -110,15 +110,26 @@ test('creates text nodes', async () => {
   }
 });
 
-test('adds preexisting elements to the DOM', () => {
+test('adds preexisting elements to the DOM - old style', () => {
   mount(document.body, () => {
     let el = document.createElement('video');
     el.classList.add("test");
     $({element: el});
     $({element: null}); // should be ignored
-    assertThrow('Unexpected element', () => $({element: false as any}));
   });
   assertBody(`video.test`);
+});
+
+test('adds preexisting elements to the DOM - new style', () => {
+  mount(document.body, () => {
+    let el = document.createElement('video');
+    el.classList.add("test");
+    el.appendChild(document.createElement('source'));
+    let txt = document.createTextNode('txt');
+    $('p', el, txt, 'source.b');
+    $(null); // should be ignored
+  });
+  assertBody(`p{video.test{source "txt" source.b}}`);
 });
 
 test('handles nontypical options well', () => {

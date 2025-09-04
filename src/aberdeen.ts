@@ -1584,9 +1584,9 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
 		addNode(document.createTextNode(value));
 	},
 	element: (value: any) => {
-		if (!(value instanceof Node))
-			throw new Error(`Unexpected element-argument: ${JSON.parse(value)}`);
+		console.log("Aberdeen: $({element: myElement}) is deprecated, use $(myElement) instead");
 		addNode(value);
+		SPECIAL_PROPS.element = addNode; // Avoid the console.log next time
 	},
 };
 
@@ -1623,7 +1623,7 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  *      This is often used together with {@link ref}, in order to use properties other than `.value`.
  *   - `{text: string|number}`: Add the value as a `TextNode` to the *current* element.
  *   - `{html: string}`: Add the value as HTML to the *current* element. This should only be used in exceptional situations. And of course, beware of XSS.
- *   - `{element: Node}`: Add a pre-existing HTML `Node` to the *current* element.
+   - `Node`: If a DOM Node (Element or TextNode) is passed in, it is added as a child to the *current* element. If the Node is an Element, it becomes the new *current* element for the rest of this `$` function execution.
  *
  * @returns The most inner DOM element that was created (not counting text nodes nor elements created by content functions),
  *          or undefined if no elements were created.
@@ -1746,12 +1746,23 @@ export function $(
 			}
 		} else if (typeof arg === "object") {
 			if (arg.constructor !== Object) {
-				err = `Unexpected argument: ${arg}`;
-				break;
-			}
-			for (const key in arg) {
-				const val = arg[key];
-				applyArg(key, val);
+				if (arg instanceof Node) {
+					addNode(arg);
+					if (arg instanceof Element) {
+						// If it's an Element, it may contain children, so we make it the current scope
+						if (!savedCurrentScope) savedCurrentScope = currentScope;
+						currentScope = new ChainedScope(arg, true);
+						currentScope.lastChild = arg.lastChild || undefined;
+					}
+				} else {
+					err = `Unexpected argument: ${arg}`;
+					break;
+				}
+			} else {
+				for (const key in arg) {
+					const val = arg[key];
+					applyArg(key, val);
+				}
 			}
 		} else if (typeof arg === "function") {
 			new RegularScope(currentScope.parentElement, arg);
