@@ -822,15 +822,19 @@ function subscribe(
 	}
 }
 
+// Records in TypeScript pretend that they can have number keys, but in reality they are converted to string.
+// This type changes (number | something) types to (string | something) types, maintaining typing precision as much as possible.
+type KeyToString<K> = K extends number ? string : K extends string | symbol ? K : K extends number | infer U ? string | U : K;
+
 export function onEach<T>(
 	target: ReadonlyArray<undefined | T>,
 	render: (value: T, index: number) => void,
-	makeKey?: (value: T, key: any) => SortKeyType,
+	makeKey?: (value: T, index: number) => SortKeyType,
 ): void;
 export function onEach<K extends string | number | symbol, T>(
 	target: Record<K, undefined | T>,
-	render: (value: T, index: K) => void,
-	makeKey?: (value: T, key: K) => SortKeyType,
+	render: (value: T, index: KeyToString<K>) => void,
+	makeKey?: (value: T, index: KeyToString<K>) => SortKeyType,
 ): void;
 
 /**
@@ -2221,9 +2225,9 @@ export function peek<T>(func: () => T): T {
 }
 
 /** When using an object as `source`. */
-export function map<IN, OUT>(
-	source: Record<string | symbol, IN>,
-	func: (value: IN, index: string | symbol) => undefined | OUT,
+export function map<IN, const IN_KEY extends string | number | symbol, OUT>(
+	source: Record<IN_KEY, IN>,
+	func: (value: IN, index: KeyToString<IN_KEY>) => undefined | OUT,
 ): Record<string | symbol, OUT>;
 /** When using an array as `source`. */
 export function map<IN, OUT>(
@@ -2300,7 +2304,7 @@ export function multiMap<
 	K extends string | number | symbol,
 	IN,
 	OUT extends { [key: string | symbol]: DatumType },
->(source: Record<K, IN>, func: (value: IN, index: K) => OUT | undefined): OUT;
+>(source: Record<K, IN>, func: (value: IN, index: KeyToString<K>) => OUT | undefined): OUT;
 /**
  * Reactively maps items from a source proxy (array or object) to a target proxied object,
  * where each source item can contribute multiple key-value pairs to the target.
@@ -2447,18 +2451,18 @@ export function partition<
 	IN_V,
 >(
 	source: Record<IN_K, IN_V>,
-	func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[],
-): Record<OUT_K, Record<IN_K, IN_V>> {
-	const unproxiedOut = {} as Record<OUT_K, Record<IN_K, IN_V>>;
+	func: (value: IN_V, key: KeyToString<IN_K>) => undefined | OUT_K | OUT_K[],
+): Record<OUT_K, Record<KeyToString<IN_K>, IN_V>> {
+	const unproxiedOut = {} as Record<OUT_K, Record<KeyToString<IN_K>, IN_V>>;
 	const out = proxy(unproxiedOut);
-	onEach(source, (item: IN_V, key: IN_K) => {
+	onEach(source, (item: IN_V, key: KeyToString<IN_K>) => {
 		const rsp = func(item, key);
 		if (rsp != null) {
 			const buckets = rsp instanceof Array ? rsp : [rsp];
 			if (buckets.length) {
 				for (const bucket of buckets) {
 					if (unproxiedOut[bucket]) out[bucket][key] = item;
-					else out[bucket] = { [key]: item } as Record<IN_K, IN_V>;
+					else out[bucket] = { [key]: item } as Record<KeyToString<IN_K>, IN_V>;
 				}
 				clean(() => {
 					for (const bucket of buckets) {
