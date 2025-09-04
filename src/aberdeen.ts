@@ -19,15 +19,8 @@ let runQueueDepth = 0; // Incremented when a queue event causes another queue ev
 let topRedrawScope: Scope | undefined; // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 
 /** @internal */
-export type TargetType = any[] | { [key: string]: any };
-/** @internal */
-export type DatumType =
-	| TargetType
-	| boolean
-	| number
-	| string
-	| null
-	| undefined;
+export type TargetType = any[] | { [key: string | symbol]: any } | Map<any, any>;
+
 
 function queue(runner: QueueRunner) {
 	if (!sortedQueue) {
@@ -94,7 +87,7 @@ export function runQueue(): void {
  * should be ignored.
  * @internal
  */
-export type SortKeyType = number | string | Array<number | string> | undefined;
+export type SortKeyType = number | string | Array<number | string> | undefined | void;
 
 /**
  * Given an integer number or a string, this function returns a string that can be concatenated
@@ -173,7 +166,7 @@ abstract class Scope implements QueueRunner {
 
 	[ptr: ReverseSortedSetPointer]: this;
 
-	abstract onChange(index: any, newData: DatumType, oldData: DatumType): void;
+	abstract onChange(index: any, newData: any, oldData: any): void;
 	abstract queueRun(): void;
 
 	abstract getLastNode(): Node | undefined;
@@ -252,7 +245,7 @@ abstract class ContentScope extends Scope {
 		return this.getLastNode() || this.getPrecedingNode();
 	}
 
-	onChange(index: any, newData: DatumType, oldData: DatumType) {
+	onChange(index: any, newData: any, oldData: any) {
 		queue(this);
 	}
 
@@ -445,7 +438,7 @@ class SetArgScope extends ChainedScope {
 	constructor(
 		parentElement: Element,
 		public key: string,
-		public target: { value: DatumType },
+		public target: { value: any },
 	) {
 		super(parentElement);
 		this.redraw();
@@ -463,7 +456,7 @@ let immediateQueue: ReverseSortedSet<Scope, "prio"> = new ReverseSortedSet(
 );
 
 class ImmediateScope extends RegularScope {
-	onChange(index: any, newData: DatumType, oldData: DatumType) {
+	onChange(index: any, newData: any, oldData: any) {
 		immediateQueue.add(this);
 	}
 }
@@ -518,9 +511,9 @@ class OnEachScope extends Scope {
 	constructor(
 		proxy: TargetType,
 		/** A function that renders an item */
-		public renderer: (value: DatumType, key: any) => void,
+		public renderer: (value: any, key: any) => void,
 		/** A function returning a number/string/array that defines the position of an item */
-		public makeSortKey?: (value: DatumType, key: any) => SortKeyType,
+		public makeSortKey?: (value: any, key: any) => SortKeyType,
 	) {
 		super();
 		const target: TargetType = (this.target =
@@ -540,8 +533,8 @@ class OnEachScope extends Scope {
 				}
 			}
 		} else {
-			for (const key in target) {
-				if (target[key] !== undefined) {
+			for (const [key, value] of getEntries(target)) {
+				if (value !== undefined) {
 					new OnEachItemScope(this, key, false);
 				}
 			}
@@ -552,7 +545,7 @@ class OnEachScope extends Scope {
 		return findLastNodeInPrevSiblings(this.prevSibling);
 	}
 
-	onChange(index: any, newData: DatumType, oldData: DatumType) {
+	onChange(index: any, newData: any, oldData: any) {
 		if (!(this.target instanceof Array) || typeof index === "number")
 			this.changedIndexes.add(index);
 		queue(this);
@@ -565,7 +558,14 @@ class OnEachScope extends Scope {
 			const oldScope = this.byIndex.get(index);
 			if (oldScope) oldScope.remove();
 
-			if ((this.target as any)[index] === undefined) {
+			let hasValue;
+			if (this.target instanceof Map) {
+				hasValue = this.target.has(index);
+			} else {
+				hasValue = (this.target as any)[index] !== undefined;
+			}
+
+			if (!hasValue) {
 				this.byIndex.delete(index);
 			} else {
 				new OnEachItemScope(this, index, true);
@@ -688,9 +688,16 @@ class OnEachItemScope extends ContentScope {
 		// a wildcard subscription to delete/recreate any scopes when that changes.
 		// We ARE creating a proxy around the value though (in case its an object/array),
 		// so we'll have our own scope subscribe to changes on that.
-		const value: DatumType = optProxy(
-			(this.parent.target as any)[this.itemIndex],
-		);
+		let value: any;
+		const target = this.parent.target;
+		let itemIndex = this.itemIndex;
+		if (target instanceof Map) {
+			value = optProxy(target.get(itemIndex));
+			// For Maps, the key may be an object. If so, we'll proxy it as well.
+			itemIndex = optProxy(itemIndex);
+		} else {
+			value = optProxy((target as any)[itemIndex]);
+		}
 
 		// Since makeSortKey may get() the Store, we'll need to set currentScope first.
 		const savedScope = currentScope;
@@ -699,14 +706,14 @@ class OnEachItemScope extends ContentScope {
 		let sortKey: undefined | string | number;
 		try {
 			if (this.parent.makeSortKey) {
-				const rawSortKey = this.parent.makeSortKey(value, this.itemIndex);
+				const rawSortKey = this.parent.makeSortKey(value, itemIndex);
 				if (rawSortKey != null)
 					sortKey =
 						rawSortKey instanceof Array
 							? rawSortKey.map(partToStr).join("")
 							: rawSortKey;
 			} else {
-				sortKey = this.itemIndex;
+				sortKey = itemIndex;
 			}
 			if (typeof sortKey === "number") sortKey = partToStr(sortKey);
 
@@ -720,7 +727,7 @@ class OnEachItemScope extends ContentScope {
 			// We're not adding `this` to the `sortedSet` (yet), as that may not be needed,
 			// in case no nodes are created. We'll do it just-in-time in `getPrecedingNode`.
 
-			if (sortKey != null) this.parent.renderer(value, this.itemIndex);
+			if (sortKey != null) this.parent.renderer(value, itemIndex);
 		} catch (e) {
 			handleError(e, sortKey != null);
 		}
@@ -778,11 +785,16 @@ const ANY_SYMBOL = Symbol("any");
  */
 const TARGET_SYMBOL = Symbol("target");
 
+/**
+ * Symbol used internally to track Map size without clashing with actual Map keys named "size".
+ */
+const MAP_SIZE_SYMBOL = Symbol("mapSize");
+
 const subscribers = new WeakMap<
 	TargetType,
 	Map<
 		any,
-		Set<Scope | ((index: any, newData: DatumType, oldData: DatumType) => void)>
+		Set<Scope | ((index: any, newData: any, oldData: any) => void)>
 	>
 >();
 let peeking = 0; // When > 0, we're not subscribing to any changes
@@ -794,8 +806,8 @@ function subscribe(
 		| Scope
 		| ((
 				index: any,
-				newData: DatumType,
-				oldData: DatumType,
+				newData: any,
+				oldData: any,
 		  ) => void) = currentScope,
 ) {
 	if (observer === ROOT_SCOPE || peeking) return;
@@ -822,10 +834,18 @@ function subscribe(
 	}
 }
 
-// Records in TypeScript pretend that they can have number keys, but in reality they are converted to string.
-// This type changes (number | something) types to (string | something) types, maintaining typing precision as much as possible.
+/**
+ * Records in TypeScript pretend that they can have number keys, but in reality they are converted to string.
+ * This type changes (number | something) types to (string | something) types, maintaining typing precision as much as possible.
+ * @internal
+ */
 type KeyToString<K> = K extends number ? string : K extends string | symbol ? K : K extends number | infer U ? string | U : K;
 
+export function onEach<K, T>(
+	target: Map<K, undefined | T>,
+	render: (value: T, key: K) => void,
+	makeKey?: (value: T, key: K) => SortKeyType,
+): void;
 export function onEach<T>(
 	target: ReadonlyArray<undefined | T>,
 	render: (value: T, index: number) => void,
@@ -894,8 +914,8 @@ export function onEach<K extends string | number | symbol, T>(
  */
 export function onEach(
 	target: TargetType,
-	render: (value: DatumType, index: any) => void,
-	makeKey?: (value: DatumType, key: any) => SortKeyType,
+	render: (value: any, index: any) => void,
+	makeKey?: (value: any, key: any) => SortKeyType,
 ): void {
 	if (!target || typeof target !== "object")
 		throw new Error("onEach requires an object");
@@ -946,23 +966,23 @@ export function isEmpty(proxied: TargetType): boolean {
 	const scope = currentScope;
 
 	if (target instanceof Array) {
-		subscribe(
-			target,
-			"length",
-			(index: any, newData: DatumType, oldData: DatumType) => {
-				if (!newData !== !oldData) queue(scope);
-			},
-		);
+		subscribe(target, "length", (index: any, newData: any, oldData: any) => {
+			if (!newData !== !oldData) queue(scope);
+		});
 		return !target.length;
 	}
+	
+	if (target instanceof Map) {
+		subscribe(target, MAP_SIZE_SYMBOL, (index: any, newData: any, oldData: any) => {
+			if (!newData !== !oldData) queue(scope);
+		});
+		return !target.size;
+	}
+	
 	const result = isObjEmpty(target);
-	subscribe(
-		target,
-		ANY_SYMBOL,
-		(index: any, newData: DatumType, oldData: DatumType) => {
-			if (result ? oldData === undefined : newData === undefined) queue(scope);
-		},
-	);
+	subscribe(target, ANY_SYMBOL, (index: any, newData: any, oldData: any) => {
+		if (result ? oldData === undefined : newData === undefined) queue(scope);
+	});
 	return result;
 }
 
@@ -999,6 +1019,7 @@ export interface ValueRef<T> {
  */
 export function count(proxied: TargetType): ValueRef<number> {
 	if (proxied instanceof Array) return ref(proxied, "length");
+	if (proxied instanceof Map) return ref(proxied, "size");
 
 	const target = (proxied as any)[TARGET_SYMBOL] || proxied;
 	let cnt = 0;
@@ -1008,7 +1029,7 @@ export function count(proxied: TargetType): ValueRef<number> {
 	subscribe(
 		target,
 		ANY_SYMBOL,
-		(index: any, newData: DatumType, oldData: DatumType) => {
+		(index: any, newData: any, oldData: any) => {
 			if (oldData === newData) {
 			} else if (oldData === undefined) result.value = ++cnt;
 			else if (newData === undefined) result.value = --cnt;
@@ -1022,8 +1043,8 @@ export function count(proxied: TargetType): ValueRef<number> {
 export function defaultEmitHandler(
 	target: TargetType,
 	index: string | symbol | number,
-	newData: DatumType,
-	oldData: DatumType,
+	newData: any,
+	oldData: any,
 ) {
 	// We're triggering for values changing from undefined to undefined, as this *may*
 	// indicate a change from or to `[empty]` (such as `[,1][0]`).
@@ -1127,6 +1148,96 @@ const arrayHandler: ProxyHandler<any[]> = {
 	},
 };
 
+const mapMethodHandlers = {
+	get(this: any, key: any): any {
+		const target: Map<any, any> = this[TARGET_SYMBOL];
+		subscribe(target, key);
+		return optProxy(target.get(key));
+	},
+	set(this: any, key: any, newData: any): any {
+		const target: Map<any, any> = this[TARGET_SYMBOL];
+		// Make sure newData is unproxied
+		if (typeof newData === "object" && newData)
+			newData = (newData as any)[TARGET_SYMBOL] || newData;
+		const oldData = target.get(key);
+		if (newData !== oldData) {
+			target.set(key, newData);
+			emit(target, key, newData, oldData);
+			emit(target, MAP_SIZE_SYMBOL, target.size, target.size - (oldData === undefined ? 1 : 0));
+			runImmediateQueue();
+		}
+		return this;
+	},
+	delete(this: any, key: any): boolean {
+		const target: Map<any, any> = this[TARGET_SYMBOL];
+		const oldData = target.get(key);
+		const result: boolean = target.delete(key);
+		if (result) {
+			emit(target, key, undefined, oldData);
+			emit(target, MAP_SIZE_SYMBOL, target.size, target.size + 1);
+			runImmediateQueue();
+		}
+		return result;
+	},
+	clear(this: any): void {
+		const target: Map<any, any> = this[TARGET_SYMBOL];
+		const oldSize = target.size;
+		for (const key of target.keys()) {
+			const oldData = target.get(key);
+			emit(target, key, undefined, oldData);
+		}
+		target.clear();
+		emit(target, MAP_SIZE_SYMBOL, 0, oldSize);
+		runImmediateQueue();
+	},
+	has(this: any, key: any): boolean {
+		const target: Map<any, any> = this[TARGET_SYMBOL];
+		subscribe(target, key);
+		return target.has(key);
+	},
+	keys(this: any): IterableIterator<any> {
+		const target: Map<any, any> = this[TARGET_SYMBOL];
+		subscribe(target, ANY_SYMBOL);
+		return target.keys();
+	},
+	values(this: any): IterableIterator<any> {
+		const target: Map<any, any> = this[TARGET_SYMBOL];
+		subscribe(target, ANY_SYMBOL);
+		return target.values();
+	},
+	entries(this: any): IterableIterator<[any, any]> {
+		const target: Map<any, any> = this[TARGET_SYMBOL];
+		subscribe(target, ANY_SYMBOL);
+		return target.entries();
+	},
+	[Symbol.iterator](this: any): IterableIterator<[any, any]> {
+		const target: Map<any, any> = this[TARGET_SYMBOL];
+		subscribe(target, ANY_SYMBOL);
+		return target[Symbol.iterator]();
+	}
+};
+
+const mapHandler: ProxyHandler<Map<any, any>> = {
+	get(target: Map<any, any>, prop: any) {
+		if (prop === TARGET_SYMBOL) return target;
+		
+		// Handle Map methods using lookup object
+		if (prop in mapMethodHandlers) {
+			return (mapMethodHandlers as any)[prop];
+		}
+		
+		// Handle size property
+		if (prop === "size") {
+			subscribe(target, MAP_SIZE_SYMBOL);
+			return target.size;
+		}
+		
+		// Handle other properties normally
+		subscribe(target, prop);
+		return optProxy((target as any)[prop]);
+	},
+};
+
 const proxyMap = new WeakMap<TargetType, /*Proxy*/ TargetType>();
 
 function optProxy(value: any): any {
@@ -1141,15 +1252,21 @@ function optProxy(value: any): any {
 	let proxied = proxyMap.get(value);
 	if (proxied) return proxied; // Only one proxy per target!
 
-	proxied = new Proxy(
-		value,
-		value instanceof Array ? arrayHandler : objectHandler,
-	);
+	let handler;
+	if (value instanceof Array) {
+		handler = arrayHandler;
+	} else if (value instanceof Map) {
+		handler = mapHandler;
+	} else {
+		handler = objectHandler;
+	}
+
+	proxied = new Proxy(value, handler);
 	proxyMap.set(value, proxied as TargetType);
 	return proxied;
 }
 
-export function proxy<T extends DatumType>(
+export function proxy<T extends any>(
 	target: Array<T>,
 ): Array<
 	T extends number
@@ -1161,7 +1278,7 @@ export function proxy<T extends DatumType>(
 				: T
 >;
 export function proxy<T extends object>(target: T): T;
-export function proxy<T extends DatumType>(
+export function proxy<T extends any>(
 	target: T,
 ): ValueRef<
 	T extends number
@@ -1288,14 +1405,17 @@ function destroyWithClass(element: Element, cls: string) {
  *   will recursively copy properties into the existing `dst` object instead of replacing it.
  *   This minimizes change notifications for reactive updates.
  * - **Handles Proxies:** Can accept proxied or unproxied objects/arrays for both `dst` and `src`.
+ * - **Cross-Type Copying:** Supports copying between Maps and objects. When copying from an object
+ *   to a Map, object properties become Map entries. When copying from a Map to an object, Map entries
+ *   become object properties (only for Maps with string/number/symbol keys).
  *
- * @param dst - The destination object/array (proxied or unproxied).
- * @param src - The source object/array (proxied or unproxied). It won't be modified.
+ * @param dst - The destination object/array/Map (proxied or unproxied).
+ * @param src - The source object/array/Map (proxied or unproxied). It won't be modified.
  * @param flags - Bitmask controlling copy behavior:
  *   - {@link MERGE}: Performs a partial update. Properties in `dst` not present in `src` are kept.
  *     `null`/`undefined` in `src` delete properties in `dst`. Handles partial array updates via object keys.
  *   - {@link SHALLOW}: Performs a shallow copy; when an array/object of the right type doesn't exist in `dst` yet, a reference to the array/object in `src` will be made, instead of creating a copy. If the array/object already exists, it won't be replaced (by a reference), but all items will be individually checked and copied like normal, keeping changes (and therefore UI updates) to a minimum.
- * @template T - The type of the objects being copied.
+ * @template T - The type of the destination object.
  * @throws Error if attempting to copy an array into a non-array or vice versa (unless {@link MERGE} is set, allowing for sparse array updates).
  *
  * @example Basic Copy
@@ -1304,6 +1424,22 @@ function destroyWithClass(element: Element, cls: string) {
  * const dest = proxy({ b: { d: 3 } });
  * copy(dest, source);
  * console.log(dest); // proxy({ a: 1, b: { c: 2 } })
+ * ```
+ *
+ * @example Map to Object
+ * ```typescript
+ * const source = new Map([['x', 3], ['y', 4]]);
+ * const dest = proxy({});
+ * copy(dest, source);
+ * console.log(dest); // proxy({ x: 3, y: 4 })
+ * ```
+ *
+ * @example Object to Map
+ * ```typescript
+ * const source = { x: 3, y: 4 };
+ * const dest = proxy(new Map());
+ * copy(dest, source);
+ * console.log(dest); // proxy(Map([['x', 3], ['y', 4]]))
  * ```
  *
  * @example MERGE
@@ -1331,7 +1467,17 @@ function destroyWithClass(element: Element, cls: string) {
  * console.log(source.nested); // [1, 2, 3] (source was modified)
  * ```
  */
-export function copy<T extends object>(dst: T, src: Partial<T>, flags = 0) {
+
+// Overload for Map destination with object source
+export function copy<K, V>(dst: Map<K, V>, src: Record<K extends string | number | symbol ? K : never, V> | Partial<Record<K extends string | number | symbol ? K : never, V>>, flags?: number): void;
+// Overload for Map destination with Map source
+export function copy<K, V>(dst: Map<K, V>, src: Map<K, V> | Partial<Map<K, V>>, flags?: number): void;
+// Overload for object destination with Map source
+export function copy<T extends Record<string | number | symbol, any>>(dst: T, src: Map<keyof T, T[keyof T]>, flags?: number): void;
+// Overload for same-type copying
+export function copy<T extends object>(dst: T, src: Partial<T>, flags?: number): void;
+// Implementation
+export function copy(dst: any, src: any, flags = 0) {
 	copyRecurse(dst, src, flags);
 	runImmediateQueue();
 }
@@ -1352,9 +1498,22 @@ const COPY_EMIT = 64;
  * @returns A new unproxied array or object (of the same type as `src`), containing a deep (by default) copy of `src`.
  */
 export function clone<T extends object>(src: T, flags = 0): T {
-	const dst = Object.create(Object.getPrototypeOf(src)) as T;
+	let dst: T;
+	if (src instanceof Map) {
+		dst = new Map() as T;
+	} else {
+		dst = Object.create(Object.getPrototypeOf(src)) as T;
+	}
 	copyRecurse(dst, src, flags);
 	return dst;
+}
+
+function getEntries(subject: any) {
+	return (subject instanceof Map) ? subject.entries() : Object.entries(subject);
+}
+
+function getKeys(subject: any) {
+	return (subject instanceof Map) ? subject.keys() : Object.keys(subject);
 }
 
 function copyRecurse(dst: any, src: any, flags: number) {
@@ -1380,9 +1539,9 @@ function copyRecurse(dst: any, src: any, flags: number) {
 		const dstLen = dst.length;
 		const srcLen = src.length;
 		for (let i = 0; i < srcLen; i++) {
-			copyValue(dst, src, i, flags);
+			copyValue(dst, i, src[i], flags);
 		}
-		// Leaving additional values in the old array doesn't make sense
+		// Leaving additional values in the old array doesn't make sense, so we'll do this even when MERGE is set:
 		if (srcLen !== dstLen) {
 			if (flags & COPY_EMIT) {
 				for (let i = srcLen; i < dstLen; i++) {
@@ -1397,16 +1556,23 @@ function copyRecurse(dst: any, src: any, flags: number) {
 			}
 		}
 	} else {
-		for (const k in src) {
-			copyValue(dst, src, k, flags);
+		// Copy all entries from src to dst (both of which can be Map or object)
+		for (const [key, value] of getEntries(src)) {
+			copyValue(dst, key, value, flags);
 		}
+		
+		// Remove entries from dst that don't exist in src (unless MERGE flag is set)
 		if (!(flags & MERGE)) {
-			for (const k in dst) {
-				if (!(k in src)) {
-					const old = dst[k];
-					delete dst[k];
-					if (flags & COPY_EMIT && old !== undefined) {
-						emit(dst, k, undefined, old);
+			if (src instanceof Map) {
+				for (const key of getKeys(dst)) {
+					if (!src.has(key)) {
+						deleteKey(dst, key, flags);
+					}
+				}
+			} else {
+				for (const key of getKeys(dst)) {
+					if (!(key in src)) {
+						deleteKey(dst, key, flags);
 					}
 				}
 			}
@@ -1414,17 +1580,26 @@ function copyRecurse(dst: any, src: any, flags: number) {
 	}
 }
 
-function copyValue(dst: any, src: any, index: any, flags: number) {
-	const dstValue = dst[index];
-	let srcValue = src[index];
+function deleteKey(dst: any, key: any, flags: number) {
+	let old;
+	if (dst instanceof Map) {
+		old = dst.get(key);
+		dst.delete(key);
+	} else {
+		old = dst[key];
+		delete dst[key];
+	}
+	if (flags & COPY_EMIT && old !== undefined) {
+		emit(dst, key, undefined, old);
+	}
+}
+
+function copyValue(dst: any, index: any, srcValue: any, flags: number) {
+	const dstValue = dst instanceof Map ? dst.get(index) : dst[index];
 	if (srcValue !== dstValue) {
 		if (
-			srcValue &&
-			dstValue &&
-			typeof srcValue === "object" &&
-			typeof dstValue === "object" &&
-			(srcValue.constructor === dstValue.constructor ||
-				(flags & MERGE && dstValue instanceof Array))
+			srcValue && dstValue && typeof srcValue === "object" && typeof dstValue === "object" &&
+			(srcValue.constructor === dstValue.constructor || (flags & MERGE && dstValue instanceof Array))
 		) {
 			copyRecurse(dstValue, srcValue, flags);
 			return;
@@ -1438,10 +1613,14 @@ function copyValue(dst: any, src: any, index: any, flags: number) {
 			copyRecurse(copy, srcValue, 0);
 			srcValue = copy;
 		}
-		const old = dst[index];
-		if (flags & MERGE && srcValue == null) delete dst[index];
-		else dst[index] = srcValue;
-		if (flags & COPY_EMIT) emit(dst, index, srcValue, old);
+		if (dst instanceof Map) {
+			if (flags & MERGE && srcValue == null) dst.delete(index);
+			else dst.set(index, srcValue);
+		} else {
+			if (flags & MERGE && srcValue == null) delete dst[index];
+			else dst[index] = srcValue;
+		}
+		if (flags & COPY_EMIT) emit(dst, index, srcValue, dstValue);
 	}
 }
 
@@ -2224,6 +2403,11 @@ export function peek<T>(func: () => T): T {
 	}
 }
 
+/** When using a Map as `source`. */
+export function map<K, IN, OUT>(
+	source: Map<K, IN>,
+	func: (value: IN, key: K) => undefined | OUT,
+): Map<K, OUT>;
 /** When using an object as `source`. */
 export function map<IN, const IN_KEY extends string | number | symbol, OUT>(
 	source: Record<IN_KEY, IN>,
@@ -2279,23 +2463,38 @@ export function map<IN, OUT>(
  */
 export function map(
 	source: any,
-	func: (value: DatumType, key: any) => any,
+	func: (value: any, key: any) => any,
 ): any {
-	const out = optProxy(source instanceof Array ? [] : {});
-	onEach(source, (item: DatumType, key: symbol | string | number) => {
+	let out;
+	if (source instanceof Array) {
+		out = optProxy([]);
+	} else if (source instanceof Map) {
+		out = optProxy(new Map());
+	} else {
+		out = optProxy({});
+	}
+	
+	onEach(source, (item: any, key: symbol | string | number) => {
 		const value = func(item, key);
 		if (value !== undefined) {
-			out[key] = value;
-			clean(() => {
-				delete out[key];
-			});
+			if (out instanceof Map) {
+				out.set(key, value);
+				clean(() => {
+					out.delete(key);
+				});
+			} else {
+				out[key] = value;
+				clean(() => {
+					delete out[key];
+				});
+			}
 		}
 	});
 	return out;
 }
 
 /** When using an array as `source`. */
-export function multiMap<IN, OUT extends { [key: string | symbol]: DatumType }>(
+export function multiMap<IN, OUT extends { [key: string | symbol]: any }>(
 	source: Array<IN>,
 	func: (value: IN, index: number) => OUT | undefined,
 ): OUT;
@@ -2303,8 +2502,14 @@ export function multiMap<IN, OUT extends { [key: string | symbol]: DatumType }>(
 export function multiMap<
 	K extends string | number | symbol,
 	IN,
-	OUT extends { [key: string | symbol]: DatumType },
+	OUT extends { [key: string | symbol]: any },
 >(source: Record<K, IN>, func: (value: IN, index: KeyToString<K>) => OUT | undefined): OUT;
+/** When using a Map as `source`. */
+export function multiMap<
+	K,
+	IN,
+	OUT extends { [key: string | symbol]: any },
+>(source: Map<K, IN>, func: (value: IN, key: K) => OUT | undefined): OUT;
 /**
  * Reactively maps items from a source proxy (array or object) to a target proxied object,
  * where each source item can contribute multiple key-value pairs to the target.
@@ -2348,10 +2553,10 @@ export function multiMap<
  */
 export function multiMap(
 	source: any,
-	func: (value: DatumType, key: any) => Record<string | symbol, DatumType>,
+	func: (value: any, key: any) => Record<string | symbol, any>,
 ): any {
 	const out = optProxy({});
-	onEach(source, (item: DatumType, key: symbol | string | number) => {
+	onEach(source, (item: any, key: symbol | string | number) => {
 		const pairs = func(item, key);
 		if (pairs) {
 			for (const key in pairs) out[key] = pairs[key];
@@ -2375,6 +2580,15 @@ export function partition<
 	IN_V,
 >(
 	source: Record<IN_K, IN_V>,
+	func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[],
+): Record<OUT_K, Record<IN_K, IN_V>>;
+/** When using a Map as `source`. */
+export function partition<
+	IN_K extends string | number | symbol,
+	OUT_K extends string | number | symbol,
+	IN_V,
+>(
+	source: Map<IN_K, IN_V>,
 	func: (value: IN_V, key: IN_K) => undefined | OUT_K | OUT_K[],
 ): Record<OUT_K, Record<IN_K, IN_V>>;
 
@@ -2505,7 +2719,15 @@ export function partition<
  */
 export function dump<T>(data: T): T {
 	if (data && typeof data === "object") {
-		$({ text: data instanceof Array ? "<array>" : "<object>" });
+		let label;
+		if (data instanceof Array) {
+			label = "<array>";
+		} else if (data instanceof Map) {
+			label = "<Map>";
+		} else {
+			label = "<object>";
+		}
+		$({ text: label });
 		$("ul", () => {
 			onEach(data as any, (value, key) => {
 				$(`li:${JSON.stringify(key)}: `, () => {
@@ -2549,8 +2771,8 @@ export function withEmitHandler(
 	handler: (
 		target: TargetType,
 		index: any,
-		newData: DatumType,
-		oldData: DatumType,
+		newData: any,
+		oldData: any,
 	) => void,
 	func: () => void,
 ) {

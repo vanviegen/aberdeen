@@ -11,7 +11,7 @@ Aberdeen's approach is refreshingly simple:
 - 🎩 **Simple:** Express UIs naturally in JavaScript/TypeScript, without build steps or JSX, and with a minimal amount of concepts you need to learn.
 - ⏩ **Fast:** No virtual DOM. Aberdeen intelligently updates only the minimal, necessary parts of your UI when proxied data changes.
 - 👥 **Awesome lists**: It's very easy and performant to reactively display data sorted by whatever you like.
-- 🔬 **Tiny:** Around 5KB (minimized and gzipped) and with zero runtime dependencies.
+- 🔬 **Tiny:** Around 6KB (minimized and gzipped) and with zero runtime dependencies.
 - 🔋 **Batteries included**: Comes with client-side routing, revertible patches for optimistic user-interface updates, component-local CSS, SVG support, helper functions for transforming reactive data (mapping, partitioning, filtering, etc) and hide/unhide transition effects. No bikeshedding required!
 
 ## Why *not* use Aberdeen?
