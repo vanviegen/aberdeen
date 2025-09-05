@@ -153,7 +153,7 @@ immediateObserve(() => {
 function isSamePage(path: string, state: any): boolean {
 	return (
 		location.pathname === path &&
-		JSON.stringify(history.state.id) === JSON.stringify(state.id)
+		JSON.stringify(history.state.id || {}) === JSON.stringify(state.id || {})
 	);
 }
 
