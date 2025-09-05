@@ -92,7 +92,7 @@ export function runQueue(): void {
  * be a number, string, or an array of numbers/strings. The sort key is used to sort items
  * based on their values. The sort key can also be `undefined`, which indicates that the item
  * should be ignored.
- * @private
+ * @internal
  */
 export type SortKeyType = number | string | Array<number | string> | undefined;
 

@@ -10,7 +10,8 @@
     "highlightLanguages": [
         "typescript",
         "javascript",
-        "html"
+        "html",
+        "sh"
     ],
     "searchInComments": true,
     "searchInDocuments": true,
@@ -30,7 +31,8 @@
     "hostedBaseUrl": "https://aberdeenjs.org/",
     "useFirstParagraphOfCommentAsSummary": true,
     "validation": {
-        "notDocumented": true
+        "notDocumented": true,
+        "notExported": false
     },
     "treatWarningsAsErrors": true,
     "out": "./dist-docs",
