@@ -1148,28 +1148,67 @@ const arrayHandler: ProxyHandler<any[]> = {
 	},
 };
 
+/**
+ * Helper functions that wrap iterators to proxy values
+ */
+function wrapIteratorSingle(iterator: IterableIterator<any>): IterableIterator<any> {
+	return {
+		[Symbol.iterator]() { return this; },
+		next() {
+			const result = iterator.next();
+			if (result.done) return result;
+			return {
+				done: false,
+				value: optProxy(result.value)
+			};
+		}
+	};
+}
+function wrapIteratorPair(iterator: IterableIterator<[any, any]>): IterableIterator<[any, any]> {
+	return {
+		[Symbol.iterator]() { return this; },
+		next() {
+			const result = iterator.next();
+			if (result.done) return result;
+			return {
+				done: false,
+				value: [optProxy(result.value[0]), optProxy(result.value[1])]
+			};
+		}
+	};
+}
+
 const mapMethodHandlers = {
 	get(this: any, key: any): any {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
+		// Make sure key is unproxied
+		if (typeof key === "object" && key)
+			key = (key as any)[TARGET_SYMBOL] || key;
 		subscribe(target, key);
 		return optProxy(target.get(key));
 	},
 	set(this: any, key: any, newData: any): any {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
-		// Make sure newData is unproxied
+		// Make sure key and newData are unproxied
+		if (typeof key === "object" && key)
+			key = (key as any)[TARGET_SYMBOL] || key;
 		if (typeof newData === "object" && newData)
 			newData = (newData as any)[TARGET_SYMBOL] || newData;
 		const oldData = target.get(key);
 		if (newData !== oldData) {
+			const oldSize = target.size;
 			target.set(key, newData);
 			emit(target, key, newData, oldData);
-			emit(target, MAP_SIZE_SYMBOL, target.size, target.size - (oldData === undefined ? 1 : 0));
+			emit(target, MAP_SIZE_SYMBOL, target.size, oldSize);
 			runImmediateQueue();
 		}
 		return this;
 	},
 	delete(this: any, key: any): boolean {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
+		// Make sure key is unproxied
+		if (typeof key === "object" && key)
+			key = (key as any)[TARGET_SYMBOL] || key;
 		const oldData = target.get(key);
 		const result: boolean = target.delete(key);
 		if (result) {
@@ -1192,28 +1231,31 @@ const mapMethodHandlers = {
 	},
 	has(this: any, key: any): boolean {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
+		// Make sure key is unproxied
+		if (typeof key === "object" && key)
+			key = (key as any)[TARGET_SYMBOL] || key;
 		subscribe(target, key);
 		return target.has(key);
 	},
 	keys(this: any): IterableIterator<any> {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
 		subscribe(target, ANY_SYMBOL);
-		return target.keys();
+		return wrapIteratorSingle(target.keys());
 	},
 	values(this: any): IterableIterator<any> {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
 		subscribe(target, ANY_SYMBOL);
-		return target.values();
+		return wrapIteratorSingle(target.values());
 	},
 	entries(this: any): IterableIterator<[any, any]> {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
 		subscribe(target, ANY_SYMBOL);
-		return target.entries();
+		return wrapIteratorPair(target.entries());
 	},
 	[Symbol.iterator](this: any): IterableIterator<[any, any]> {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
 		subscribe(target, ANY_SYMBOL);
-		return target[Symbol.iterator]();
+		return wrapIteratorPair(target[Symbol.iterator]());
 	}
 };
 

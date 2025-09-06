@@ -604,3 +604,92 @@ test('Map size tracking with MAP_SIZE_SYMBOL', async () => {
     await passTime();
     expect(sizeObservations).toBe(4);
 });
+
+test('Map with proxied object keys', async () => {
+    // Test that Map.get() works correctly with proxied object keys
+    const keyObj = proxy({ id: 1, name: 'test' });
+    const data = proxy(new Map());
+    
+    // Set a value using the proxied key
+    data.set(keyObj, 'test-value');
+    
+    // Getting with the same proxied key should work
+    expect(data.get(keyObj)).toBe('test-value');
+    expect(data.has(keyObj)).toBe(true);
+
+    // Getting with the original (unproxied) key should also work
+    const originalKey = unproxy(keyObj);
+    expect(data.get(originalKey)).toBe('test-value');
+    expect(data.has(originalKey)).toBe(true);
+    expect(data.get({ id: 1, name: 'test' })).toBeUndefined(); // Different object
+    expect(data.has({ id: 1, name: 'test' })).toBe(false); // Different object
+
+    // The map should only have one entry
+    expect(data.size).toBe(1);
+
+    expect(data.delete({ id: 1, name: 'test' })).toBe(false); // Different object
+    expect(data.size).toBe(1);
+    expect(data.delete(originalKey)).toBe(true); // Original key
+    expect(data.size).toBe(0);
+});
+
+test('Proxied Maps store unproxied values', async () => {
+    // Test that Map.set() correctly unproxies both key and value
+    const keyObj = { id: 4, name: 'test4' };
+    const valueObj = { data: 'test-data' };
+    const data = proxy(new Map());
+    
+    data.set(proxy(keyObj), proxy(valueObj));
+    
+    // Check that we can retrieve with both proxied and unproxied keys
+    expect(data.get(keyObj)).toEqual({ data: 'test-data' });
+    expect(data.get(unproxy(keyObj))).toEqual({ data: 'test-data' });
+    
+    // The underlying map should store unproxied key and value
+    const pair = Array.from(unproxy(data).entries())[0]
+    // Should be the original objects, not proxied:
+    expect(pair[0]).toBe(keyObj);
+    expect(pair[1]).toBe(valueObj); 
+});
+
+test('Map iterator methods return proxied values', async () => {
+    // Test that Map.keys() returns an iterator with proxied keys
+    const keyObj1 = { id: 1, name: 'first' };
+    const keyObj2 = { id: 2, name: 'second' };
+    const value = { name: 'value' };
+    const data = proxy(new Map([[keyObj1, value], [keyObj2, value]]));
+
+    let keyCount = 0, valueCount = 0;
+    onEach(data, (value,key) => {
+        Object.assign({}, key);
+        keyCount++;
+    });
+    onEach(data, (value,key) => {
+        Object.assign({}, value);
+        valueCount++;
+    });
+
+    await passTime(); // Not needed, but just to be sure
+    expect(keyCount).toBe(2);
+    expect(valueCount).toBe(2);
+
+    // Update one of the keys
+    for(const key of data.keys()) {
+        if (key.id === 1) key.name += 'x';
+    }
+
+    await passTime();
+    expect(keyCount).toBe(3); // Should just rerender the one key
+    expect(valueCount).toBe(2); // Nothing should have happened, as we're not subscribed to the value
+
+    // Update the values (both keys point to the same value object)
+    for(const [key,value] of data.entries()) {
+        if (key.id === 1) value.name += 'x';
+    }
+
+    await passTime();
+    expect(keyCount).toBe(3); // Nothing should have happened, as we're not subscribed to the value
+    expect(valueCount).toBe(4); // Should have rerendered both
+
+});
+
