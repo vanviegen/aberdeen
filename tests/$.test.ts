@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, assertDomUpdates } from "./helpers";
-import { $, proxy, ref, copy, mount, observe } from "../src/aberdeen";
+import { $, proxy, ref, copy, mount, derive } from "../src/aberdeen";
+
+test('xcreates regular HTML elements with HTML namespace', () => {
+	$('div');
+});
 
 test('creates nested nodes', () => {
 	$("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
@@ -36,7 +40,7 @@ test('reacts to conditions', async () => {
 		cnt++
 		$("div", {".y": ref(data, 'a')}, "span", {".z": ref(data, 'b')})
 		$("input", {
-			value: observe(() => data.a ? 'nope' : data.yes)
+			value: derive(() => data.a ? 'nope' : data.yes)
 		})
 	})
 	assertBody(`div.y{span} input{value->nope}`)

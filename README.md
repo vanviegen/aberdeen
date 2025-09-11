@@ -11,8 +11,8 @@ Aberdeen's approach is refreshingly simple:
 - 🎩 **Simple:** Express UIs naturally in JavaScript/TypeScript, without build steps or JSX, and with a minimal amount of concepts you need to learn.
 - ⏩ **Fast:** No virtual DOM. Aberdeen intelligently updates only the minimal, necessary parts of your UI when proxied data changes.
 - 👥 **Awesome lists**: It's very easy and performant to reactively display data sorted by whatever you like.
-- 🔬 **Tiny:** Around 6KB (minimized and gzipped) and with zero runtime dependencies.
-- 🔋 **Batteries included**: Comes with client-side routing, revertible patches for optimistic user-interface updates, component-local CSS, SVG support, helper functions for transforming reactive data (mapping, partitioning, filtering, etc) and hide/unhide transition effects. No bikeshedding required!
+- 🔬 **Tiny:** Around 6KB (minimized and gzipped) for the core system. Zero runtime dependencies.
+- 🔋 **Batteries included**: Comes with browser history management, routing, revertible patches for optimistic user-interface updates, component-local CSS, SVG support, helper functions for transforming reactive data (mapping, partitioning, filtering, etc) and hide/unhide transition effects. No bikeshedding required!
 
 ## Why *not* use Aberdeen?
 
@@ -57,7 +57,7 @@ Okay, next up is a somewhat more complex app - a todo-list with the following be
 Pfew.. now let's look at the code:
 
 ```typescript
-import {$, proxy, onEach, insertCss, peek, observe, unproxy, ref} from "aberdeen";
+import {$, proxy, onEach, insertCss, peek, unproxy, ref} from "aberdeen";
 import {grow, shrink} from "aberdeen/transitions";
 
 // We'll use a simple class to store our data.
@@ -172,6 +172,40 @@ Some further examples:
 
 And you may want to study the examples above, of course!
 
-## News
+## Changelog
 
-- **2025-05-07**: After five years of working on this library on and off, I'm finally happy with its API and the developer experience it offers. I'm calling it 1.0! To celebrate, I've created some pretty fancy (if I may say so myself) interactive documentation and a tutorial.
+### 1.1.0 (2024-09-12)
+
+This major release aims to reduce surprises in our API, aligning more closely with regular JavaScript semantics (for better or worse).
+
+**Breaking changes:**
+
+- Functions that iterate objects (like `onEach` and `map`) will now only work on *own* properties of the object, ignoring those in the prototype chain. The new behavior should be more consistent and faster. 
+- These iteration function now properly distinguish between `undefined` and *empty*. Previously, object/array/map items with `undefined` values were considered non-existent. The new behavior (though arguably confusing) is more consistent with regular JavaScript semantics.
+- The `copy` function no longer ..
+    - Supports `SHALLOW` and `MERGE` flags. The latter has been replaced by a dedicated `merge` function. The former turned out not to be particularly useful.
+    - Has weird special cases that would allow copying objects into maps and merging objects into arrays.
+    - Copies properties from the prototype chain of objects. Only *own* properties are copied now. As the prototype link itself *is* copied over, this should actually result in copies being *more* similar to the original.
+- The `observe` function has been renamed to `derive` to better reflect its purpose and match terminology used in other reactive programming libraries.
+- The `$({element: myElement})` syntax for inserting existing DOM elements has been removed. Use `$(myElement)` instead.
+- The `route` API brings some significant changes. Modifying the `route` observable (which should now be accessed as `route.current`) will now always result in changing the current browser history item (URL and state, using `replaceState`), instead of using a heuristic to figure out what you probably want. Dedicated functions have been added for navigating to a new URL (`go`), back to a previous URL (`back`), and for going up in the route hierarchy (`up`). 
+- The concept of immediate observers (through the `immediateObserve` function) no longer exists. It caused unexpected behavior (for instance due to the fact that an array `pop()` in JavaScript is implemented as a delete followed by a length change, so happens in two steps that would each call immediate observers). The reason it existed was mostly to enable a pre-1.0 version of the `route` API. It turned out to be a mistake.
+
+**Enhancements:**
+
+- The `peek` function can no also accept an object and a key as argument (e.g. `peek(obj, 'myKey')`). It does the same as `peek(() => obj.myKey)`, but more concise and faster.
+- The `copy` and `merge` functions now ..
+    - Accept an optional `dstKey` argument, allowing you to assign to a specific key with `copy` semantics, and without subscribing to the key.
+    - Return a boolean indicating whether any changes were made.
+    - Are faster.
+- A new `dispatcher` module has been added. It provides a simple and type-safe way to match URL paths to handler functions, and extract parameters from the path. You can still use your own routing solution if you prefer, of course.
+- The `route` module now also has tests, making the whole project now fully covered by tests.
+
+**Fixes:**
+
+- Browser-back behavior in the `route` module had some reliability issues after page reloads.
+- The `copy` and `clone` function created Maps and Arrays with the wrong internal type. So `instanceof Array` would say yes, while `Array.isArray` would say no. JavaScript is weird.
+
+### 1.0.0 (2025-05-07)
+
+After five years of working on this library on and off, I'm finally happy with its API and the developer experience it offers. I'm calling it 1.0! To celebrate, I've created some pretty fancy (if I may say so myself) interactive documentation and a tutorial.

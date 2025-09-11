@@ -1,4 +1,4 @@
-import { $, proxy, observe, ref } from '../../dist/aberdeen.js';
+import { $, proxy, ref } from '../../dist/aberdeen.js';
 import { grow, shrink } from '../../dist/transitions.js';
 
 // The `proxy` function makes the data structure observable.

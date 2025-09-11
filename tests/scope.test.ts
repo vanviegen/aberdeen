@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, observe, peek, onEach, clean, unmountAll, unproxy } from "../src/aberdeen";
+import { $, proxy, peek, onEach, clean, unmountAll, unproxy, derive } from "../src/aberdeen";
 
 test('rerenders only the inner scope', async () => {
   let data = proxy('before');
   let cnt1 = 0, cnt2 = 0;
   
-  observe(() => {
+  $(() => {
     $('a', () => {
       cnt1++;
       $('span', () => {
@@ -29,7 +29,7 @@ test('adds and removes elements', async () => {
   let data = proxy(false);
   
   let cnt1 = 0, cnt2 = 0;
-  observe(() => {
+  $(() => {
     cnt1++;
     $('a', () => {
       cnt2++;
@@ -48,14 +48,14 @@ test('adds and removes elements', async () => {
   expect(cnt2).toEqual(5);
 });
 
-test('refreshes standalone observe()s', async () => {
+test('refreshes standalone $()s', async () => {
   let data = proxy(false);
   
   let cnt1 = 0, cnt2 = 0;
-  observe(() => {
+  $(() => {
     cnt1++;
     $('a');
-    observe(() => {
+    $(() => {
       cnt2++;
       if (data.value) $('i');
     });
@@ -72,19 +72,19 @@ test('refreshes standalone observe()s', async () => {
   expect(cnt2).toEqual(5);
 });
 
-test('uses observe()s as reference for DOM insertion', async () => {
+test('uses $()s as reference for DOM insertion', async () => {
   let data1 = proxy(false);
   let data2 = proxy(false);
   
   let cnt0 = 0, cnt1 = 0, cnt2 = 0;
-  observe(() => {
+  $(() => {
     cnt0++;
     $('i');
-    observe(() => {
+    $(() => {
       cnt1++;
       data1.value && $('a');
     });
-    observe(() => {
+    $(() => {
       cnt2++;
       data2.value && $('b');
     });
@@ -113,20 +113,7 @@ test('uses observe()s as reference for DOM insertion', async () => {
 });
 
 test('insert at right position with an empty parent scope', () => {
-  observe(() => {
-    $('a');
-    observe(() => {
-      observe(() => {
-        $('b');
-      });
-    });
-  });
-  
-  assertBody(`a b`);
-});
-
-test('can use $ like observe', () => {
-  observe(() => {
+  $(() => {
     $('a');
     $(() => {
       $(() => {
@@ -142,14 +129,14 @@ test('refrains from rerendering dead scopes', async () => {
   let cnts = [0, 0, 0, 0];
   let data = proxy('a');
   
-  observe(() => {
+  $(() => {
     cnts[0]++;
-    observe(() => {
+    $(() => {
       cnts[1]++;
-      observe(() => {
+      $(() => {
         cnts[2]++;
         if (data.value === 'b') return;
-        observe(() => {
+        $(() => {
           cnts[3]++;
           data.value;
         });
@@ -169,7 +156,7 @@ test('inserts higher priority updates', async () => {
   let children = proxy(false);
   let pcnt = 0, ccnt = 0;
   
-  observe(() => {
+  $(() => {
     pcnt++;
     if (parent.value) return;
     
@@ -199,7 +186,7 @@ test('does not rerender on peek', async () => {
   let data = proxy('before');
   let cnt1 = 0, cnt2 = 0;
   
-  observe(() => {
+  $(() => {
     $('a', () => {
       cnt1++;
       $('span', () => {
@@ -223,7 +210,7 @@ test('allows modifying proxied objects from within scopes', async () => {
   let data = proxy({} as Record<string, string>);
   let inverse = proxy({} as Record<string, number>);
   
-  const unmount = observe(() => {
+  $(() => {
     cnt0++;
     onEach(data, (value, key) => {
       inverse[value] = parseInt(key);
@@ -276,7 +263,7 @@ test('allows modifying proxied objects from within scopes', async () => {
 
 test('returns a reactive value when only a function is given', async () => {
   const data = proxy(20);
-  const plus2 = observe(() => data.value + 2);
+  const plus2 = derive(() => data.value + 2);
   $('p', {text: plus2})
 
   expect(plus2.value).toEqual(22)

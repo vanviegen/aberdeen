@@ -1,6 +1,5 @@
-import { describe, test, expect, beforeEach } from 'bun:test';
-import { $, unmountAll, onEach, proxy } from '../src/aberdeen.js';
-import './setup.js';
+import { expect, test } from "bun:test";
+import { $, onEach, proxy } from '../src/aberdeen';
 
 test('creates regular HTML elements with HTML namespace', () => {
 	$('div');

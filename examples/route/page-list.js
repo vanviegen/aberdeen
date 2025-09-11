@@ -1,10 +1,12 @@
-import {$, MERGE, ref} from '../../dist/aberdeen.js';
-import {route} from "../../dist/route.js";
+import {$, ref} from '../../dist/aberdeen.js';
+import * as route from "../../dist/route.js";
+
+console.log(route);
 
 const words = ['butterfly', 'orchestra', 'whisper', 'mountain', 'zebra', 'chocolate', 'umbrella', 'lighthouse', 'rainbow', 'dragon', 'bicycle', 'galaxy', 'penguin', 'tornado', 'waterfall', 'cinnamon', 'compass', 'firefly', 'carousel', 'telescope'];
 
 export default function() {
-    $('input', {bind: ref(route.search, 'filter'), placeholder: 'Filter'});
+    $('input', {bind: ref(route.current.search, 'filter'), placeholder: 'Filter'});
 
     $('div.columns', () => {
 
@@ -13,8 +15,8 @@ export default function() {
             for(let word of words) {
                 $('button', {text: word, click: () => route.p[1] = word}, () => {
                     $({
-                        '.active': route.p[1] === word,
-                        $display: word.indexOf(route.search.filter || '') >= 0 ? '' : 'none'
+                        '.active': route.current.p[1] === word,
+                        $display: word.indexOf(route.current.search.filter || '') >= 0 ? '' : 'none'
                     })
                 })
             }
@@ -22,11 +24,11 @@ export default function() {
         
         // The detail view for the selected word
         $('section', () => {
-            const word = route.p[1]
+            const word = route.current.p[1]
             if (!word) return
             if (words.indexOf(word) < 0) {
                 // Word specified in URL is not in our list. Go back to list without selection.
-                copy(route, {mode: 'back', p: {1: undefined}}, MERGE)
+                route.back(route.current.p.slice(0,1));
                 return
             }
             $('h2', {text: word})

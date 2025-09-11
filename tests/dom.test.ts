@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, assertDomUpdates, assertThrow } from "./helpers";
-import { $, proxy, observe, unproxy, copy, dump, mount, unmountAll, MERGE } from "../src/aberdeen";
+import { $, proxy, unproxy, copy, dump, mount, unmountAll, merge } from "../src/aberdeen";
 
 test('adds nodes', async () => {
   $('p');
@@ -110,17 +110,7 @@ test('creates text nodes', async () => {
   }
 });
 
-test('adds preexisting elements to the DOM - old style', () => {
-  mount(document.body, () => {
-    let el = document.createElement('video');
-    el.classList.add("test");
-    $({element: el});
-    $({element: null}); // should be ignored
-  });
-  assertBody(`video.test`);
-});
-
-test('adds preexisting elements to the DOM - new style', () => {
+test('adds preexisting elements to the DOM', () => {
   mount(document.body, () => {
     let el = document.createElement('video');
     el.classList.add("test");
@@ -157,13 +147,13 @@ test('handles nontypical options well', () => {
 test('dumps all basic values', () => {
   let data = proxy([true, false, null, undefined, -12, 3.14, "test", '"quote"']);
   mount(document.body, () => dump(data));
-  assertBody(`"<array>" ul{li{"0: " "true"} li{"1: " "false"} li{"2: " "null"} li{"4: " "-12"} li{"5: " "3.14"} li{"6: " "\\"test\\""} li{"7: " "\\"\\\\\\"quote\\\\\\"\\""}}`);
+  assertBody(`"<array>" ul{li{"0: " "true"} li{"1: " "false"} li{"2: " "null"} li{"3: "} li{"4: " "-12"} li{"5: " "3.14"} li{"6: " "\\"test\\""} li{"7: " "\\"\\\\\\"quote\\\\\\"\\""}}`);
 });
 
 test('dumps objects and arrays', async () => {
   let data = proxy({3: 4, a: 'b', d: [4, undefined, 'b']} as any);
   mount(document.body, () => dump(data));
-  assertBody(`"<object>" ul{li{"\\"3\\": " "4"} li{"\\"a\\": " "\\"b\\""} li{"\\"d\\": " "<array>" ul{li{"0: " "4"} li{"2: " "\\"b\\""}}}}`);
+  assertBody(`"<object>" ul{li{"\\"3\\": " "4"} li{"\\"a\\": " "\\"b\\""} li{"\\"d\\": " "<array>" ul{li{"0: " "4"} li{"1: "} li{"2: " "\\"b\\""}}}}`);
 });
 
 test('adds html', async () => {
@@ -171,7 +161,7 @@ test('adds html', async () => {
   mount(document.body, () => {
     $('main', () => {
       $('hr');
-      observe(() => {
+      $(() => {
         $({html: data.value});
       });
       $('img');
@@ -219,6 +209,6 @@ test('merges objects collapsing changes', async () => {
   assertBody(`"10"`);
   expect(cnt).toEqual(2);
   
-  copy(data, {c: 4}, MERGE);
+  merge(data, {c: 4});
   expect(cnt).toEqual(2);
 });

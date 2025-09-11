@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import { getBody, assertBody, passTime, assertDomUpdates } from "./helpers";
-import { $, proxy, observe, copy, onEach, mount } from "../src/aberdeen";
+import { $, proxy, copy, onEach, mount } from "../src/aberdeen";
 import { shrink } from "../src/transitions";
 
 test('destroy event works for simple deletes', async () => {
   let data = proxy(true);
-  observe(() => {
+  $(() => {
     if (data.value) $('b', {destroy: "x"});
     else $('c', {destroy: "x"});
   });
@@ -22,7 +22,7 @@ test('destroy event works for simple deletes', async () => {
 
 test('destroy event inserts before deleted item', async () => {
   let data = proxy(['a'] as any[]);
-  observe(() => {
+  $(() => {
     onEach(data, (value) => {
       $(value, {destroy: "x"});
     });
@@ -65,7 +65,7 @@ test('transitions onEach deletes', async () => {
 
 test('deletes in the middle of deleting items', async () => {
   let data = proxy(['a', 'b', 'c'] as any[]);
-  observe(() => {
+  $(() => {
     onEach(data, (value) => {
       $(value, {destroy: "x"});
     });
@@ -95,7 +95,7 @@ test('deletes in the middle of deleting items', async () => {
 test('aborts deletion transition on higher level removal', async () => {
   let data = proxy(['a']);
   let visible = proxy(true);
-  observe(() => {
+  $(() => {
     if (visible.value) onEach(data, (value) => {
       $(value, {destroy: "x"});
     });
@@ -113,7 +113,7 @@ test('aborts deletion transition on higher level removal', async () => {
 test('transitions removal of an entire onEach', async () => {
   let data = proxy(['a']);
   let visible = proxy(true);
-  observe(() => {
+  $(() => {
     if (visible.value) onEach(data, (value) => {
       $(value, {destroy: "x"});
     });
@@ -129,9 +129,9 @@ test('transitions removal of an entire onEach', async () => {
 
 test('insert new elements after a recently deleted item', async () => {
   let data = proxy({b: true, c: false});
-  observe(() => {
+  $(() => {
     $('a');
-    observe(() => {
+    $(() => {
       if (data.b) $('b', {destroy: 'y'});
       if (data.c) $('c');
     });
@@ -150,7 +150,7 @@ test('insert new elements after a recently deleted item', async () => {
 
 test('remove elements before and after a deleting element', async () => {
   let data = proxy({a: true, b: true, c: true});
-  observe(() => {
+  $(() => {
     onEach(data, (value, key) => {
       if (value) $(key, key === 'b' ? {destroy: 'y'} : null);
     });
@@ -171,7 +171,7 @@ test('remove elements before and after a deleting element', async () => {
 
 test('remove middle elements before and after a deleting element', async () => {
   let data = proxy({a: true, b: true, c: true, d: true, e: true});
-  observe(() => {
+  $(() => {
     onEach(data, (value, key) => {
       if (value) $(key, key === 'c' ? {destroy: 'y'} : null);
     });
@@ -192,7 +192,7 @@ test('remove middle elements before and after a deleting element', async () => {
 
 test('performs a shrink animation', async () => {
   let data = proxy(true);
-  observe(() => {
+  $(() => {
     if (data.value) $('a', {destroy: shrink});
   });
   assertBody(`a`);
@@ -207,7 +207,7 @@ test('performs a shrink animation', async () => {
 
 test('performs a horizontal shrink animation', async () => {
   let data = proxy(true);
-  observe(() => {
+  $(() => {
     $('div', {$display: 'flex', $flexDirection: 'row-reverse'}, () => {
       if (data.value) $('a', {destroy: shrink});
     });

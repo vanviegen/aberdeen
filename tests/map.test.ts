@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { $, count, isEmpty, map, multiMap, observe, onEach, partition, proxy, unmountAll } from "../src/aberdeen";
+import { $, count, isEmpty, map, multiMap, onEach, partition, proxy, unmountAll, derive } from "../src/aberdeen";
 import { assertBody, passTime } from "./helpers";
 
 test('map transforms arrays to arrays', async () => {
@@ -116,7 +116,7 @@ test('creates derived values with map', async () => {
 
 test('can create reactive computations with the $ function', async () => {
     const data = proxy(21);
-    const double = observe(() => data.value * 2);
+    const double = derive(() => data.value * 2);
     
     expect(double.value).toEqual(42);
     
@@ -128,7 +128,7 @@ test('can create reactive computations with the $ function', async () => {
 test('isEmpty works on arrays', async () => {
     let data = proxy([] as number[]);
     let cnt = 0;
-    observe(() => {
+    $(() => {
         cnt++;
         $(isEmpty(data,) ? ":empty" : ":not empty");
     })
@@ -161,7 +161,7 @@ test('isEmpty works on arrays', async () => {
     expect(cnt).toBe(4);
     
     unmountAll();
-    observe(() => { // test initial value for isEmpty
+    $(() => { // test initial value for isEmpty
         $(isEmpty(data,) ? ":empty2" : ":not empty2");
     })
     assertBody(`"not empty2"`);
@@ -171,7 +171,7 @@ test('isEmpty works on arrays', async () => {
 test('isEmpty works on objects', async () => {
     let data = proxy({} as Record<string,number|undefined>);
     let cnt = 0;
-    observe(() => {
+    $(() => {
         cnt++;
         $(isEmpty(data,) ? ":empty" : ":not empty");
     })
@@ -190,13 +190,19 @@ test('isEmpty works on objects', async () => {
     
     data.y = undefined;
     await passTime();
-    assertBody(`"empty"`);
-    expect(cnt).toBe(3);
+    assertBody(`"not empty"`);
+    expect(cnt).toBe(4);
     
+
+    delete data.y;
+    await passTime();
+    assertBody(`"empty"`);
+    expect(cnt).toBe(5);
+
     unmountAll();
     
     data.x = 1;
-    observe(() => { // test initial value for isEmpty
+    $(() => { // test initial value for isEmpty
         $(isEmpty(data,) ? ":empty2" : ":not empty2");
     })
     assertBody(`"not empty2"`);
@@ -238,6 +244,10 @@ test('count works on objects', async() => {
     assertBody(`div{"2"}`);
     
     data.x = undefined;
+    await passTime();
+    assertBody(`div{"2"}`);
+
+    delete data.x;
     await passTime();
     assertBody(`div{"1"}`);
 })

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, observe, copy, onEach, mount, isEmpty, MERGE } from "../src/aberdeen";
+import { $, proxy, onEach, mount, isEmpty, merge } from "../src/aberdeen";
 
 test('fires higher-scope isEmpty before getting to content', async () => {
 	let data = proxy<string[]>(['a']);
@@ -26,7 +26,7 @@ test('fires higher-scope isEmpty before getting to content', async () => {
 	expect([cnt1, cnt2]).toEqual([1, 2]);
 
 	// Clear the array
-	copy(data, [] as string[], MERGE);
+	merge(data, [] as string[]);
 
 	await passTime();
 	assertBody(``);
@@ -65,48 +65,58 @@ test('merges', async () => {
 		});
 	});
 
-	assertBody(`div{"1"} div{"3"}`);
-	expect([cnt1, cnt2]).toEqual([1, 2]);
+	assertBody(`div{"1"} div{"undefined"} div{"3"}`);
+	expect([cnt1, cnt2]).toEqual([1, 3]);
 
 	data[1] = 2;
 	await passTime();
 	assertBody(`div{"1"} div{"2"} div{"3"}`);
-	expect([cnt1, cnt2]).toEqual([1, 3]);
+	expect([cnt1, cnt2]).toEqual([1, 4]);
 
 	// Merging just replace the entire array
-	copy(data, [1, "two"], MERGE);
+	merge(data, [1, "two"]);
 	await passTime();
 	assertBody(`div{"1"} div{"two"}`);
-	expect([cnt1, cnt2]).toEqual([1, 4]);
+	expect([cnt1, cnt2]).toEqual([1, 5]);
 
 	data[9] = 'ten';
 	await passTime();
 	assertBody(`div{"1"} div{"two"} div{"ten"}`);
-	expect([cnt1, cnt2]).toEqual([1, 5]);
+	expect([cnt1, cnt2]).toEqual([1, 6]);
 
 	data[4] = 'five';
 	await passTime();
 	assertBody(`div{"1"} div{"two"} div{"five"} div{"ten"}`);
-	expect([cnt1, cnt2]).toEqual([1, 6]);
+	expect([cnt1, cnt2]).toEqual([1, 7]);
 
-	// Delete element at index 1
 	delete data[1];
 	await passTime();
 	assertBody(`div{"1"} div{"five"} div{"ten"}`);
-	expect([cnt1, cnt2]).toEqual([1, 6]);
+	expect([cnt1, cnt2]).toEqual([1, 7]);
 
-	// Delete element at index 9
-	delete data[9];
-	data.push("six");
+	delete data[9]; // length should not change
+	data.push("six"); // at position 10
 	expect(data[10]).toEqual("six");
 	await passTime();
 	assertBody(`div{"1"} div{"five"} div{"six"}`);
-	expect([cnt1, cnt2]).toEqual([1, 7]);
+	expect([cnt1, cnt2]).toEqual([1, 8]);
 
-	copy(data, [1, undefined, 3], MERGE);
+	merge(data, [1, undefined, 3]);
+	await passTime();
+	assertBody(`div{"1"} div{"undefined"} div{"3"}`);
+	expect([cnt1, cnt2]).toEqual([1, 10]); // replaced 2
+
+	console.log('set empty');
+	merge(data, [1, /*empty*/, 3]);
 	await passTime();
 	assertBody(`div{"1"} div{"3"}`);
-	expect([cnt1, cnt2]).toEqual([1, 8]);
+	expect([cnt1, cnt2]).toEqual([1, 10]); // just removed 1
+
+	merge(data, [1, undefined, 3]); // and back from empty
+	await passTime();
+	assertBody(`div{"1"} div{"undefined"} div{"3"}`);
+	expect([cnt1, cnt2]).toEqual([1, 11]);
+
 });
 
 test('array at()', async function() {
@@ -117,7 +127,7 @@ test('array at()', async function() {
 	expect(arr.at(-2)).toEqual(4);
 
 	let value;
-	observe(() => {
+	$(() => {
 		value = arr.at(-2);
 	})
 	expect(value).toEqual(4);
@@ -135,7 +145,7 @@ test('proxy supports array shift and unshift', async () => {
 	const arr = proxy([1, 2, 3, 4]);
 	let value: any;
 	
-	observe(() => {
+	$(() => {
 	  value = [...arr];
 	});
 	
@@ -164,7 +174,7 @@ test('proxy supports array shift and unshift', async () => {
 	
 	// Test reactivity
 	let sum = 0;
-	observe(() => {
+	$(() => {
 	  sum = 0;
 	  arr.forEach(item => {
 		sum += item;
@@ -184,7 +194,7 @@ test('proxy supports array shift and unshift', async () => {
 	const arr2 = proxy([3, 4]);
 	let result: any;
 	
-	observe(() => {
+	$(() => {
 	  result = [...arr1.concat(arr2)];
 	});
 	expect(result).toEqual([1, 2, 3, 4]);
@@ -205,7 +215,7 @@ test('proxy supports array shift and unshift', async () => {
 	let findResult: number | undefined;
 	let includesResult: boolean = false;
 	
-	observe(() => {
+	$(() => {
 	  everyResult = arr.every(item => item >= 10);
 	  filterResult = [...arr.filter(item => item > 20)];
 	  findResult = arr.find(item => item > 25);
@@ -260,7 +270,7 @@ test('proxy supports array shift and unshift', async () => {
 	let foundIndex: number = -1;
 	let foundLastIndex: number = -1;
 	
-	observe(() => {
+	$(() => {
 	  foundIndex = arr.findIndex(item => item > 25);
 	  foundLastIndex = arr.findLastIndex(item => item > 25);
 	});
@@ -284,7 +294,7 @@ test('proxy supports array shift and unshift', async () => {
 	const arr = proxy(['a', 'b', 'c']);
 	let joined = '';
 	
-	observe(() => {
+	$(() => {
 	  joined = arr.join('-');
 	});
 	
@@ -304,7 +314,7 @@ test('proxy supports array shift and unshift', async () => {
 	const arr = proxy([1, 2, 3]);
 	let mappedValues: number[] = [];
 	
-	observe(() => {
+	$(() => {
 	  mappedValues = [...arr.map(item => item * 10)];
 	});
 	
@@ -335,7 +345,7 @@ test('proxy supports array shift and unshift', async () => {
 	let firstB: any;
 	let lastB: any;
 	
-	observe(() => {
+	$(() => {
 	  firstB = arr.find(item => item.value === 'b');
 	  lastB = arr.findLast(item => item.value === 'b');
 	});

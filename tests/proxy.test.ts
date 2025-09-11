@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, observe, copy, unproxy, ref } from "../src/aberdeen";
+import { $, proxy, copy, unproxy, ref } from "../src/aberdeen";
 
 test('proxy holds basic types', async () => {
   let proxied = proxy(undefined as any);
@@ -106,7 +106,7 @@ test('proxy reacts on materializing deep trees', async () => {
   let data = proxy({} as any);
   let deepValue: any;
   
-  observe(() => {
+  $(() => {
     deepValue = data.a?.b;
   });
   
@@ -184,9 +184,9 @@ test('proxy supports array methods', () => {
 test(`proxy 'has'`, async () => {
   const data = proxy({x: 3, y: undefined} as Record<string,number|undefined>);
   let cnt = 0;
-  observe(function() { cnt++; $(`:x=${"x" in data}`); })
-  observe(function() { cnt++; $(`:y=${"y" in data}`); })
-  observe(function() { cnt++; $(`:z=${"z" in data}`); })
+  $(function() { cnt++; $(`:x=${"x" in data}`); })
+  $(function() { cnt++; $(`:y=${"y" in data}`); })
+  $(function() { cnt++; $(`:z=${"z" in data}`); })
   assertBody('"x=true" "y=true" "z=false"')
   expect(cnt).toEqual(3);
 

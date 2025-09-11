@@ -166,7 +166,7 @@ abstract class Scope implements QueueRunner {
 
 	[ptr: ReverseSortedSetPointer]: this;
 
-	abstract onChange(index: any, newData: any, oldData: any): void;
+	abstract onChange(index: any): void;
 	abstract queueRun(): void;
 
 	abstract getLastNode(): Node | undefined;
@@ -245,7 +245,7 @@ abstract class ContentScope extends Scope {
 		return this.getLastNode() || this.getPrecedingNode();
 	}
 
-	onChange(index: any, newData: any, oldData: any) {
+	onChange() {
 		queue(this);
 	}
 
@@ -451,43 +451,6 @@ class SetArgScope extends ChainedScope {
 	}
 }
 
-let immediateQueue: ReverseSortedSet<Scope, "prio"> = new ReverseSortedSet(
-	"prio",
-);
-
-class ImmediateScope extends RegularScope {
-	onChange(index: any, newData: any, oldData: any) {
-		immediateQueue.add(this);
-	}
-}
-
-let immediateQueueRunning = false;
-function runImmediateQueue() {
-	for (
-		let count = 0;
-		!immediateQueue.isEmpty() && !immediateQueueRunning;
-		count++
-	) {
-		if (count > 42) {
-			immediateQueue.clear();
-			throw new Error("Too many immediate-mode recursive updates");
-		}
-		immediateQueueRunning = true;
-		const copy = immediateQueue;
-		immediateQueue = new ReverseSortedSet("prio");
-		try {
-			for (const scope of copy) {
-				// On exception, the exception will be bubbled up to the call site, discarding any
-				// remaining immediate scopes from the queue. This behavior is perhaps debatable,
-				// but getting a synchronous exception at the call site can be very helpful.
-				scope.queueRun();
-			}
-		} finally {
-			immediateQueueRunning = false;
-		}
-	}
-}
-
 /** @internal */
 class OnEachScope extends Scope {
 	// biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: circular, as currentScope is initialized with a Scope
@@ -528,15 +491,11 @@ class OnEachScope extends Scope {
 		// Do _addChild() calls for initial items
 		if (target instanceof Array) {
 			for (let i = 0; i < target.length; i++) {
-				if (target[i] !== undefined) {
-					new OnEachItemScope(this, i, false);
-				}
+				new OnEachItemScope(this, i, false);
 			}
 		} else {
-			for (const [key, value] of getEntries(target)) {
-				if (value !== undefined) {
-					new OnEachItemScope(this, key, false);
-				}
+			for (const key of (target instanceof Map ? target.keys() : Object.keys(target))) {
+				new OnEachItemScope(this, key, false);
 			}
 		}
 	}
@@ -545,7 +504,7 @@ class OnEachScope extends Scope {
 		return findLastNodeInPrevSiblings(this.prevSibling);
 	}
 
-	onChange(index: any, newData: any, oldData: any) {
+	onChange(index: any) {
 		if (!(this.target instanceof Array) || typeof index === "number")
 			this.changedIndexes.add(index);
 		queue(this);
@@ -558,17 +517,12 @@ class OnEachScope extends Scope {
 			const oldScope = this.byIndex.get(index);
 			if (oldScope) oldScope.remove();
 
-			let hasValue;
-			if (this.target instanceof Map) {
-				hasValue = this.target.has(index);
-			} else {
-				hasValue = (this.target as any)[index] !== undefined;
-			}
-
-			if (!hasValue) {
-				this.byIndex.delete(index);
-			} else {
+			if (this.target instanceof Map ? this.target.has(index) : index in this.target) {
+				// Item still exists
 				new OnEachItemScope(this, index, true);
+			} else {
+				// Item has disappeared
+				this.byIndex.delete(index);
 			}
 		}
 		topRedrawScope = undefined;
@@ -775,6 +729,23 @@ const ROOT_SCOPE = new RootScope();
 let currentScope: ContentScope = ROOT_SCOPE;
 
 /**
+ * Execute a function in a never-cleaned root scope. Even {@link unmountAll} will not
+ * clean up observers/nodes created by the function.
+ * @param func The function to execute.
+ * @returns The return value of the function.
+ * @internal
+ */
+export function leakScope<T>(func: () => T): T {
+	const savedScope = currentScope;
+	currentScope = new RootScope();
+	try {
+		return func();
+	} finally {
+		currentScope = savedScope;
+	}
+}
+
+/**
  * A special Node observer index to subscribe to any value in the map changing.
  */
 const ANY_SYMBOL = Symbol("any");
@@ -925,9 +896,11 @@ export function onEach(
 }
 
 function isObjEmpty(obj: object): boolean {
-	for (const k in obj) return false;
+	for (const k of Object.keys(obj)) return false;
 	return true;
 }
+
+const EMPTY = Symbol("empty");
 
 /**
  * Reactively checks if an observable array or object is empty.
@@ -938,7 +911,7 @@ function isObjEmpty(obj: object): boolean {
  * is deleted from an object), the scope that called `isEmpty` will be automatically
  * scheduled for re-evaluation.
  *
- * @param proxied The observable array or object (obtained via `observe()`) to check.
+ * @param proxied The observable array or object to check.
  * @returns `true` if the array has length 0 or the object has no own enumerable properties, `false` otherwise.
  *
  * @example
@@ -981,7 +954,7 @@ export function isEmpty(proxied: TargetType): boolean {
 	
 	const result = isObjEmpty(target);
 	subscribe(target, ANY_SYMBOL, (index: any, newData: any, oldData: any) => {
-		if (result ? oldData === undefined : newData === undefined) queue(scope);
+		if (result ? oldData === EMPTY : newData === EMPTY) queue(scope);
 	});
 	return result;
 }
@@ -1006,8 +979,8 @@ export interface ValueRef<T> {
  * $('div', {text: cnt});
  * // <div>2</div>
 
- * // Or we can use it in an {@link observe} function:
- * observe(() => console.log("The count is now", cnt.value));
+ * // Or we can use it in an {@link derive} function:
+ * $(() => console.log("The count is now", cnt.value));
  * // The count is now 2
  * 
  * // Adding/removing items will update the count
@@ -1023,7 +996,7 @@ export function count(proxied: TargetType): ValueRef<number> {
 
 	const target = (proxied as any)[TARGET_SYMBOL] || proxied;
 	let cnt = 0;
-	for (const k in target) if (target[k] !== undefined) cnt++;
+	for (const k of Object.keys(target)) if (target[k] !== undefined) cnt++;
 
 	const result = proxy(cnt);
 	subscribe(
@@ -1031,8 +1004,8 @@ export function count(proxied: TargetType): ValueRef<number> {
 		ANY_SYMBOL,
 		(index: any, newData: any, oldData: any) => {
 			if (oldData === newData) {
-			} else if (oldData === undefined) result.value = ++cnt;
-			else if (newData === undefined) result.value = --cnt;
+			} else if (oldData === EMPTY) result.value = ++cnt;
+			else if (newData === EMPTY) result.value = --cnt;
 		},
 	);
 
@@ -1058,7 +1031,7 @@ export function defaultEmitHandler(
 		if (byIndex) {
 			for (const observer of byIndex) {
 				if (typeof observer === "function") observer(index, newData, oldData);
-				else observer.onChange(index, newData, oldData);
+				else observer.onChange(index);
 			}
 		}
 	}
@@ -1075,25 +1048,22 @@ const objectHandler: ProxyHandler<any> = {
 		// Make sure newData is unproxied
 		if (typeof newData === "object" && newData)
 			newData = (newData as any)[TARGET_SYMBOL] || newData;
-		const oldData = target[prop];
+		const oldData = target.hasOwnProperty(prop) ? target[prop] : EMPTY;
 		if (newData !== oldData) {
 			target[prop] = newData;
 			emit(target, prop, newData, oldData);
-			runImmediateQueue();
 		}
 		return true;
 	},
 	deleteProperty(target: any, prop: any) {
-		const old = target[prop];
+		const old = target.hasOwnProperty(prop) ? target[prop] : undefined;
 		delete target[prop];
-		emit(target, prop, undefined, old);
-		runImmediateQueue();
+		emit(target, prop, EMPTY, old);
 		return true;
 	},
 	has(target: any, prop: any) {
-		const result = prop in target;
 		subscribe(target, prop);
-		return result;
+		return target.hasOwnProperty(prop);
 	},
 	ownKeys(target: any) {
 		subscribe(target, ANY_SYMBOL);
@@ -1103,9 +1073,11 @@ const objectHandler: ProxyHandler<any> = {
 
 function arraySet(target: any, prop: any, newData: any) {
 	// Make sure newData is unproxied
-	if (typeof newData === "object" && newData)
+	if (typeof newData === "object" && newData) {
 		newData = (newData as any)[TARGET_SYMBOL] || newData;
-	const oldData = target[prop];
+	}
+	let oldData = target[prop];
+	if (oldData === undefined && !target.hasOwnProperty(prop)) oldData = EMPTY;
 	if (newData !== oldData) {
 		const oldLength = target.length;
 
@@ -1114,11 +1086,13 @@ function arraySet(target: any, prop: any, newData: any) {
 
 			// We only need to emit for shrinking, as growing just adds undefineds
 			for (let i = newData; i < oldLength; i++) {
-				emit(target, i, undefined, target[i]);
+				emit(target, i, EMPTY, target[i]);
 			}
 		} else {
-			const intProp = Number.parseInt(prop);
-			if (intProp.toString() === prop) prop = intProp;
+			if (typeof prop === 'string') { // Convert to int when possible
+				const n = 0|prop as any;
+				if (String(n) === prop && n >= 0) prop = n;
+			}
 
 			target[prop] = newData;
 			emit(target, prop, newData, oldData);
@@ -1126,7 +1100,6 @@ function arraySet(target: any, prop: any, newData: any) {
 		if (target.length !== oldLength) {
 			emit(target, "length", target.length, oldLength);
 		}
-		runImmediateQueue();
 	}
 	return true;
 }
@@ -1134,17 +1107,24 @@ function arraySet(target: any, prop: any, newData: any) {
 const arrayHandler: ProxyHandler<any[]> = {
 	get(target: any, prop: any) {
 		if (prop === TARGET_SYMBOL) return target;
-		let subProp = prop;
-		if (typeof prop !== "symbol") {
-			const intProp = Number.parseInt(prop);
-			if (intProp.toString() === prop) subProp = intProp;
+		if (typeof prop === 'string') { // Convert to int when possible
+			const n = 0|prop as any;
+			if (String(n) === prop && n >= 0) prop = n;
 		}
-		subscribe(target, subProp);
+		subscribe(target, prop);
 		return optProxy(target[prop]);
 	},
 	set: arraySet,
-	deleteProperty(target: any, prop: string | symbol) {
-		return arraySet(target, prop, undefined);
+	deleteProperty(target: any, prop: any) {
+		if (typeof prop === 'string') { // Convert to int when possible
+			const n = 0|prop as any;
+			if (String(n) === prop && n >= 0) prop = n;
+		}
+		let oldData = target[prop];
+		if (oldData === undefined && !target.hasOwnProperty(prop)) oldData = EMPTY;
+		delete target[prop];
+		emit(target, prop, EMPTY, oldData);
+		return true;
 	},
 };
 
@@ -1190,31 +1170,34 @@ const mapMethodHandlers = {
 	set(this: any, key: any, newData: any): any {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
 		// Make sure key and newData are unproxied
-		if (typeof key === "object" && key)
+		if (typeof key === "object" && key) {
 			key = (key as any)[TARGET_SYMBOL] || key;
-		if (typeof newData === "object" && newData)
+		}
+		if (typeof newData === "object" && newData) {
 			newData = (newData as any)[TARGET_SYMBOL] || newData;
-		const oldData = target.get(key);
+		}
+		let oldData = target.get(key);
+		if (oldData === undefined && !target.has(key)) oldData = EMPTY;
 		if (newData !== oldData) {
 			const oldSize = target.size;
 			target.set(key, newData);
 			emit(target, key, newData, oldData);
 			emit(target, MAP_SIZE_SYMBOL, target.size, oldSize);
-			runImmediateQueue();
 		}
 		return this;
 	},
 	delete(this: any, key: any): boolean {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
 		// Make sure key is unproxied
-		if (typeof key === "object" && key)
+		if (typeof key === "object" && key) {
 			key = (key as any)[TARGET_SYMBOL] || key;
-		const oldData = target.get(key);
+		}
+		let oldData = target.get(key);
+		if (oldData === undefined && !target.has(key)) oldData = EMPTY;
 		const result: boolean = target.delete(key);
 		if (result) {
-			emit(target, key, undefined, oldData);
+			emit(target, key, EMPTY, oldData);
 			emit(target, MAP_SIZE_SYMBOL, target.size, target.size + 1);
-			runImmediateQueue();
 		}
 		return result;
 	},
@@ -1222,18 +1205,17 @@ const mapMethodHandlers = {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
 		const oldSize = target.size;
 		for (const key of target.keys()) {
-			const oldData = target.get(key);
-			emit(target, key, undefined, oldData);
+			emit(target, key, undefined, target.get(key));
 		}
 		target.clear();
 		emit(target, MAP_SIZE_SYMBOL, 0, oldSize);
-		runImmediateQueue();
 	},
 	has(this: any, key: any): boolean {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
 		// Make sure key is unproxied
-		if (typeof key === "object" && key)
+		if (typeof key === "object" && key) {
 			key = (key as any)[TARGET_SYMBOL] || key;
+		}
 		subscribe(target, key);
 		return target.has(key);
 	},
@@ -1264,7 +1246,7 @@ const mapHandler: ProxyHandler<Map<any, any>> = {
 		if (prop === TARGET_SYMBOL) return target;
 		
 		// Handle Map methods using lookup object
-		if (prop in mapMethodHandlers) {
+		if (mapMethodHandlers.hasOwnProperty(prop)) {
 			return (mapMethodHandlers as any)[prop];
 		}
 		
@@ -1275,8 +1257,7 @@ const mapHandler: ProxyHandler<Map<any, any>> = {
 		}
 		
 		// Handle other properties normally
-		subscribe(target, prop);
-		return optProxy((target as any)[prop]);
+		return (target as any)[prop];
 	},
 };
 
@@ -1308,35 +1289,15 @@ function optProxy(value: any): any {
 	return proxied;
 }
 
-export function proxy<T extends any>(
-	target: Array<T>,
-): Array<
-	T extends number
-		? number
-		: T extends string
-			? string
-			: T extends boolean
-				? boolean
-				: T
->;
+export function proxy<T extends any>(target: Array<T>): Array<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T >;
 export function proxy<T extends object>(target: T): T;
-export function proxy<T extends any>(
-	target: T,
-): ValueRef<
-	T extends number
-		? number
-		: T extends string
-			? string
-			: T extends boolean
-				? boolean
-				: T
->;
+export function proxy<T extends any>(target: T): ValueRef<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
 
 /**
  * Creates a reactive proxy around the given data.
  *
  * Reading properties from the returned proxy within a reactive scope (like one created by
- * {@link $} or {@link observe}) establishes a subscription. Modifying properties *through*
+ * {@link $} or {@link derive}) establishes a subscription. Modifying properties *through*
  * the proxy will notify subscribed scopes, causing them to re-execute.
  *
  * - Plain objects and arrays are wrapped in a standard JavaScript `Proxy` that intercepts
@@ -1353,23 +1314,23 @@ export function proxy<T extends any>(
  * @example Object
  * ```javascript
  * const state = proxy({ count: 0, message: 'Hello' });
- * observe(() => console.log(state.message)); // Subscribes to message
- * setTimeout(() => state.message = 'World', 1000); // Triggers the observe function
+ * $(() => console.log(state.message)); // Subscribes to message
+ * setTimeout(() => state.message = 'World', 1000); // Triggers the observing function
  * setTimeout(() => state.count++, 2000); // Triggers nothing
  * ```
  *
  * @example Array
  * ```javascript
  * const items = proxy(['a', 'b']);
- * observe(() => console.log(items.length)); // Subscribes to length
- * setTimeout(() => items.push('c'), 2000); // Triggers the observe function
+ * $(() => console.log(items.length)); // Subscribes to length
+ * setTimeout(() => items.push('c'), 2000); // Triggers the observing function
  * ```
  *
  * @example Primitive
  * ```javascript
  * const name = proxy('Aberdeen');
- * observe(() => console.log(name.value)); // Subscribes to value
- * setTimeout(() => name.value = 'UI', 2000); // Triggers the observe function
+ * $(() => console.log(name.value)); // Subscribes to value
+ * setTimeout(() => name.value = 'UI', 2000); // Triggers the observing function
  * ```
  *
  * @example Class instance
@@ -1380,7 +1341,7 @@ export function proxy<T extends any>(
  *   toString() { return `${this.name}Widget (${this.width}x${this.height})`; }
  * }
  * let graph: Widget = proxy(new Widget('Graph', 200, 100));
- * observe(() => console.log(''+graph));
+ * $(() => console.log(''+graph));
  * setTimeout(() => graph.grow(), 2000);
  * setTimeout(() => graph.grow(), 4000);
  * ```
@@ -1453,12 +1414,9 @@ function destroyWithClass(element: Element, cls: string) {
  *
  * @param dst - The destination object/array/Map (proxied or unproxied).
  * @param src - The source object/array/Map (proxied or unproxied). It won't be modified.
- * @param flags - Bitmask controlling copy behavior:
- *   - {@link MERGE}: Performs a partial update. Properties in `dst` not present in `src` are kept.
- *     `null`/`undefined` in `src` delete properties in `dst`. Handles partial array updates via object keys.
- *   - {@link SHALLOW}: Performs a shallow copy; when an array/object of the right type doesn't exist in `dst` yet, a reference to the array/object in `src` will be made, instead of creating a copy. If the array/object already exists, it won't be replaced (by a reference), but all items will be individually checked and copied like normal, keeping changes (and therefore UI updates) to a minimum.
- * @template T - The type of the destination object.
- * @throws Error if attempting to copy an array into a non-array or vice versa (unless {@link MERGE} is set, allowing for sparse array updates).
+ * @template T - The type of the objects being copied.
+ * @returns `true` if any changes were made to `dst`, or `false` if not.
+ * @throws Error if attempting to copy an array into a non-array or vice versa.
  *
  * @example Basic Copy
  * ```typescript
@@ -1466,108 +1424,79 @@ function destroyWithClass(element: Element, cls: string) {
  * const dest = proxy({ b: { d: 3 } });
  * copy(dest, source);
  * console.log(dest); // proxy({ a: 1, b: { c: 2 } })
+ * copy(dest, 'b', { e: 4 });
+ * console.log(dest); // proxy({ a: 1, b: { e: 4 } })
  * ```
- *
- * @example Map to Object
- * ```typescript
- * const source = new Map([['x', 3], ['y', 4]]);
- * const dest = proxy({});
- * copy(dest, source);
- * console.log(dest); // proxy({ x: 3, y: 4 })
- * ```
- *
- * @example Object to Map
- * ```typescript
- * const source = { x: 3, y: 4 };
- * const dest = proxy(new Map());
- * copy(dest, source);
- * console.log(dest); // proxy(Map([['x', 3], ['y', 4]]))
- * ```
- *
- * @example MERGE
+ */
+
+export function copy<T extends object>(dst: T, src: T): boolean;
+/**
+ * Like above, but copies `src` into `dst[dstKey]`. This is useful if you're unsure if dst[dstKey]
+ * already exists (as the right type of object) or if you don't want to subscribe to dst[dstKey].
+ * 
+ * @param dstKey - Optional key in `dst` to copy into. 
+ */
+export function copy<T extends object>(dst: T, dstKey: keyof T, src: T[typeof dstKey]): boolean;
+export function copy(a: any, b: any, c?: any): boolean {
+	if (arguments.length > 2) return copySet(a, b, c, 0);
+	return copyRecursive(a, b, 0);
+}
+
+function copySet(dst: any, dstKey: any, src: any, flags: number): boolean {
+	let dstVal = peek(dst, dstKey);
+	if (src === dstVal) return false;
+	if (typeof dstVal === "object" && dstVal && typeof src === "object" && src && dstVal.constructor === src.constructor) {
+		return copyRecursive(dstVal, src, flags);
+	}
+	src = clone(src); 
+	if (dst instanceof Map) dst.set(dstKey, src);
+	else dst[dstKey] = clone(src);
+	return true;
+}
+
+/**
+ * Like {@link copy}, but uses merge semantics. Properties in `dst` not present in `src` are kept.
+ * `null`/`undefined` in `src` delete properties in `dst`.
+ * 
+ * When the destination is an object and the source is an array, its keys are used as (sparse) array indices.
+ * 
+ * @example Basic merge
  * ```typescript
  * const source = { b: { c: 99 }, d: undefined }; // d: undefined will delete
  * const dest = proxy({ a: 1, b: { x: 5 }, d: 4 });
- * copy(dest, source, MERGE);
- * console.log(dest); // proxy({ a: 1, b: { c: 99, x: 5 } })
+ * merge(dest, source);
+ * merge(dest, 'b', { y: 6 }); // merge into dest.b
+ * merge(dest, 'c', { z: 7 }); // merge.c doesn't exist yet, so it will just be assigned
+ * console.log(dest); // proxy({ a: 1, b: { c: 99, x: 5, y: 6 }, c: { z: 7 } })
  * ```
  *
- * @example Partial Array Update with MERGE
+ * @example Partial Array Merge
  * ```typescript
  * const messages = proxy(['msg1', 'msg2', 'msg3']);
  * const update = { 1: 'updated msg2' }; // Update using object key as index
- * copy(messages, update, MERGE);
+ * merge(messages, update);
  * console.log(messages); // proxy(['msg1', 'updated msg2', 'msg3'])
  * ```
  *
- * @example SHALLOW
- * ```typescript
- * const source = { nested: [1, 2] };
- * const dest = {};
- * copy(dest, source, SHALLOW);
- * dest.nested.push(3);
- * console.log(source.nested); // [1, 2, 3] (source was modified)
- * ```
  */
-
-// Overload for Map destination with object source
-export function copy<K, V>(dst: Map<K, V>, src: Record<K extends string | number | symbol ? K : never, V> | Partial<Record<K extends string | number | symbol ? K : never, V>>, flags?: number): void;
-// Overload for Map destination with Map source
-export function copy<K, V>(dst: Map<K, V>, src: Map<K, V> | Partial<Map<K, V>>, flags?: number): void;
-// Overload for object destination with Map source
-export function copy<T extends Record<string | number | symbol, any>>(dst: T, src: Map<keyof T, T[keyof T]>, flags?: number): void;
-// Overload for same-type copying
-export function copy<T extends object>(dst: T, src: Partial<T>, flags?: number): void;
-// Implementation
-export function copy(dst: any, src: any, flags = 0) {
-	copyRecurse(dst, src, flags);
-	runImmediateQueue();
-}
-/** Flag to {@link copy} causing it to use merge semantics. See {@link copy} for details. */
-export const MERGE = 1;
-/** Flag to {@link copy} and {@link clone} causing them to create a shallow copy (instead of the deep copy done by default).*/
-export const SHALLOW = 2;
-const COPY_SUBSCRIBE = 32;
-const COPY_EMIT = 64;
-
-/**
- * Clone an (optionally proxied) object or array.
- *
- * @param src The object or array to clone. If it is proxied, `clone` will subscribe to any changes to the (nested) data structure.
- * @param flags
- *   - {@link SHALLOW}: Performs a shallow clone, meaning that only the top-level array or object will be copied, while object/array values will just be references to the original data in `src`.
- * @template T - The type of the objects being copied.
- * @returns A new unproxied array or object (of the same type as `src`), containing a deep (by default) copy of `src`.
- */
-export function clone<T extends object>(src: T, flags = 0): T {
-	let dst: T;
-	if (src instanceof Map) {
-		dst = new Map() as T;
-	} else {
-		dst = Object.create(Object.getPrototypeOf(src)) as T;
-	}
-	copyRecurse(dst, src, flags);
-	return dst;
+export function merge<T extends object>(dst: T, value: Partial<T>): boolean;
+export function merge<T extends object>(dst: T, dstKey: keyof T, value: Partial<T[typeof dstKey]>): boolean;
+export function merge(a: any, b: any, c?: any) {
+	if (arguments.length > 2) return copySet(a, b, c, MERGE);
+	return copyRecursive(a, b, MERGE);
 }
 
-function getEntries(subject: any) {
-	return (subject instanceof Map) ? subject.entries() : Object.entries(subject);
-}
-
-function getKeys(subject: any) {
-	return (subject instanceof Map) ? subject.keys() : Object.keys(subject);
-}
-
-function copyRecurse(dst: any, src: any, flags: number) {
+// The dst and src parameters must be objects. Will throw a friendly message if they're not both the same type.
+function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean {
 	// We never want to subscribe to reads we do to the target (to find changes). So we'll
 	// take the unproxied version and `emit` updates ourselve.
-	let unproxied = dst[TARGET_SYMBOL];
+	let unproxied = (dst as any)[TARGET_SYMBOL] as T;
 	if (unproxied) {
 		dst = unproxied;
 		flags |= COPY_EMIT;
 	}
 	// For performance, we'll work on the unproxied `src` and manually subscribe to changes.
-	unproxied = src[TARGET_SYMBOL];
+	unproxied = (src as any)[TARGET_SYMBOL] as T;
 	if (unproxied) {
 		src = unproxied;
 		// If we're not in peek mode, we'll manually subscribe to all source reads.
@@ -1575,95 +1504,146 @@ function copyRecurse(dst: any, src: any, flags: number) {
 	}
 
 	if (flags & COPY_SUBSCRIBE) subscribe(src, ANY_SYMBOL);
-	if (src instanceof Array) {
-		if (!(dst instanceof Array))
-			throw new Error("Cannot copy array into object");
+	let changed = false;
+
+	// The following loops are somewhat repetitive, but it keeps performance high by avoiding
+	// function calls and extra checks within the loops.
+
+	if (src instanceof Array && dst instanceof Array) {
 		const dstLen = dst.length;
 		const srcLen = src.length;
-		for (let i = 0; i < srcLen; i++) {
-			copyValue(dst, i, src[i], flags);
+		for (let index = 0; index < srcLen; index++) {
+			// changed = copyValue(dst, i, src[i], flags) || changed;
+
+			let dstValue = dst[index];
+			if (dstValue === undefined && !dst.hasOwnProperty(index)) dstValue = EMPTY;
+			let srcValue = src[index];
+			if (srcValue === undefined && !src.hasOwnProperty(index)) {
+				delete dst[index];
+				if (flags & COPY_EMIT) emit(dst, index, EMPTY, dstValue);
+				changed = true;
+			}
+			else if (dstValue !== srcValue) {
+				if (srcValue && typeof srcValue === "object") {
+					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor) {
+						changed = copyRecursive(dstValue, srcValue, flags) || changed;
+						continue;
+					}
+					srcValue = clone(srcValue);
+				}
+				dst[index] = srcValue;
+
+				if (flags & COPY_EMIT) emit(dst, index, srcValue, dstValue);
+				changed = true;
+			}
 		}
+
 		// Leaving additional values in the old array doesn't make sense, so we'll do this even when MERGE is set:
 		if (srcLen !== dstLen) {
 			if (flags & COPY_EMIT) {
 				for (let i = srcLen; i < dstLen; i++) {
 					const old = dst[i];
-					dst[i] = undefined;
-					emit(dst, i, undefined, old);
+					delete dst[i];
+					emit(dst, i, EMPTY, old);
 				}
 				dst.length = srcLen;
 				emit(dst, "length", srcLen, dstLen);
 			} else {
 				dst.length = srcLen;
 			}
+			changed = true;
 		}
-	} else {
-		// Copy all entries from src to dst (both of which can be Map or object)
-		for (const [key, value] of getEntries(src)) {
-			copyValue(dst, key, value, flags);
-		}
-		
-		// Remove entries from dst that don't exist in src (unless MERGE flag is set)
-		if (!(flags & MERGE)) {
-			if (src instanceof Map) {
-				for (const key of getKeys(dst)) {
-					if (!src.has(key)) {
-						deleteKey(dst, key, flags);
+	} else if (src instanceof Map && dst instanceof Map) {
+		for (const key of src.keys()) {
+			// changed = copyValue(dst, k, src.get(k), flags) || changed;
+			let srcValue = src.get(key);
+			let dstValue = dst.get(key);
+			if (dstValue === undefined && !dst.has(key)) dstValue = EMPTY;
+			if (dstValue !== srcValue) {
+				if (srcValue && typeof srcValue === "object") {
+					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor) {
+						changed = copyRecursive(dstValue, srcValue, flags) || changed;
+						continue;
 					}
+					srcValue = clone(srcValue);
 				}
-			} else {
-				for (const key of getKeys(dst)) {
-					if (!(key in src)) {
-						deleteKey(dst, key, flags);
+
+				dst.set(key, srcValue);
+
+				if (flags & COPY_EMIT) emit(dst, key, srcValue, dstValue);
+				changed = true;
+			}
+		}
+
+		if (!(flags & MERGE)) {
+			for (const k of dst.keys()) {
+				if (!src.has(k)) {
+					const old = dst.get(k);
+					dst.delete(k);
+					if (flags & COPY_EMIT) {
+						emit(dst, k, undefined, old);
 					}
+					changed = true;
 				}
 			}
 		}
-	}
-}
+	} else if (src.constructor === dst.constructor) {
+		for (const key of Object.keys(src) as (keyof typeof src)[]) {
+			// changed = copyValue(dst, k, src[k as keyof typeof src], flags) || changed;
+			let srcValue = src[key];
+			const dstValue = dst.hasOwnProperty(key) ? dst[key] : EMPTY;
+			if (dstValue !== srcValue) {
+				if (srcValue && typeof srcValue === "object") {
+					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor) {
+						changed = copyRecursive(dstValue as typeof srcValue, srcValue, flags) || changed;
+						continue;
+					}
+					srcValue = clone(srcValue);
+				}
 
-function deleteKey(dst: any, key: any, flags: number) {
-	let old;
-	if (dst instanceof Map) {
-		old = dst.get(key);
-		dst.delete(key);
+				dst[key] = srcValue;
+
+				if (flags & COPY_EMIT) emit(dst, key, srcValue, dstValue);
+				changed = true;
+			}
+		}
+
+		if (!(flags & MERGE)) {
+			for (const k of Object.keys(dst) as (keyof typeof dst)[]) {
+				if (!src.hasOwnProperty(k)) {
+					const old = dst[k];
+					delete dst[k];
+					if (flags & COPY_EMIT && old !== undefined) {
+						emit(dst, k, undefined, old);
+					}
+					changed = true;
+				}
+			}
+		}
 	} else {
-		old = dst[key];
-		delete dst[key];
+		throw new Error(`Incompatible or non-object types: ${src?.constructor?.name || typeof src} vs ${dst?.constructor?.name || typeof dst}`);
 	}
-	if (flags & COPY_EMIT && old !== undefined) {
-		emit(dst, key, undefined, old);
-	}
+	return changed;
 }
 
-function copyValue(dst: any, index: any, srcValue: any, flags: number) {
-	const dstValue = dst instanceof Map ? dst.get(index) : dst[index];
-	if (srcValue !== dstValue) {
-		if (
-			srcValue && dstValue && typeof srcValue === "object" && typeof dstValue === "object" &&
-			(srcValue.constructor === dstValue.constructor || (flags & MERGE && dstValue instanceof Array))
-		) {
-			copyRecurse(dstValue, srcValue, flags);
-			return;
-		}
+const MERGE = 1;
+const COPY_SUBSCRIBE = 32;
+const COPY_EMIT = 64;
 
-		if (!(flags & SHALLOW) && srcValue && typeof srcValue === "object") {
-			// Create an empty object of the same type
-			const copy = Object.create(Object.getPrototypeOf(srcValue));
-			// Copy all properties to it. This doesn't need to emit anything
-			// and MERGE does not apply as this is a new branch.
-			copyRecurse(copy, srcValue, 0);
-			srcValue = copy;
-		}
-		if (dst instanceof Map) {
-			if (flags & MERGE && srcValue == null) dst.delete(index);
-			else dst.set(index, srcValue);
-		} else {
-			if (flags & MERGE && srcValue == null) delete dst[index];
-			else dst[index] = srcValue;
-		}
-		if (flags & COPY_EMIT) emit(dst, index, srcValue, dstValue);
-	}
+/**
+ * Clone an (optionally proxied) object or array.
+ *
+ * @param src The object or array to clone. If it is proxied, `clone` will subscribe to any changes to the (nested) data structure.
+ * @template T - The type of the objects being copied.
+ * @returns A new unproxied array or object (of the same type as `src`), containing a deep copy of `src`.
+ */
+export function clone<T extends object>(src: T): T {
+	// Create an empty object of the same type
+	const copied = Array.isArray(src) ? [] : src instanceof Map ? new Map() : Object.create(Object.getPrototypeOf(src));
+	// Copy all properties to it. This doesn't need to emit anything, and because
+	// the destination is an empty object, we can just MERGE, which is a bit faster.
+	copyRecursive(copied, src, MERGE);
+	return copied;
 }
 
 interface RefTarget {
@@ -1771,7 +1751,7 @@ function applyBind(el: HTMLInputElement, target: any) {
 				throw new Error(`SELECT has no '${target.value}' OPTION (yet)`);
 		};
 	}
-	observe(onProxyChange);
+	derive(onProxyChange);
 	el.addEventListener("input", onInputChange);
 	clean(() => {
 		el.removeEventListener("input", onInputChange);
@@ -1807,12 +1787,7 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
 	},
 	text: (value: any) => {
 		addNode(document.createTextNode(value));
-	},
-	element: (value: any) => {
-		console.log("Aberdeen: $({element: myElement}) is deprecated, use $(myElement) instead");
-		addNode(value);
-		SPECIAL_PROPS.element = addNode; // Avoid the console.log next time
-	},
+	}
 };
 
 /**
@@ -1828,7 +1803,7 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  *   - An optional HTML **tag**, something like `h1`. If present, a DOM element of that tag is created, and that element will be the *current* element for the rest of this `$` function execution.
  *   - Any number of CSS classes prefixed by `.` characters. These classes will be added to the *current* element.
  *   - Optional content **text** prefixed by a `:` character, ranging til the end of the string. This will be added as a TextNode to the *current* element.
- * - `function`: When a function (without argument nor a return value) is passed in, it will be reactively executed in its own observe scope, preserving the *current element*. So any `$()` invocations within this function will create DOM elements with our *current* element as parent. If the function reads observable data, and that data is changed later on, the function we re-execute (after side effects, such as DOM modifications through `$`, have been cleaned - see also {@link clean}).
+ * - `function`: When a function (without argument nor a return value) is passed in, it will be reactively executed in its own observer scope, preserving the *current element*. So any `$()` invocations within this function will create DOM elements with our *current* element as parent. If the function reads observable data, and that data is changed later on, the function we re-execute (after side effects, such as DOM modifications through `$`, have been cleaned - see also {@link clean}).
  * - `object`: When an object is passed in, its key-value pairs are used to modify the *current* element in the following ways...
  *   - `{<attrName>: any}`: The common case is setting the value as an HTML attribute named key. So `{placeholder: "Your name"}` would add `placeholder="Your name"` to the current HTML element.
  *   - `{<propName>: boolean}` or `{value: any}` or `{selectedIndex: number}`: If the value is a boolean, or if the key is `value` or `selectedIndex`, it is set on the `current` element as a DOM property instead of an HTML attribute. For example `{checked: true}` would do `el.checked = true` for the *current* element.
@@ -1839,7 +1814,7 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  *   - `{destroy: string}`: When the *current* element is a top-level element to be removed (due to reactivity cleanup), actual removal from the DOM is delayed by 2 seconds, and in the mean time the value string is added as a CSS class to the element, allowing for a deletion transition. The string may also contain multiple dot-separated CSS classes, such as `.fade.shrink`.
  *   - `{create: function}` and `{destroy: function}`: The function is invoked when the *current* element is the top-level element being created/destroyed. It can be used for more involved creation/deletion animations. In case of `destroy`, the function is responsible for actually removing the element from the DOM (eventually). See `transitions.ts` in the Aberdeen source code for some examples.
  *   - `{bind: <obsValue>}`: Create a two-way binding element between the `value` property of the given observable (proxy) variable, and the *current* input element (`<input>`, `<select>` or `<textarea>`). This is often used together with {@link ref}, in order to use properties other than `.value`.
- *   - `{<any>: <obsvalue>}`: Create a new observe scope and read the `value` property of the given observable (proxy) variable from within it, and apply the contained value using any of the other rules in this list. Example:
+ *   - `{<any>: <obsvalue>}`: Create a new observer scope and read the `value` property of the given observable (proxy) variable from within it, and apply the contained value using any of the other rules in this list. Example:
  *      ```typescript
  *      const myColor = proxy('red');
  *      $('p:Test', {$color: myColor, click: () => myColor.value = 'yellow'})
@@ -1984,7 +1959,7 @@ export function $(
 					break;
 				}
 			} else {
-				for (const key in arg) {
+				for (const key of Object.keys(arg)) {
 					const val = arg[key];
 					applyArg(key, val);
 				}
@@ -2072,7 +2047,7 @@ export function insertCss(style: object, global = false): string {
 function styleToCss(style: object, prefix: string): string {
 	let props = "";
 	let rules = "";
-	for (const kOr in style) {
+	for (const kOr of Object.keys(style)) {
 		const v = (style as any)[kOr];
 		for (const k of kOr.split(/, ?/g)) {
 			if (v && typeof v === "object") {
@@ -2147,7 +2122,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
 /**
  * Sets a custom error handler function for errors that occur asynchronously
  * within reactive scopes (e.g., during updates triggered by proxy changes in
- * {@link observe} or {@link $} render functions).
+ * {@link derive} or {@link $} render functions).
  *
  * The default handler logs the error to `console.error` and adds a simple
  * 'Error' message div to the DOM at the location where the error occurred (if possible).
@@ -2235,7 +2210,7 @@ export function getParentElement(): Element {
  * This is useful for releasing resources, removing manual event listeners, or cleaning up
  * side effects associated with the scope. Cleaners are run in reverse order of registration.
  *
- * Scopes are created by functions like {@link observe}, {@link mount}, {@link $} (when given a render function),
+ * Scopes are created by functions like {@link derive}, {@link mount}, {@link $} (when given a render function),
  * and internally by constructs like {@link onEach}.
  *
  * @param cleaner - The function to execute during cleanup.
@@ -2253,7 +2228,7 @@ export function getParentElement(): Element {
  *     peek(() => sum.value += item);
  *     // Clean gets called before each rerun for a certain item index
  *     // No need for peek here, as the clean code doesn't run in an
- *     // observe scope.
+ *     // observer scope.
  *     clean(() => sum.value -= item);
  * })
  *
@@ -2281,7 +2256,7 @@ export function clean(cleaner: () => void) {
  *
  * @param func - The function to execute reactively. Any DOM manipulations should typically
  *   be done using {@link $} within this function. Its return value will be made available as an
- *   observable returned by the `observe()` function.
+ *   observable returned by the `derive()` function.
  * @returns An observable object, with its `value` property containing whatever the last run of `func` returned.
  *
  * @example Observation creating a UI components
@@ -2292,7 +2267,7 @@ export function clean(cleaner: () => void) {
  *   console.log('Welcome');
  *   $('h3:Welcome, ' + data.user); // Reactive text
  *
- *   observe(() => {
+ *   derive(() => {
  *     // When data.notifications changes, only this inner scope reruns,
  *     // leaving the `<p>Welcome, ..</p>` untouched.
  *     console.log('Notifications');
@@ -2302,13 +2277,13 @@ export function clean(cleaner: () => void) {
  * });
  * ```
  *
- * ***Note*** that the above could just as easily be done using `$(func)` instead of `observe(func)`.
+ * ***Note*** that the above could just as easily be done using `$(func)` instead of `derive(func)`.
  *
  * @example Observation with return value
  * ```typescript
  * const counter = proxy(0);
  * setInterval(() => counter.value++, 1000);
- * const double = observe(() => counter.value * 2);
+ * const double = derive(() => counter.value * 2);
  *
  * $('h3', () => {
  *     $(`:counter=${counter.value} double=${double.value}`);
@@ -2318,40 +2293,8 @@ export function clean(cleaner: () => void) {
  * @overload
  * @param func Func without a return value.
  */
-export function observe<T>(func: () => T): ValueRef<T> {
+export function derive<T>(func: () => T): ValueRef<T> {
 	return new ResultScope<T>(currentScope.parentElement, func).result;
-}
-
-/**
- * Similar to {@link observe}, creates a reactive scope that re-executes the function
- * when its proxied dependencies change.
- *
- * **Difference:** Updates run **synchronously and immediately** after the proxy modification
- * that triggered the update occurs.
- *
- * **Caution:** Use sparingly. Immediate execution bypasses Aberdeen's usual batching and
- * ordering optimizations, which can lead to performance issues or observing inconsistent
- * intermediate states if multiple related updates are applied sequentially.
- * Prefer {@link observe} or {@link $} for most use cases.
- *
- * @param func - The function to execute reactively and synchronously.
- *
- * @example
- * ```javascript
- * const state = proxy({ single: 'A' });
- *
- * immediateObserve(() => {
- *   state.double = state.single + state.single
- * });
- * console.log(state.double); // 'AA'
- *
- * state.single = 'B';
- * // Synchronously:
- * console.log(state.double); // 'BB'
- * ```
- */
-export function immediateObserve(func: () => void) {
-	new ImmediateScope(currentScope.parentElement, func);
 }
 
 /**
@@ -2363,11 +2306,11 @@ export function immediateObserve(func: () => void) {
  * will cause it to re-execute when the data changes, updating the DOM elements created within it.
  *
  * Calls to {@link $} inside `func` will append nodes to `parentElement`.
- * You can nest {@link observe} or other {@link $} scopes within `func`.
+ * You can nest {@link derive} or other {@link $} scopes within `func`.
  * Use {@link unmountAll} to clean up all mounted scopes and their DOM nodes.
  *
  * Mounting scopes happens reactively, meaning that if this function is called from within another
- * ({@link observe} or {@link $} or {@link mount}) scope that gets cleaned up, so will the mount.
+ * ({@link derive} or {@link $} or {@link mount}) scope that gets cleaned up, so will the mount.
  *
  * @param parentElement - The native DOM `Element` to which the UI fragment will be appended.
  * @param func - The function that defines the UI fragment, typically containing calls to {@link $}.
@@ -2403,7 +2346,7 @@ export function mount(parentElement: Element, func: () => void) {
 
 /**
  * Removes all Aberdeen-managed DOM nodes and stops all active reactive scopes
- * (created by {@link mount}, {@link observe}, {@link $} with functions, etc.).
+ * (created by {@link mount}, {@link derive}, {@link $} with functions, etc.).
  *
  * This effectively cleans up the entire Aberdeen application state.
  */
@@ -2413,20 +2356,21 @@ export function unmountAll() {
 }
 
 /**
- * Executes a function *without* creating subscriptions in the current reactive scope, and returns its result.
+ * Executes a function or retrieves a value *without* creating subscriptions in the current reactive scope, and returns its result.
  *
- * This is useful when you need to access reactive data inside a reactive scope (like {@link observe})
+ * This is useful when you need to access reactive data inside a reactive scope (like {@link $})
  * but do not want changes to that specific data to trigger a re-execute of the scope.
+ * 
+ * Note: You may also use {@link unproxy} to get to the raw underlying data structure, which can be used to similar effect.
  *
- * @template T The type of the return value of your function.
+ * @param target - Either a function to execute, or an object (which may also be an Array or a Map) to index.
+ * @param key - Optional key/index to use when `target` is an object.
+ * @returns The result of the function call, or the value at `target[key]` when `target` is an object or `target.get(key)` when it's a Map.
  *
- * @param func - The function to execute without creating subscriptions.
- * @returns Whatever `func` returns.
- *
- * @example Peeking within observe
+ * @example Peeking within observer
  * ```typescript
  * const data = proxy({ a: 1, b: 2 });
- * observe(() => {
+ * $(() => {
  *   // re-executes only when data.a changes, because data.b is peeked.
  *   const b = peek(() => data.b);
  *   console.log(`A is ${data.a}, B was ${b} when A changed.`);
@@ -2436,10 +2380,20 @@ export function unmountAll() {
  * ```
  *
  */
-export function peek<T>(func: () => T): T {
+
+export function peek<T extends object>(target: T, key: keyof T): T[typeof key];
+export function peek<K,V>(target: Map<K,V>, key: K): V | undefined;
+export function peek<T>(target: T[], key: number): T | undefined;
+export function peek<T>(target: () => T): T;
+
+export function peek(target: any, key?: any) {
 	peeking++;
 	try {
-		return func();
+		if (arguments.length === 1) {
+			return target();
+		} else {
+			return (target instanceof Map) ? target.get(key) : target[key];
+		}
 	} finally {
 		peeking--;
 	}
@@ -2450,16 +2404,16 @@ export function map<K, IN, OUT>(
 	source: Map<K, IN>,
 	func: (value: IN, key: K) => undefined | OUT,
 ): Map<K, OUT>;
-/** When using an object as `source`. */
-export function map<IN, const IN_KEY extends string | number | symbol, OUT>(
-	source: Record<IN_KEY, IN>,
-	func: (value: IN, index: KeyToString<IN_KEY>) => undefined | OUT,
-): Record<string | symbol, OUT>;
 /** When using an array as `source`. */
 export function map<IN, OUT>(
 	source: Array<IN>,
 	func: (value: IN, index: number) => undefined | OUT,
 ): Array<OUT>;
+/** When using an object as `source`. */
+export function map<IN, const IN_KEY extends string | number | symbol, OUT>(
+	source: Record<IN_KEY, IN>,
+	func: (value: IN, index: KeyToString<IN_KEY>) => undefined | OUT,
+): Record<string | symbol, OUT>;
 /**
  * Reactively maps/filters items from a proxied source array or object to a new proxied array or object.
  *
@@ -2483,7 +2437,7 @@ export function map<IN, OUT>(
  * const doubled = map(numbers, (n) => n * 2);
  * // doubled is proxy([2, 4, 6])
  *
- * observe(() => console.log(doubled)); // Logs updates
+ * $(() => console.log(doubled)); // Logs updates
  * numbers.push(4); // doubled becomes proxy([2, 4, 6, 8])
  * ```
  *
@@ -2497,7 +2451,7 @@ export function map<IN, OUT>(
  *
  * const activeUserNames = map(users, (user) => user.active ? user.name : undefined);
  * // activeUserNames is proxy({ u1: 'Alice', u3: 'Charlie' })
- * observe(() => console.log(Object.values(activeUserNames)));
+ * $(() => console.log(Object.values(activeUserNames)));
  *
  * users.u2.active = true;
  * // activeUserNames becomes proxy({ u1: 'Alice', u2: 'Bob', u3: 'Charlie' })
@@ -2601,9 +2555,9 @@ export function multiMap(
 	onEach(source, (item: any, key: symbol | string | number) => {
 		const pairs = func(item, key);
 		if (pairs) {
-			for (const key in pairs) out[key] = pairs[key];
+			for (const key of Object.keys(pairs)) out[key] = pairs[key];
 			clean(() => {
-				for (const key in pairs) delete out[key];
+				for (const key of Object.keys(pairs)) delete out[key];
 			});
 		}
 	});

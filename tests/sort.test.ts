@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, observe, onEach, mount, invertString } from "../src/aberdeen";
+import { $, proxy, onEach, mount, invertString } from "../src/aberdeen";
 
 test('uses custom sort orders', async () => {
   const data = proxy({
@@ -13,7 +13,7 @@ test('uses custom sort orders', async () => {
   
   let sortFunc: any = proxy(undefined);
   
-  observe(() => {
+  $(() => {
     onEach(data, (item, key) => {
       $(key);
     }, sortFunc.value);

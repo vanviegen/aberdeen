@@ -213,6 +213,25 @@ class Element extends Node {
     return 200;
   }
 
+  get scrollTop(): number {
+    return this._scrollTop || 0;
+  }
+  
+  set scrollTop(value: number) {
+    this._scrollTop = value;
+  }
+  
+  get scrollLeft(): number {
+    return this._scrollLeft || 0;
+  }
+  
+  set scrollLeft(value: number) {
+    this._scrollLeft = value;
+  }
+
+  public _scrollTop?: number;
+  public _scrollLeft?: number;
+
   toString(): string {
     let arr: string[] = [];
     for(let [symbol, items] of [['=', this.attrs], ['->', this], [':', this.style]] as [string, Record<string, any>][]) {
@@ -291,7 +310,171 @@ const document = {
   body: new Element('body', 'http://www.w3.org/1999/xhtml')
 };
 
-const window: Record<string, any> = {};
+// Browser history and location simulation
+class FakeLocation {
+  private _href: string = 'http://localhost/';
+  
+  get href(): string { return this._href; }
+  set href(value: string) { 
+    if (value.startsWith('/')) {
+      // Relative path - convert to absolute URL
+      const currentUrl = new URL(this._href);
+      this._href = `${currentUrl.protocol}//${currentUrl.host}${value}`;
+    } else {
+      this._href = value;
+    }
+  }
+  
+  get pathname(): string { 
+    const url = new URL(this._href);
+    return url.pathname;
+  }
+  set pathname(value: string) {
+    const url = new URL(this._href);
+    url.pathname = value;
+    this._href = url.href;
+  }
+  
+  get search(): string {
+    const url = new URL(this._href);
+    return url.search;
+  }
+  set search(value: string) {
+    const url = new URL(this._href);
+    url.search = value;
+    this._href = url.href;
+  }
+  
+  get hash(): string {
+    const url = new URL(this._href);
+    return url.hash;
+  }
+  set hash(value: string) {
+    const url = new URL(this._href);
+    url.hash = value;
+    this._href = url.href;
+  }
+}
+
+class FakeHistory {
+  private _state: any = null;
+  private _entries: Array<{url: string, state: any}> = [];
+  private _index: number = 0;
+  
+  constructor() {
+    // Initialize with current location
+    this._entries = [{url: location.href, state: null}];
+  }
+  
+  get state(): any {
+    return this._state;
+  }
+  
+  pushState(state: any, title: string, url: string): void {
+    // Remove any entries after current index (like real browser behavior)
+    this._entries = this._entries.slice(0, this._index + 1);
+    
+    // Add new entry
+    this._entries.push({url, state});
+    this._index = this._entries.length - 1;
+    this._state = state;
+    
+    // Update location
+    location.href = url;
+  }
+  
+  replaceState(state: any, title: string, url: string): void {
+    // state = JSON.parse(JSON.stringify(state)); // clone state
+    this._entries[this._index] = {url, state};
+    this._state = state;
+    
+    // Update location
+    location.href = url;
+  }
+  
+  go(delta: number): void {
+    const newIndex = this._index + delta;
+    if (newIndex >= 0 && newIndex < this._entries.length) {
+      this._index = newIndex;
+      const entry = this._entries[this._index];
+      this._state = entry.state;
+      location.href = entry.url;
+      
+      // Trigger popstate event asynchronously
+      setTimeout(() => {
+        const event = {
+          type: 'popstate',
+          state: this._state,
+          target: window,
+          preventDefault: () => {},
+          stopPropagation: () => {}
+        };
+        window.dispatchEvent(event);
+      }, 0);
+    }
+  }
+  
+  back(): void {
+    this.go(-1);
+  }
+  
+  forward(): void {
+    this.go(1);
+  }
+  
+  // Test helper methods
+  _reset(): void {
+    this._state = null;
+    this._entries = [{url: location.href, state: null}];
+    this._index = 0;
+  }
+  
+  _getLength(): number {
+    return this._entries.length;
+  }
+}
+
+class FakeWindow {
+  private _listeners: Record<string, Set<Function>> = {};
+  
+  addEventListener(type: string, listener: Function): void {
+    if (!this._listeners[type]) {
+      this._listeners[type] = new Set();
+    }
+    this._listeners[type].add(listener);
+  }
+  
+  removeEventListener(type: string, listener: Function): void {
+    if (this._listeners[type]) {
+      this._listeners[type].delete(listener);
+    }
+  }
+  
+  dispatchEvent(event: any): void {
+    const listeners = this._listeners[event.type];
+    if (listeners) {
+      for (const listener of listeners) {
+        listener.call(this, event);
+      }
+    }
+  }
+  
+  // Test helper
+  _reset(): void {
+    this._listeners = {};
+  }
+}
+
+const location = new FakeLocation();
+const history = new FakeHistory();
+const window = new FakeWindow();
+
+// Reset function for tests
+export const resetBrowserState = function(): void {
+  location.href = 'http://localhost/';
+  history._reset();
+  // Don't reset window listeners as they're registered by the modules being tested
+};
 
 type TimeoutItem = {
   func: () => void;
@@ -361,4 +544,4 @@ function getComputedStyle(el: Element): Record<string, string> {
   return el._style;
 }
 
-Object.assign(global, {Node, Element, TextNode, document, window, setTimeout, getComputedStyle});
+Object.assign(global, {Node, Element, TextNode, document, window, setTimeout, getComputedStyle, location, history, URLSearchParams});

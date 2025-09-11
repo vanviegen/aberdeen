@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, ref, observe, getParentElement } from "../src/aberdeen";
+import { $, proxy, ref, getParentElement } from "../src/aberdeen";
 
 test('binds input values', async () => {
   let data = proxy('test');
   let inputElement;
-  observe(() => {
+  $(() => {
     $('input', {bind: data}, () => {
       inputElement = getParentElement();
       $({".correct": data.value.length >= 5});
@@ -26,7 +26,7 @@ test('binds input values', async () => {
 test('binds checkboxes', async () => {
   let data = proxy(true);
   let inputElement;
-  observe(() => {
+  $(() => {
     $('input', {type: 'checkbox', bind: data}, () => {
       inputElement = getParentElement();
     });
@@ -41,7 +41,7 @@ test('binds checkboxes', async () => {
 test('binds radio buttons', async () => {
   let data = proxy('woman' as string);
   let inputElement1, inputElement2;
-  observe(() => {
+  $(() => {
     $('input', {type: 'radio', name: 'gender', value: 'man', bind: data}, () => {
       inputElement1 = getParentElement();
     });
@@ -60,7 +60,7 @@ test('binds radio buttons', async () => {
 
 test('reads initial value when proxy is undefined', () => {
   let data = proxy({} as Record<string, any>);
-  observe(() => {
+  $(() => {
     $('input', {value: 'a', bind: ref(data, 'input')});
     $('input', {type: 'checkbox', checked: true, bind: ref(data, 'checkbox')});
     $('input', {type: 'radio', name: 'abc', value: 'x', checked: false, bind: ref(data, 'radio')});
@@ -73,7 +73,7 @@ test('reads initial value when proxy is undefined', () => {
 test('changes DOM when proxy value is updated', async () => {
   let data = proxy("test" as string);
   let toggle = proxy(true as boolean);
-  observe(() => {
+  $(() => {
     $('input', {bind: data});
     $('input', {type: 'checkbox', bind: toggle});
   });
@@ -87,7 +87,7 @@ test('changes DOM when proxy value is updated', async () => {
 test('returns numbers for number/range typed inputs', async () => {
   let data = proxy("" as any);
   let inputElement;
-  observe(() => {
+  $(() => {
     $('input', {type: 'number', bind: data}, () => {
       inputElement = getParentElement();
     });

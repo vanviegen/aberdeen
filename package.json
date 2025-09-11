@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.0.13",
+  "version": "1.1.0",
   "author": "Frank van Viegen",
   "main": "dist-min/aberdeen.js",
   "devDependencies": {
@@ -29,6 +29,11 @@
       "default": "./dist-min/prediction.js",
       "development": "./dist/prediction.js",
       "types": "./dist/prediction.d.ts"
+    },
+    "./dispatcher": {
+      "default": "./dist-min/dispatcher.js",
+      "development": "./dist/dispatcher.js",
+      "types": "./dist/dispatcher.d.ts"
     },
     "./package.json": "./package.json"
   },

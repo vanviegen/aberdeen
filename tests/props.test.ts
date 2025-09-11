@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, copy, proxy, observe, getParentElement, mount, MERGE } from "../src/aberdeen";
+import { $, proxy, getParentElement, mount, merge } from "../src/aberdeen";
 
 test('Sets and unsets classes', async () => {
     let cnt1 = 0, cnt2 = 0, cnt3 = 0;
@@ -9,7 +9,7 @@ test('Sets and unsets classes', async () => {
         cnt1++;
         $('div', () => {
             cnt2++;
-            observe(() => {
+            $(() => {
                 cnt3++;
                 $(classObj);
             });
@@ -18,7 +18,7 @@ test('Sets and unsets classes', async () => {
     await passTime();
     assertBody(`div.b`);
     
-    copy(classObj, {".a": true, ".d": true}, MERGE);
+    merge(classObj, {".a": true, ".d": true});
     await passTime();
     assertBody(`div.a.b.d`);
     

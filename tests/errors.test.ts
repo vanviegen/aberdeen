@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, assertThrow, passTime } from "./helpers";
-import { $, setErrorHandler, proxy, observe, onEach, mount } from "../src/aberdeen";
+import { $, setErrorHandler, proxy, onEach, mount } from "../src/aberdeen";
 
 async function captureOnError(message: string, func: () => void, showMsg: boolean = true) {
     let lastErr: Error | undefined;
@@ -129,10 +129,10 @@ test('Error handling - throws when onEach() is invoked with non-collection', () 
 
 test('Error handling - breaks up long update->observe recursions', async () => {
     let data = proxy({a: 0, b: 0});
-    observe(() => {
+    $(() => {
         data.a = data.b + 1;
     });
-    observe(() => {
+    $(() => {
         data.b = data.a + 1;
     });
     await captureOnError('recursive', passTime);

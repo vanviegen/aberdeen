@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, assertThrow } from "./helpers";
-import { $, copy, proxy, observe, mount, MERGE } from "../src/aberdeen";
+import { $, proxy, mount, merge } from "../src/aberdeen";
 import { applyPrediction, applyCanon } from "../src/prediction";
 
 test('Prediction reverts', async () => {
     let data = proxy('a');
-    observe(() => {
+    $(() => {
         $(data.value);
     });
     assertBody(`a`);
@@ -26,7 +26,7 @@ test('Prediction reverts', async () => {
 
 test('Prediction reverts entire patch when it can no longer apply', async () => {
     let data = proxy({1: 'a', 2: 'x', 3: 'm'} as Record<number,string>);
-    observe(() => {
+    $(() => {
         $(data[1]);
         $(data[2]);
         $(data[3]);
@@ -34,7 +34,7 @@ test('Prediction reverts entire patch when it can no longer apply', async () => 
     assertBody(`a x m`);
     
     // This prediction should be flushed out due to conflict
-    applyPrediction(() => copy(data, {1: 'b', 2: 'y'}, MERGE));
+    applyPrediction(() => merge(data, {1: 'b', 2: 'y'}));
     await passTime();
     assertBody(`b y m`);
     
@@ -57,7 +57,7 @@ test('Prediction reverts entire patch when it can no longer apply', async () => 
 
 test('Prediction forcibly reverts to canon state', async () => {
     let data = proxy('a');
-    observe(() => {
+    $(() => {
         $(data.value);
     });
     assertBody(`a`);

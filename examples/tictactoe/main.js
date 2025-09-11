@@ -1,4 +1,4 @@
-import {$, proxy, onEach, insertCss, observe} from '../../dist/aberdeen.js';
+import {$, proxy, onEach, insertCss, derive } from '../../dist/aberdeen.js';
 
 // UI drawing functions.
 
@@ -56,7 +56,7 @@ function drawTurns(history) {
             // A text node:
             text: index,
             // Conditional css class:
-            ".outline": observe(() => history.current != index),
+            ".outline": derive(() => history.current != index),
             // Inline styles:
             $marginRight: "0.5em",
             $marginTop: "0.5em",

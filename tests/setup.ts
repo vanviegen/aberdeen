@@ -4,12 +4,12 @@ import { assertBody } from "./helpers";
 import { setErrorHandler, unmountAll } from '../src/aberdeen';
 
 beforeEach(() => {
-	fakedom.resetCounts()
-	setErrorHandler()
-})
+	fakedom.resetCounts();
+	setErrorHandler();
+});
 
 afterEach(async () => {
-	unmountAll()
-	await fakedom.passTime(2001) // wait for deletion transitions
-	assertBody(``)
+	unmountAll();
+	await fakedom.passTime(2001); // wait for deletion transitions
+	assertBody(``);
 })

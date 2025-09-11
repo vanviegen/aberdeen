@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, getBody } from "./helpers";
-import { $, proxy, observe, copy, onEach, clean, unmountAll, map, count } from "../src/aberdeen";
+import { $, proxy, copy, onEach, clean, unmountAll, map, count } from "../src/aberdeen";
 
 test('onEach does nothing for an empty object', () => {
   let cnt = 0;
-  observe(() => {
+  $(() => {
     let data = proxy({});
     onEach(data, function() {
       cnt++;
@@ -15,7 +15,7 @@ test('onEach does nothing for an empty object', () => {
 
 test('onEach emits a single entry', () => {
   let result: [string, number][] = [];
-  observe(() => {
+  $(() => {
     let data = proxy({x: 3});
     onEach(data, function(value, key) {
       result.push([key, value]);
@@ -26,7 +26,7 @@ test('onEach emits a single entry', () => {
 
 test('onEach emits multiple entries', () => {
   let result: [string, number][] = [];
-  observe(() => {
+  $(() => {
     let data = proxy({x: 3, y: 4, z: 5});
     onEach(data, function(value, key) {
       result.push([key, value]);
@@ -38,7 +38,7 @@ test('onEach emits multiple entries', () => {
 });
 
 test('onEach adds a single item to the DOM', () => {
-  observe(() => {
+  $(() => {
     let data = proxy({x: 3});
     onEach(data, function(value, key) {
       $('p', {class: key, text: value});
@@ -76,7 +76,7 @@ test('onEach rerenders items on unrelated observable changes', async () => {
 })
 
 test('onEach maintains the last-element marker', () => {
-  observe(() => {
+  $(() => {
     let data = proxy({c: 3, a: 1, b: 2});
     onEach(data, function(value, key) {
       $('p', {text: key});
@@ -89,7 +89,7 @@ test('onEach maintains the last-element marker', () => {
 test('onEach maintains position for items', async () => {
   let data = proxy({0: false, 1: false, 2: false, 3: false});
   let cnts = [0, 0, 0, 0];
-  observe(() => {
+  $(() => {
     onEach(data, (value, index) => {
       cnts[Number(index)]++;
       if (value) $('p', {id: index});
@@ -113,7 +113,7 @@ test('onEach maintains position for items', async () => {
 
 test('onEach adds items in the right position', async () => {
   let data = proxy({} as Record<string, boolean>);
-  observe(() => {
+  $(() => {
     onEach(data, (value, key) => {
       $(key);
     });
@@ -138,7 +138,7 @@ test('onEach removes items and calls cleaners', async () => {
   }
   
   let cleaned: string[] = [];
-  observe(() => {
+  $(() => {
     onEach(data, (value, key) => {
       $(key);
       clean(() => {
@@ -166,7 +166,7 @@ test('onEach removes an entire object and calls cleaners', async () => {
   let showOnEach = proxy(true);
   let cnt = 0;
   
-  observe(() => {
+  $(() => {
     if (showOnEach.value) {
       onEach(data, (value, key) => {
         cnt++;
@@ -191,7 +191,7 @@ test('onEach should ignore on delete followed by set', async () => {
   let data = proxy({a: 1, b: 2} as Record<string,number>);
   let cnt = 0;
   
-  observe(() => {
+  $(() => {
     onEach(data, (value, key) => {
       $(key);
       cnt++;
@@ -214,7 +214,7 @@ test('onEach should do nothing on set followed by delete', async () => {
   let data = proxy({a: 1} as Record<string,number>);
   let cnt = 0;
   
-  observe(() => {
+  $(() => {
     onEach(data, (value, key) => {
       $(key);
       cnt++;
@@ -236,7 +236,7 @@ test('onEach should do nothing on set followed by delete', async () => {
 test('onEach should handle items with identical sort keys', async () => {
   let data = proxy({a: 1, b: 1, c: 1, d: 1} as Record<string,number>);
   
-  observe(() => {
+  $(() => {
     onEach(data, (value, key) => {
       $(key);
     }, value => value);
@@ -298,7 +298,7 @@ test('onEach keeps two onEaches in order', async () => {
 test('onEach iterates arrays', async () => {
   let data = proxy(['e', 'b', 'a', 'd']);
   
-  observe(() => {
+  $(() => {
     onEach(data, (value, index) => {
       $('h' + index);
     });
@@ -317,7 +317,7 @@ test('onEach iterates arrays', async () => {
 test('onEach iterates arrays that are pushed into', async () => {
   let data = proxy(['e', 'b', 'a', 'd']);
   
-  observe(() => {
+  $(() => {
     onEach(data, (value, index) => {
       $('h' + index);
     });
@@ -336,7 +336,7 @@ test('onEach removes all children before redrawing', async () => {
   let data = proxy({a: 1, b: 2});
   let select = proxy(1);
   
-  observe(() => {
+  $(() => {
     const selectedValue = select.value;
     onEach(data, (value, key) => {
       $(key);
@@ -364,7 +364,7 @@ test('onEach should handle items that don\'t create DOM elements', async () => {
     for(let i = 0; i < count; i++) {
       $({text: index + letter});
     }
-  }, item => [item[0], -parseInt(item[1])]);
+  }, item => item && [item[0], -parseInt(item[1])]);
   
   assertBody(`"7a" "7a" "5a" "3b" "3b" "1b" "2c"`);
   
@@ -383,7 +383,7 @@ test('onEach should handle items that don\'t create DOM elements', async () => {
 test('onEach filters when there is no sort key', async () => {
   let data = proxy(['a', 'b', 'c']);
   
-  observe(() => {
+  $(() => {
     onEach(data, (item) => {
       $(item);
     }, item => item == 'b' ? undefined : item);

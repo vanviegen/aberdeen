@@ -433,11 +433,11 @@ $('h3', {text: derived});
 $('button:Increment', {click: () => original.value++});
 ```
 
-The {@link aberdeen.observe} function makes the above a little easier. It works just like passing a function to {@link aberdeen.$}, creating an observer, the only difference being that the value returned by the function is reactively assigned to the `value` property of the observable object returned by `observe`. So the above could also be written as:
+The {@link aberdeen.derive} function makes the above a little easier. It works just like passing a function to {@link aberdeen.$}, creating an observer, the only difference being that the value returned by the function is reactively assigned to the `value` property of the observable object returned by `derive`. So the above could also be written as:
 
 ```javascript
 const original = proxy(1);
-const derived = observe(() => original.value * 42);
+const derived = derive(() => original.value * 42);
 
 $('h3', {text: derived});
 $('button:Increment', {click: () => original.value++});
@@ -465,7 +465,7 @@ const overweightBmis = aberdeen.map(bmis, // Use map() as a filter
     bmi => bmi > 25 ? bmi : undefined
 ); 
 const overweightCount = aberdeen.count(overweightBmis);
-const message = aberdeen.observe(
+const message = aberdeen.derive(
     () => `There are ${totalCount.value} people, of which ${overweightCount.value} are overweight.`
 );
 

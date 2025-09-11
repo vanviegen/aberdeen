@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { $, proxy, observe, clean, unmountAll } from "../src/aberdeen";
+import { $, proxy, clean, unmountAll } from "../src/aberdeen";
 import { assertBody, passTime } from './helpers';
 
 test('Clean triggers once when redrawing', async () => {
   let cnt1 = 0, cnt2 = 0;
   let data = proxy(1);
   
-  observe(() => {
+  $(() => {
     cnt1++;
     $({text: data.value});
     clean(() => {

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { $, count, isEmpty, map, multiMap, observe, onEach, partition, proxy, unmountAll, copy, clone, unproxy, clean, MERGE } from "../src/aberdeen";
+import { $, count, isEmpty, map, multiMap, onEach, partition, proxy, copy, merge, clone, unproxy, clean } from "../src/aberdeen";
 import { assertBody, passTime } from "./helpers";
 
 test('proxy creates Map proxy', () => {
@@ -17,7 +17,7 @@ test('Map proxy supports get and set', async () => {
     const data = proxy(new Map([['a', 1]]));
     let cnt = 0;
     
-    observe(() => {
+    $(() => {
         cnt++;
         $({text: `a=${data.get('a')}`});
     });
@@ -35,7 +35,7 @@ test('Map proxy supports has method', async () => {
     const data = proxy(new Map([['a', 1]]));
     let cnt = 0;
     
-    observe(() => {
+    $(() => {
         cnt++;
         $({text: `hasA=${data.has('a')} hasB=${data.has('b')}`});
     });
@@ -58,7 +58,7 @@ test('Map proxy supports delete method', async () => {
     const data = proxy(new Map([['a', 1], ['b', 2]]));
     let cnt = 0;
     
-    observe(() => {
+    $(() => {
         cnt++;
         $({text: `size=${data.size}`});
     });
@@ -83,7 +83,7 @@ test('Map proxy supports clear method', async () => {
     const data = proxy(new Map([['a', 1], ['b', 2], ['c', 3]]));
     let cnt = 0;
     
-    observe(() => {
+    $(() => {
         cnt++;
         $({text: `size=${data.size}`});
     });
@@ -101,7 +101,7 @@ test('Map proxy supports size property', async () => {
     const data = proxy(new Map());
     let cnt = 0;
     
-    observe(() => {
+    $(() => {
         cnt++;
         $({text: `size=${data.size}`});
     });
@@ -129,19 +129,19 @@ test('Map proxy supports iteration methods', async () => {
     const data = proxy(new Map([['a', 1], ['b', 2]]));
     let keysCnt = 0, valuesCnt = 0, entriesCnt = 0;
     
-    observe(() => {
+    $(() => {
         keysCnt++;
         const keys = Array.from(data.keys()).join(',');
         $({text: `keys=${keys}`});
     });
     
-    observe(() => {
+    $(() => {
         valuesCnt++;
         const values = Array.from(data.values()).join(',');
         $({text: `values=${values}`});
     });
     
-    observe(() => {
+    $(() => {
         entriesCnt++;
         const entries = Array.from(data.entries()).map(([k, v]) => `${k}:${v}`).join(',');
         $({text: `entries=${entries}`});
@@ -164,7 +164,7 @@ test('Map proxy supports Symbol.iterator', async () => {
     const data = proxy(new Map([['a', 1], ['b', 2]]));
     let cnt = 0;
     
-    observe(() => {
+    $(() => {
         cnt++;
         const entries = Array.from(data).map(([k, v]) => `${k}:${v}`).join(',');
         $({text: `iter=${entries}`});
@@ -185,7 +185,7 @@ test('Map proxy supports object keys', async () => {
     const data = proxy(new Map([[keyObj1, 'value1']]));
     let cnt = 0;
     
-    observe(() => {
+    $(() => {
         cnt++;
         $({text: `has1=${data.has(keyObj1)} has2=${data.has(keyObj2)}`});
     });
@@ -277,7 +277,7 @@ test('isEmpty works with Maps', async () => {
     const data = proxy(new Map());
     let cnt = 0;
     
-    observe(() => {
+    $(() => {
         cnt++;
         $({text: isEmpty(data) ? 'empty' : 'not empty'});
     });
@@ -413,10 +413,11 @@ test('clone function works with Maps', () => {
 
 test('copy function works with Maps', async () => {
     const source = proxy(new Map([['a', 1], ['b', 2]]));
+    expect(source.constructor).toBe(Map);
     const target = proxy(new Map([['b', 20], ['c', 30]]));
     let copyEmitCount = 0;
     
-    observe(() => {
+    $(() => {
         const entries = Array.from(target.entries()).map(([k, v]) => `${k}:${v}`).sort().join(',');
         $({text: entries});
         copyEmitCount++;
@@ -432,22 +433,22 @@ test('copy function works with Maps', async () => {
     expect(target.size).toBe(2);
     expect(target.has('c')).toBe(false); // c should be removed
 
-    copy(target, {x: 123}, MERGE);
+    merge(target, new Map([['x', 123]]));
     expect(target.size).toBe(3);
     expect(target.get('x')).toBe(123);
 
-    copy(target, {y: 456});
+    copy(target, new Map([['y', 456]]));
     expect(target.size).toBe(1);
     expect(target.get('y')).toBe(456);
 
 });
 
-test('copy function with MERGE flag on Maps', async () => {
+test('merge function on Maps', async () => {
     const source = proxy(new Map([['a', 1], ['b', 2]]));
     const target = proxy(new Map([['b', 20], ['c', 30]]));
     
     // MERGE flag is 1 according to the source
-    copy(target, source, 1); // MERGE flag  
+    merge(target, source);
     await passTime();
     
     expect(target.size).toBe(3);
@@ -460,7 +461,7 @@ test('Map proxy with nested objects', async () => {
     const data = proxy(new Map([['obj1', {value: 1}]]));
     let cnt = 0;
     
-    observe(() => {
+    $(() => {
         cnt++;
         const obj = data.get('obj1');
         $({text: `value=${obj?.value}`});
@@ -526,7 +527,7 @@ test('Map proxy emits size changes correctly', async () => {
     const data = proxy(new Map());
     const sizeChanges: number[] = [];
     
-    observe(() => {
+    $(() => {
         sizeChanges.push(data.size);
     });
     
@@ -585,7 +586,7 @@ test('Map size tracking with MAP_SIZE_SYMBOL', async () => {
     let sizeObservations = 0;
     
     // Test that size changes are tracked properly
-    observe(() => {
+    $(() => {
         sizeObservations++;
         return data.size;
     });
