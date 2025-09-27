@@ -368,7 +368,7 @@ addEventListener('DOMContentLoaded', () => {
         }
         
         let hasLayout = !!js.match(/\$\(\s*['"`]|\bdump\(|\btext:/);
-        let hasInteraction = !!js.match(/\bbind:|\bclick:|\binput:|\bsetInterval\b|\bsetTimeout\b/);
+        let hasInteraction = !!js.match(/\bbind[=:]|\bclick[=:]|\binput[=:]|\bsetInterval\b|\bsetTimeout\b/);
         tabs[hasLayout ? (hasInteraction ? 'Browser' : 'HTML') : 'Console'].select();
         
         reloadIframe();

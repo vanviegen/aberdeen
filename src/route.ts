@@ -1,6 +1,6 @@
 import {clean, getParentElement, $, proxy, runQueue, unproxy, copy, merge, clone, leakScope} from "./aberdeen.js";
 
-type NavType = "load" | "back" | "forward" | "go";
+type NavType = "load" | "back" | "forward" | "go" | "push";
 
 /**
 * The class for the global `route` object.
@@ -22,6 +22,7 @@ export interface Route {
 	- `"load"`: An initial page load.
 	- `"back"` or `"forward"`: When we navigated backwards or forwards in the stack.
 	- `"go"`: When we added a new page on top of the stack.
+	- `"push"`: When we added a new page on top of the stack, merging with the current page.
 	Mostly useful for page transition animations. Writing to this property has no effect.
 	*/
 	nav: NavType;
@@ -147,15 +148,15 @@ function targetToPartial(target: RouteTarget) {
 * route.go({p: ["users", 123], search: {tab: "feed"}, hash: "top"});
 * ```
 */
-export function go(target: RouteTarget): void {
+export function go(target: RouteTarget, nav: NavType = "go"): void {
 	const stack: string[] = history.state?.stack || [];
 
 	prevStack = stack.concat(JSON.stringify(unproxy(current)));
 	
-	const newRoute: Route = toCanonRoute(targetToPartial(target), "go", prevStack.length + 1);
+	const newRoute: Route = toCanonRoute(targetToPartial(target), nav, prevStack.length + 1);
 	copy(current, newRoute);
 	
-	log('go', newRoute);
+	log(nav, newRoute);
 	history.pushState({state: newRoute.state, stack: prevStack}, "", getUrl(newRoute));
 	
 	runQueue();

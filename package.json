@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Frank van Viegen",
   "main": "dist-min/aberdeen.js",
   "devDependencies": {
@@ -20,10 +20,10 @@
       "development": "./dist/route.js",
       "types": "./dist/route.d.ts"
     },
-    "./transition": {
-      "default": "./dist-min/transition.js",
-      "development": "./dist/transition.js",
-      "types": "./dist/transition.d.ts"
+    "./transitions": {
+      "default": "./dist-min/transitions.js",
+      "development": "./dist/transitions.js",
+      "types": "./dist/transitions.d.ts"
     },
     "./prediction": {
       "default": "./dist-min/prediction.js",

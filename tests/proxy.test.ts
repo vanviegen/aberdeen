@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, copy, unproxy, ref } from "../src/aberdeen";
+import { $, proxy, copy, unproxy, ref, dump } from "../src/aberdeen";
 
 test('proxy holds basic types', async () => {
   let proxied = proxy(undefined as any);
@@ -238,3 +238,36 @@ test('unproxies refs', async () => {
   expect(obj.a).toEqual(3);
   assertBody('"3"');
 })
+
+test('proxy Promise resolve', async () => {
+  let data = proxy(new Promise(resolve => {
+    setTimeout(() => resolve(42), 10);
+  }));
+  
+  $(() => {
+    $(':'+JSON.stringify(data));
+  });
+
+  assertBody(JSON.stringify(`{"busy":true}`));
+  
+  await passTime(20);
+  assertBody(JSON.stringify(`{"busy":false,"value":42}`));
+});
+
+test('proxy Promise reject', async () => {
+  let data = proxy(async function(): Promise<number> {
+    throw new Error("fail");
+    return 42;
+  }());
+  
+  $(() => {
+    dump(data);
+  });
+
+  assertBody(`"<object>" ul{li{"\\"busy\\": " "true"}}`);
+  
+  await passTime(20);
+  expect(data.error).toBeInstanceOf(Error);
+  expect(data.value).toBeUndefined();
+  assertBody(`"<object>" ul{li{"\\"busy\\": " "false"} li{"\\"error\\": " "<object>" ul}}`);
+});

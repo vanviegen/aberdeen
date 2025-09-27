@@ -31,17 +31,17 @@ const state = proxy({question: "How many roads must a man walk down?", answer: 4
 
 $('h3', () => {
     // This function reruns whenever the question or the answer changes
-    $(`:${state.question} ↪ ${state.answer || 'Blowing in the wind'}`)
+    $('text=', `${state.question} ↪ ${state.answer || 'Blowing in the wind'}`)
 });
 
 // Two-way bind state.question to an <input>
-$('input', {placeholder: 'Question', bind: ref(state, 'question')})
+$('input placeholder=Question bind=', ref(state, 'question'))
 
 // Allow state.answer to be modified using both an <input> and buttons
-$('div.row', {$marginTop: '1em'}, () => {
-    $('button:-', {click: () => state.answer--});
-    $('input', {type: 'number', bind: ref(state, 'answer')})
-    $('button:+', {click: () => state.answer++});
+$('div.row $marginTop=1em', () => {
+    $('button text=- click=', () => state.answer--);
+    $('input type=number bind=', ref(state, 'answer'))
+    $('button text=+ click=', () => state.answer++);
 });
 ```
 
@@ -174,7 +174,16 @@ And you may want to study the examples above, of course!
 
 ## Changelog
 
-### 1.1.0 (2024-09-12)
+### 1.2.0 (2025-09-27)
+
+**Enhancements:**
+- The `$` function now supports a more concise syntax for setting attributes and properties. Instead of writing `$('p', 'button', {$color: 'red', click: () => ...})`, you can now write `$('p button $color=red click=', () => ...)`.
+- The `proxy()` function can now accept `Promise`s, which will return an observable object with properties for `busy` status, `error` (if any), and the resolved `value`. This makes it easier to call async functions from within UI code.
+
+**Breaking changes:**
+- When a UI render function returns a `Promise`, that will now be reported as an error. Async render functions are fundamentally incompatible with Aberdeen's reactive model, so it's helpful to point that out. Use the new `proxy()` async support instead.
+
+### 1.1.0 (2025-09-12)
 
 This major release aims to reduce surprises in our API, aligning more closely with regular JavaScript semantics (for better or worse).
 

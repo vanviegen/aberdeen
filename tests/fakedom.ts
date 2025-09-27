@@ -41,8 +41,8 @@ class Element extends Node {
   attrs: Record<string, string> = {};
   events: Record<string, Set<Function>> = {};
   _classList?: {
-    add: (name: string) => void;
-    remove: (name: string) => void;
+    add: (...names: string[]) => void;
+    remove: (...names: string[]) => void;
     toggle: (name: string, force?: boolean) => void;
   };
 
@@ -104,19 +104,19 @@ class Element extends Node {
   }
 
   get classList(): {
-    add: (name: string) => void;
-    remove: (name: string) => void;
+    add: (...names: string[]) => void;
+    remove: (...names: string[]) => void;
     toggle: (name: string, force?: boolean) => void;
   } {
     return this._classList || (this._classList = {
-      add: (name: string) => {
+      add: (...names: string[]) => {
         let set = this._getClassSet();
-        set.add(name);
+        for(const name of names) set.add(name);
         this._setClassSet(set);
       },
-      remove: (name: string) => {
+      remove: (...names: string[]) => {
         let set = this._getClassSet();
-        set.delete(name);
+        for(const name of names) set.delete(name);
         this._setClassSet(set);
       },
       toggle: (name: string, force?: boolean) => {

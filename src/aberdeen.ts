@@ -1056,7 +1056,7 @@ const objectHandler: ProxyHandler<any> = {
 		return true;
 	},
 	deleteProperty(target: any, prop: any) {
-		const old = target.hasOwnProperty(prop) ? target[prop] : undefined;
+		const old = target.hasOwnProperty(prop) ? target[prop] : EMPTY;
 		delete target[prop];
 		emit(target, prop, EMPTY, old);
 		return true;
@@ -1289,6 +1289,13 @@ function optProxy(value: any): any {
 	return proxied;
 }
 
+interface PromiseProxy<T> {
+	busy: boolean;
+	error?: any;
+	value?: T;
+}
+
+export function proxy<T extends any>(target: Promise<T>): PromiseProxy<T>;
 export function proxy<T extends any>(target: Array<T>): Array<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T >;
 export function proxy<T extends object>(target: T): T;
 export function proxy<T extends any>(target: T): ValueRef<T extends number ? number : T extends string ? string : T extends boolean ? boolean : T>;
@@ -1304,6 +1311,10 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  *   property access and mutations, but otherwise works like the underlying data.
  * - Primitives (string, number, boolean, null, undefined) are wrapped in an object
  *   `{ value: T }` which is then proxied. Access the primitive via the `.value` property.
+ * - Promises are represented by proxied objects `{ busy: boolean, value?: T, error?: any }`.
+ *   Initially, `busy` is `true`. When the promise resolves, `value` is set and `busy`
+ *   is set to `false`. If the promise is rejected, `error` is set and `busy` is also
+ *   set to `false`.
  *
  * Use {@link unproxy} to get the original underlying data back.
  *
@@ -1347,6 +1358,21 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  * ```
  */
 export function proxy(target: TargetType): TargetType {
+	if (target instanceof Promise) {
+		const result: PromiseProxy<any> = optProxy({
+			busy: true,
+		});
+		target
+			.then((value) => {
+				result.value = value;
+				result.busy = false;
+			})
+			.catch((err) => {
+				result.error = err;
+				result.busy = false;
+			});
+		return result;
+	}
 	return optProxy(
 		typeof target === "object" && target !== null ? target : { value: target },
 	);
@@ -1439,14 +1465,14 @@ export function copy<T extends object>(dst: T, src: T): boolean;
 export function copy<T extends object>(dst: T, dstKey: keyof T, src: T[typeof dstKey]): boolean;
 export function copy(a: any, b: any, c?: any): boolean {
 	if (arguments.length > 2) return copySet(a, b, c, 0);
-	return copyRecursive(a, b, 0);
+	return copyImpl(a, b, 0);
 }
 
 function copySet(dst: any, dstKey: any, src: any, flags: number): boolean {
 	let dstVal = peek(dst, dstKey);
 	if (src === dstVal) return false;
 	if (typeof dstVal === "object" && dstVal && typeof src === "object" && src && dstVal.constructor === src.constructor) {
-		return copyRecursive(dstVal, src, flags);
+		return copyImpl(dstVal, src, flags);
 	}
 	src = clone(src); 
 	if (dst instanceof Map) dst.set(dstKey, src);
@@ -1483,25 +1509,30 @@ export function merge<T extends object>(dst: T, value: Partial<T>): boolean;
 export function merge<T extends object>(dst: T, dstKey: keyof T, value: Partial<T[typeof dstKey]>): boolean;
 export function merge(a: any, b: any, c?: any) {
 	if (arguments.length > 2) return copySet(a, b, c, MERGE);
-	return copyRecursive(a, b, MERGE);
+	return copyImpl(a, b, MERGE);
 }
 
-// The dst and src parameters must be objects. Will throw a friendly message if they're not both the same type.
-function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean {
+function copyImpl(dst: any, src: any, flags: number): boolean {
 	// We never want to subscribe to reads we do to the target (to find changes). So we'll
 	// take the unproxied version and `emit` updates ourselve.
-	let unproxied = (dst as any)[TARGET_SYMBOL] as T;
+	let unproxied = (dst as any)[TARGET_SYMBOL];
 	if (unproxied) {
 		dst = unproxied;
 		flags |= COPY_EMIT;
 	}
 	// For performance, we'll work on the unproxied `src` and manually subscribe to changes.
-	unproxied = (src as any)[TARGET_SYMBOL] as T;
+	unproxied = (src as any)[TARGET_SYMBOL];
 	if (unproxied) {
 		src = unproxied;
 		// If we're not in peek mode, we'll manually subscribe to all source reads.
 		if (currentScope !== ROOT_SCOPE && !peeking) flags |= COPY_SUBSCRIBE;
 	}
+
+	return copyRecursive(dst, src, flags);
+}
+
+// The dst and src parameters must be objects. Will throw a friendly message if they're not both the same type.
+function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean {
 
 	if (flags & COPY_SUBSCRIBE) subscribe(src, ANY_SYMBOL);
 	let changed = false;
@@ -1642,7 +1673,7 @@ export function clone<T extends object>(src: T): T {
 	const copied = Array.isArray(src) ? [] : src instanceof Map ? new Map() : Object.create(Object.getPrototypeOf(src));
 	// Copy all properties to it. This doesn't need to emit anything, and because
 	// the destination is an empty object, we can just MERGE, which is a bit faster.
-	copyRecursive(copied, src, MERGE);
+	copyImpl(copied, src, MERGE);
 	return copied;
 }
 
@@ -1787,7 +1818,7 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
 	},
 	text: (value: any) => {
 		addNode(document.createTextNode(value));
-	}
+	},
 };
 
 /**
@@ -1798,11 +1829,13 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  * @param {...(string | function | object | false | undefined | null)} args - Any number of arguments can be given. How they're interpreted depends on their types:
  *
  * - `string`: Strings can be used to create and insert new elements, set classnames for the *current* element, and add text to the current element.
- *   The format of a string is: **tag**? (`.` **class**)* (':' **text**)?
- *   meaning it consists of...
- *   - An optional HTML **tag**, something like `h1`. If present, a DOM element of that tag is created, and that element will be the *current* element for the rest of this `$` function execution.
- *   - Any number of CSS classes prefixed by `.` characters. These classes will be added to the *current* element.
- *   - Optional content **text** prefixed by a `:` character, ranging til the end of the string. This will be added as a TextNode to the *current* element.
+ *   The format of a string is: (**tag** | `.` **class** | **key**=**val** | **key**="**long val**")* (':' **text** | **key**=)?
+ *   So there can be:
+ *   - Any number of **tag** element, like `h1` or `div`. These elements are created, added to the *current* element, and become the new *current* element for the rest of this `$` function execution.
+ *   - Any number of CSS classes prefixed by `.` characters. These classes will be added to the *current* element. Optionally, CSS classes can be appended to a **tag** without a space. So both `div.myclass` and `div .myclass` are valid and do the same thing.
+ *   - Any number of key/value pairs with string values, like `placeholder="Your name"` or `data-id=123`. These will be handled according to the rules specified for `object`, below, but with the caveat that values can only be strings. The quotes around string values are optional, unless the value contains spaces. It's not possible to escape quotes within the value. If you want to do that, or if you have user-provided values, use the `object` syntax (see below) or end your string with `key=` followed by the data as a separate argument (see below).
+ *   - The string may end in a ':' followed by text, which will be added as a TextNode to the *current* element. The text ranges til the end of the string, and may contain any characters, including spaces and quotes.
+ *   - Alternatively, the string may end in a key followed by an '=' character, in which case the value is expected as a separate argument. The key/value pair is set according to the rules specified for `object` below. This is useful when the value is not a string or contains spaces or user data. Example: `$('button text="Click me" click=', () => alert('Clicked!'))` or `$('input.value=', someUserData, "placeholder=", "Type your stuff")`.
  * - `function`: When a function (without argument nor a return value) is passed in, it will be reactively executed in its own observer scope, preserving the *current element*. So any `$()` invocations within this function will create DOM elements with our *current* element as parent. If the function reads observable data, and that data is changed later on, the function we re-execute (after side effects, such as DOM modifications through `$`, have been cleaned - see also {@link clean}).
  * - `object`: When an object is passed in, its key-value pairs are used to modify the *current* element in the following ways...
  *   - `{<attrName>: any}`: The common case is setting the value as an HTML attribute named key. So `{placeholder: "Your name"}` would add `placeholder="Your name"` to the current HTML element.
@@ -1836,6 +1869,14 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  *   $color: 'red'
  * });
  * ```
+ * 
+ * Which can also be written as:
+ * ```typescript
+ * $('button.secondary.outline text=Submit $color=red disabled=', false, 'click=', () => console.log('Clicked!'));
+ * ```
+ * 
+ * We want to set `disabled` as a property instead of an attribute, so we must use the `key=` syntax in order to provide
+ * `false` as a boolean instead of a string.
  *
  * @example Create Nested Elements
  * ```typescript
@@ -1889,24 +1930,85 @@ export function $(
 	let savedCurrentScope: undefined | ContentScope;
 	let err: undefined | string;
 	let result: undefined | Element;
+	let nextArgIsProp: undefined | string;
 
 	for (let arg of args) {
-		if (arg == null || arg === false) continue;
-		if (typeof arg === "string") {
-			let text: undefined | string;
-			let classes: undefined | string;
-			const textPos = arg.indexOf(":");
-			if (textPos >= 0) {
-				text = arg.substring(textPos + 1);
-				arg = arg.substring(0, textPos);
-			}
-			const classPos = arg.indexOf(".");
-			if (classPos >= 0) {
-				classes = arg.substring(classPos + 1);
-				arg = arg.substring(0, classPos);
-			}
-			if (arg === "") {
-				// Add text or classes to parent
+		if (nextArgIsProp) {
+			applyArg(nextArgIsProp, arg);
+			nextArgIsProp = undefined;
+		} else if (arg == null || arg === false) {
+			// Ignore
+		} else if (typeof arg === "string") {
+			let pos = 0;
+			let argLen = arg.length;
+			while(pos < argLen) {
+				let nextSpace = arg.indexOf(" ", pos);
+				if (nextSpace < 0) nextSpace = arg.length;
+				let part = arg.substring(pos, nextSpace);
+				const oldPos = pos;
+				pos = nextSpace + 1;
+				
+				const firstIs = part.indexOf('=');
+				const firstColon = part.indexOf(':');
+				if (firstIs >= 0 && (firstColon < 0 || firstIs < firstColon)) {
+					const prop = part.substring(0, firstIs);
+					if (firstIs < part.length - 1) {
+						let value = part.substring(firstIs + 1);
+						if (value[0] === '"') {
+							const closeIndex = arg.indexOf('"', firstIs+2+oldPos);
+							if (closeIndex < 0) throw new Error(`Unterminated string for '${prop}'`);
+							value = arg.substring(firstIs+2+oldPos, closeIndex);
+							pos = closeIndex + 1;
+							if (arg[pos] === ' ') pos++;
+						}
+						applyArg(prop, value);
+						continue;
+					} else {
+						if (pos < argLen) throw new Error(`No value given for '${part}'`);
+						nextArgIsProp = prop;
+						break
+					}
+				}
+				
+				let text;
+				if (firstColon >= 0) {
+					// Read to the end of the arg, ignoring any spaces
+					text = arg.substring(firstColon + 1 + oldPos);
+					part = part.substring(0, firstColon);
+					if (!text) {
+						if (pos < argLen) throw new Error(`No value given for '${part}'`);
+						nextArgIsProp = 'text';
+						break;
+					}
+					pos = argLen;
+				}
+
+				let classes: undefined | string;
+				const classPos = part.indexOf(".");
+				if (classPos >= 0) {
+					classes = part.substring(classPos + 1);
+					part = part.substring(0, classPos);
+				}
+
+				if (part) { // Add an element
+					// Determine which namespace to use for element creation
+					const svg = currentScope.inSvgNamespace || part === 'svg';
+					if (svg) {
+						result = document.createElementNS('http://www.w3.org/2000/svg', part);
+					} else {
+						result = document.createElement(part);
+					}
+					addNode(result);
+					if (!savedCurrentScope) savedCurrentScope = currentScope;
+					const newScope = new ChainedScope(result, true);
+				
+					// SVG namespace should be inherited by children
+					if (svg) newScope.inSvgNamespace = true;
+					
+					if (topRedrawScope === currentScope) topRedrawScope = newScope;
+					currentScope = newScope;
+				}
+
 				if (text) addNode(document.createTextNode(text));
 				if (classes) {
 					const el = currentScope.parentElement;
@@ -1915,34 +2017,6 @@ export function $(
 						clean(() => el.classList.remove(...classes.split(".")));
 					}
 				}
-			} else if (arg.indexOf(" ") >= 0) {
-				err = `Tag '${arg}' cannot contain space`;
-				break;
-			} else {
-				// Determine which namespace to use for element creation
-				const useNamespace = currentScope.inSvgNamespace || arg === 'svg';
-				if (useNamespace) {
-					result = document.createElementNS('http://www.w3.org/2000/svg', arg);
-				} else {
-					result = document.createElement(arg);
-				}
-				
-				if (classes) result.className = classes.replaceAll(".", " ");
-				if (text) result.textContent = text;
-				addNode(result);
-				if (!savedCurrentScope) {
-					savedCurrentScope = currentScope;
-				}
-				const newScope = new ChainedScope(result, true);
-				
-				// If we're creating an SVG element, set the SVG namespace flag for child scopes
-				if (arg === 'svg') {
-					newScope.inSvgNamespace = true;
-				}
-				
-				newScope.lastChild = result.lastChild || undefined;
-				if (topRedrawScope === currentScope) topRedrawScope = newScope;
-				currentScope = newScope;
 			}
 		} else if (typeof arg === "object") {
 			if (arg.constructor !== Object) {
@@ -1971,9 +2045,8 @@ export function $(
 			break;
 		}
 	}
-	if (savedCurrentScope) {
-		currentScope = savedCurrentScope;
-	}
+	if (nextArgIsProp !== undefined) throw new Error(`No value given for '${nextArgIsProp}='`);
+	if (savedCurrentScope) currentScope = savedCurrentScope;
 	if (err) throw new Error(err);
 	return result;
 }

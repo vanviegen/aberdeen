@@ -8,10 +8,6 @@ test('adds nodes', async () => {
   assertBody(`p`);
 });
 
-test('refuses tags containing spaces', () => {
-  assertThrow('cannot contain space', () => $('a b'));
-});
-
 test('adds classes', async () => {
   $('p.a.b');
   await passTime();

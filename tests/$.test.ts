@@ -10,11 +10,13 @@ test('creates nested nodes', () => {
 	$("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
 	assertBody(`a{b.cls.second{c{x=y}}}`)
 });
+
 test('creates elements with text', () => {
 	$('div.cls:This is my :-containg text!')
 	$('h2', {text: 'More text...'})
 	assertBody(`div.cls{"This is my :-containg text!"} h2{"More text..."}`)
 })
+
 test('reactively modifies attributes that have proxies as values', async () => {
 	let cnt = 0
 	let data = proxy('initial' as string)
@@ -32,6 +34,7 @@ test('reactively modifies attributes that have proxies as values', async () => {
 	assertBody(`input{placeholder=modified} div{"modified"} p{color:modified}`)
 	expect(cnt).toEqual(1)
 })
+
 test('reacts to conditions', async () => {
 	const data: Record<string,any> = proxy({a: true})
 	expect(data.a).toEqual(true)
@@ -58,4 +61,22 @@ test('reacts to conditions', async () => {
 	await passTime()
 	assertBody(`div{span.z} input{value->def}`)
 	expect(cnt).toEqual(1)
+})
+
+test('long-form string args', async () => {
+	const enabled = proxy(false);
+	$(() => {
+		$('div.cls text=Title .enabled=', enabled, '$color=red span .important $fontDecoration=underline :The rest is text');
+	})
+	assertBody(`div.cls{color:red "Title" span.important{fontDecoration:underline "The rest is text"}}`);
+
+	enabled.value = true;
+	await passTime();
+
+	assertBody(`div.cls.enabled{color:red "Title" span.important{fontDecoration:underline "The rest is text"}}`);
+})
+
+test('long-form string arg escaping', async () => {
+	$('div text="My title" $margin="0 auto".cls');
+	assertBody(`div.cls{margin:"0 auto" "My title"}`);
 })

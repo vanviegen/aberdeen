@@ -1,0 +1,86 @@
+* {
+    box-sizing: border-box;    
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+}
+:root {
+    --link-color: #4c97f2;
+    --text-color: #f5f5f5;
+    --secondary-color: #bebe00;
+    --neutral-color: #ccc;
+}
+body {
+    padding: 0.8em;
+    background-color: #1e1e1e;
+    color: var(--text-color);
+    font-size: 16px;
+}
+a {
+    text-decoration: none;
+    color: var(--link-color);
+    cursor: pointer;
+}
+
+/* modal background */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.5s ease-out;
+}
+
+.modal .content {
+    background-color: #2e2e2e;
+    padding: 1em;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    max-width: 90%;
+    max-height: 90%;
+    width: 300px;
+    min-height: 150px;
+    
+    overflow: auto;
+}
+
+.body {
+    position: relative;
+}
+
+.busy::before {
+    content: '';
+    position: absolute;
+    width: 32px;
+    margin-left: -16px;
+    height: 32px;
+    margin-top: -16px;
+    border: 2px solid var(--neutral-color);
+    border-radius: 50%;
+    border-top-color: var(--link-color);
+    animation: spin 1s ease-in-out infinite;
+    vertical-align: middle;
+    left: 50%;
+    top: 50%;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.fade {
+    opacity: 0;
+    pointer-events: none;
+}
+
+*:first-child {
+    margin-top: 0;
+}
+
+*:last-child {
+    margin-bottom: 0;
+}
