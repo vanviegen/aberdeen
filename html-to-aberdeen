@@ -75,13 +75,73 @@ export function parseHTML(html) {
       
       // Parse attributes
       const attributes = [];
-      let attrMatch;
-      const attrRegex = /([\w-]+)(?:=(?:"([^"]*)"|'([^']*)'|(\S+)))?/g;
+      let pos = 0;
       
-      while ((attrMatch = attrRegex.exec(attributesStr)) !== null) {
-        const name = attrMatch[1];
-        const value = attrMatch[2] || attrMatch[3] || attrMatch[4] || '';
-        attributes.push({ name, value });
+      while (pos < attributesStr.length) {
+        // Skip whitespace
+        while (pos < attributesStr.length && /\s/.test(attributesStr[pos])) {
+          pos++;
+        }
+        if (pos >= attributesStr.length) break;
+        
+        // Get attribute name
+        const nameMatch = attributesStr.substring(pos).match(/^([\w-]+)/);
+        if (!nameMatch) break;
+        
+        const name = nameMatch[1];
+        pos += name.length;
+        
+        // Skip whitespace
+        while (pos < attributesStr.length && /\s/.test(attributesStr[pos])) {
+          pos++;
+        }
+        
+        // Check for '='
+        if (pos < attributesStr.length && attributesStr[pos] === '=') {
+          pos++;
+          
+          // Skip whitespace
+          while (pos < attributesStr.length && /\s/.test(attributesStr[pos])) {
+            pos++;
+          }
+          
+          let value = '';
+          
+          if (pos < attributesStr.length) {
+            const quoteChar = attributesStr[pos];
+            
+            if (quoteChar === '"' || quoteChar === "'") {
+              // Quoted value - handle escaped quotes
+              pos++;
+              while (pos < attributesStr.length) {
+                if (attributesStr[pos] === '\\' && pos + 1 < attributesStr.length) {
+                  // Escaped character
+                  value += attributesStr[pos + 1];
+                  pos += 2;
+                } else if (attributesStr[pos] === quoteChar) {
+                  // End quote
+                  pos++;
+                  break;
+                } else {
+                  value += attributesStr[pos];
+                  pos++;
+                }
+              }
+            } else {
+              // Unquoted value
+              const unquotedMatch = attributesStr.substring(pos).match(/^(\S+)/);
+              if (unquotedMatch) {
+                value = unquotedMatch[1];
+                pos += value.length;
+              }
+            }
+          }
+          
+          attributes.push({ name, value });
+        } else {
+          // Boolean attribute
+          attributes.push({ name, value: '' });
+        }
       }
       
       const newElement = {
@@ -170,144 +230,104 @@ function convertHTMLToAberdeen(html) {
 function processNode(node, indentLevel = 0) {
   const indent = '    '.repeat(indentLevel);
   
+  // Handle text nodes
   if (node.type === 'text') {
     const text = node.content.trim();
-    if (text) {
-      return `${indent}$(':${escapeString(text)}');\n`;
-    }
-    return '';
+    return text ? `${indent}$(':${escapeString(text)}');\n` : ``;
   }
   
+  // Handle comments
   if (node.type === 'comment') {
     return `${indent}// ${node.content.trim()}\n`;
   }
   
+  // Handle elements
   if (node.type === 'element') {
-    // Get tag name
-    const tagName = node.tagName.toLowerCase();
-    
-    // Get classes
-    const classAttr = node.attributes.find(attr => attr.name === 'class');
-    const classes = classAttr 
-      ? classAttr.value.split(/\s+/).filter(Boolean).join('.')
-      : '';
-    
-    // Get other attributes
-    const attributes = {};
-    for (const attr of node.attributes) {
-      if (attr.name !== 'class') {
-        attributes[attr.name] = attr.value;
-      }
-    }
-    
-    // Check if node has only text content
-    const hasOnlyTextContent = 
-      node.children.length === 1 && 
-      node.children[0].type === 'text' && 
-      node.children[0].content.trim();
-    
-    // Build the tag string
-    let tagString = tagName;
-    if (classes) {
-      tagString += `.${classes}`;
-    }
-    
-    if (hasOnlyTextContent) {
-      tagString += `:${escapeString(node.children[0].content.trim())}`;
-    }
-    
-    let result = `${indent}$('${tagString}'`;
-    
-    // Add attributes if any
-    if (Object.keys(attributes).length > 0) {
-      result += `, ${formatAttributes(attributes, indent)}`;
-    }
-    
-    // Process child nodes
-    const childNodes = node.children.filter(child => 
-      child.type === 'element' || 
-      (child.type === 'text' && child.content.trim())
-    );
-    
-    if (childNodes.length > 0 && !hasOnlyTextContent) {
-      // Get all descendants in a single-child chain
-      const singleChildChain = getSingleChildChain(node);
-      
-      if (singleChildChain.length > 1) {
-        // We have a chain of single children, add them all on the same line
-        for (let i = 1; i < singleChildChain.length; i++) {
-          const chainNode = singleChildChain[i];
-          
-          // Get tag name
-          const chainTagName = chainNode.tagName.toLowerCase();
-          
-          // Get classes
-          const chainClassAttr = chainNode.attributes.find(attr => attr.name === 'class');
-          const chainClasses = chainClassAttr 
-            ? chainClassAttr.value.split(/\s+/).filter(Boolean).join('.')
-            : '';
-          
-          // Build the tag string
-          let chainTagString = chainTagName;
-          if (chainClasses) {
-            chainTagString += `.${chainClasses}`;
-          }
-          
-          // Check if node has only text content
-          const chainHasOnlyTextContent = 
-            chainNode.children.length === 1 && 
-            chainNode.children[0].type === 'text' && 
-            chainNode.children[0].content.trim();
-          
-          if (chainHasOnlyTextContent) {
-            chainTagString += `:${escapeString(chainNode.children[0].content.trim())}`;
-          }
-          
-          result += `, '${chainTagString}'`;
-          
-          // Add attributes if any
-          const chainAttributes = {};
-          for (const attr of chainNode.attributes) {
-            if (attr.name !== 'class') {
-              chainAttributes[attr.name] = attr.value;
-            }
-          }
-          
-          if (Object.keys(chainAttributes).length > 0) {
-            result += `, ${formatAttributes(chainAttributes, indent)}`;
-          }
-        }
-        
-        // Check if the last node in the chain has any non-text children
-        const lastNode = singleChildChain[singleChildChain.length - 1];
-        const lastNodeChildren = lastNode.children.filter(child => 
-          child.type === 'element' || 
-          (child.type === 'text' && child.content.trim() && 
-           !(lastNode.children.length === 1 && lastNode.children[0].type === 'text'))
-        );
-        
-        if (lastNodeChildren.length > 0) {
-          result += `, () => {\n`;
-          for (const child of lastNodeChildren) {
-            result += processNode(child, indentLevel + 1);
-          }
-          result += `${indent}}`;
-        }
-      } else {
-        // Multiple children, use a content function
-        result += `, () => {\n`;
-        for (const child of childNodes) {
-          result += processNode(child, indentLevel + 1);
-        }
-        result += `${indent}}`;
-      }
-    }
-    
-    result += `);\n`;
-    return result;
+    return processElement(node, indentLevel);
   }
   
   return '';
+}
+
+// Process an element node and build the chain of single children
+function processElement(node, indentLevel) {
+  const indent = '    '.repeat(indentLevel);
+  const chain = getSingleChildChain(node);
+  
+  // Build tag string for each element in the chain
+  let result = `${indent}$('`;
+  const allSeparateArgs = [];
+  
+  for (let i = 0; i < chain.length; i++) {
+    const element = chain[i];
+    
+    // Add space separator between chained elements
+    if (i > 0) result += ' ';
+    
+    // Build tag name with classes
+    const tagName = element.tagName.toLowerCase();
+    const classAttr = element.attributes.find(attr => attr.name === 'class');
+    const classes = classAttr 
+      ? classAttr.value.split(/\s+/).filter(Boolean).map(c => `.${c}`).join('')
+      : '';
+    
+    result += tagName + classes;
+    
+    // Add attributes (excluding class)
+    const attributes = element.attributes.filter(attr => attr.name !== 'class');
+    const { attrString, separateArgs } = buildAttributeString(attributes);
+    result += attrString;
+    
+    // Check if this element has only text content
+    const hasOnlyText = element.children.length === 1 
+      && element.children[0].type === 'text' 
+      && element.children[0].content.trim();
+    
+    if (hasOnlyText) {
+      const textContent = element.children[0].content.trim();
+      if (i === chain.length - 1) {
+        // If it's the last element in the chain and there are no other children,
+        // use the ':' syntax for text
+        result += ':' + escapeString(textContent);
+      } else {
+        // Treat text like any other attribute
+        const textAttr = { name: 'text', value: textContent };
+        const { attrString: textAttrString, separateArgs: textSeparateArgs } = buildAttributeString([textAttr]);
+        result += textAttrString;
+        separateArgs.push(...textSeparateArgs);
+      }
+    }
+    
+    allSeparateArgs.push(...separateArgs);
+  }
+  
+  result += `'`;
+  
+  // Add all separate arguments
+  for (const value of allSeparateArgs) {
+    result += `, '${escapeString(value)}'`;
+  }
+  
+  // Check if the last element in the chain has multiple children
+  const lastElement = chain[chain.length - 1];
+  const children = lastElement.children.filter(child => 
+    child.type === 'element' || (child.type === 'text' && child.content.trim())
+  );
+  
+  // Exclude the case where there's only text (already handled above)
+  const hasOnlyText = children.length === 1 && children[0].type === 'text';
+  
+  if (children.length > 0 && !hasOnlyText) {
+    // Add children as callback function
+    result += `, () => {\n`;
+    for (const child of children) {
+      result += processNode(child, indentLevel + 1);
+    }
+    result += `${indent}}`;
+  }
+  
+  result += `);\n`;
+  return result;
 }
 
 // Get a chain of nodes where each node has exactly one element child
@@ -316,10 +336,8 @@ function getSingleChildChain(node) {
   let current = node;
   
   while (true) {
-    // Get element children
     const elementChildren = current.children.filter(child => child.type === 'element');
     
-    // If there's exactly one element child, add it to the chain
     if (elementChildren.length === 1) {
       current = elementChildren[0];
       chain.push(current);
@@ -331,24 +349,49 @@ function getSingleChildChain(node) {
   return chain;
 }
 
-// Format attributes object with proper indentation
-function formatAttributes(attributes, indent) {
-    const attrLines = JSON.stringify(attributes, null, 4).split('\n');
-    
-    if (attrLines.length <= 1) {
-        return JSON.stringify(attributes);
-    }
-    
-    return attrLines.map((line, i) => {
-        if (i === 0) return line;
-        return indent + line;
-    }).join('\n');
-}
-
-// Escape special characters in strings
+// Escape special characters for single-quoted strings
 function escapeString(str) {
   return str
     .replace(/\\/g, '\\\\')
     .replace(/'/g, "\\'")
-    .replace(/\n/g, '\\n');
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+}
+
+// Escape special characters for double-quoted strings within tag strings
+function escapeDoubleQuoted(str) {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+}
+
+// Build attribute string and collect values that need separate arguments
+function buildAttributeString(attributes) {
+  let attrString = '';
+  const separateArgs = [];
+  
+  for (const attr of attributes) {
+    const value = attr.value;
+    
+    if (value === '') {
+      // Boolean attribute
+      attrString += ` ${attr.name}`;
+    } else if (value.includes('"')) {
+      // Contains double quotes - must use separate argument
+      attrString += ` ${attr.name}=`;
+      separateArgs.push(value);
+    } else if (value.includes(' ') || value.includes('\n') || value.includes('\r') || value.includes('\t')) {
+      // Contains spaces/whitespace - use double quotes with escaping
+      attrString += ` ${attr.name}="${escapeDoubleQuoted(value)}"`;
+    } else {
+      // Simple value - no quotes needed
+      attrString += ` ${attr.name}=${value}`;
+    }
+  }
+  
+  return { attrString, separateArgs };
 }
