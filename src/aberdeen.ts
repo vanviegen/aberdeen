@@ -1268,7 +1268,8 @@ function optProxy(value: any): any {
 	if (
 		typeof value !== "object" ||
 		!value ||
-		value[TARGET_SYMBOL] !== undefined
+		value[TARGET_SYMBOL] !== undefined ||
+		NO_COPY in value
 	) {
 		return value;
 	}
@@ -1556,7 +1557,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 			}
 			else if (dstValue !== srcValue) {
 				if (srcValue && typeof srcValue === "object") {
-					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor) {
+					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
 						changed = copyRecursive(dstValue, srcValue, flags) || changed;
 						continue;
 					}
@@ -1592,7 +1593,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 			if (dstValue === undefined && !dst.has(key)) dstValue = EMPTY;
 			if (dstValue !== srcValue) {
 				if (srcValue && typeof srcValue === "object") {
-					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor) {
+					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
 						changed = copyRecursive(dstValue, srcValue, flags) || changed;
 						continue;
 					}
@@ -1625,7 +1626,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 			const dstValue = dst.hasOwnProperty(key) ? dst[key] : EMPTY;
 			if (dstValue !== srcValue) {
 				if (srcValue && typeof srcValue === "object") {
-					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor) {
+					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
 						changed = copyRecursive(dstValue as typeof srcValue, srcValue, flags) || changed;
 						continue;
 					}
@@ -1662,6 +1663,16 @@ const COPY_SUBSCRIBE = 32;
 const COPY_EMIT = 64;
 
 /**
+ * A symbol that can be added to an object to prevent it from being cloned by {@link clone} or {@link copy}.
+ * This is useful for objects that should be shared by reference. That also mean that their contents won't
+ * be observed for changes.
+ */
+export const NO_COPY = Symbol("NO_COPY");
+
+// Promises break when proxied, so we'll just mark them as NO_COPY
+(Promise.prototype as any)[NO_COPY] = true;
+
+/**
  * Clone an (optionally proxied) object or array.
  *
  * @param src The object or array to clone. If it is proxied, `clone` will subscribe to any changes to the (nested) data structure.
@@ -1669,6 +1680,7 @@ const COPY_EMIT = 64;
  * @returns A new unproxied array or object (of the same type as `src`), containing a deep copy of `src`.
  */
 export function clone<T extends object>(src: T): T {
+	if (NO_COPY in src) return src;
 	// Create an empty object of the same type
 	const copied = Array.isArray(src) ? [] : src instanceof Map ? new Map() : Object.create(Object.getPrototypeOf(src));
 	// Copy all properties to it. This doesn't need to emit anything, and because
@@ -2737,7 +2749,7 @@ export function partition<
 	func: (value: IN_V, key: KeyToString<IN_K>) => undefined | OUT_K | OUT_K[],
 ): Record<OUT_K, Record<KeyToString<IN_K>, IN_V>> {
 	const unproxiedOut = {} as Record<OUT_K, Record<KeyToString<IN_K>, IN_V>>;
-	const out = proxy(unproxiedOut);
+	const out = optProxy(unproxiedOut);
 	onEach(source, (item: IN_V, key: KeyToString<IN_K>) => {
 		const rsp = func(item, key);
 		if (rsp != null) {
@@ -2788,24 +2800,20 @@ export function partition<
  */
 export function dump<T>(data: T): T {
 	if (data && typeof data === "object") {
-		let label;
-		if (data instanceof Array) {
-			label = "<array>";
-		} else if (data instanceof Map) {
-			label = "<Map>";
+		$(`:<${data.constructor.name || "unknown object"}>`);
+		if (NO_COPY in data ) {
+			$(": [NO_COPY]");
 		} else {
-			label = "<object>";
-		}
-		$({ text: label });
-		$("ul", () => {
-			onEach(data as any, (value, key) => {
-				$(`li:${JSON.stringify(key)}: `, () => {
-					dump(value);
+			$("ul", () => {
+				onEach(data as any, (value, key) => {
+					$(`li:${JSON.stringify(key)}: `, () => {
+						dump(value);
+					});
 				});
 			});
-		});
+		}
 	} else {
-		$({ text: JSON.stringify(data) });
+		$(":" + JSON.stringify(data));
 	}
 	return data;
 }
