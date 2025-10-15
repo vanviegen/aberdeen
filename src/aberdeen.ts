@@ -1290,10 +1290,22 @@ function optProxy(value: any): any {
 	return proxied;
 }
 
-interface PromiseProxy<T> {
+/**
+ * When `proxy` is called with a Promise, the returned object has this shape.
+ */
+export interface PromiseProxy<T> {
+	/**
+	 * True if the promise is still pending, false if it has resolved or rejected.
+	 */
 	busy: boolean;
-	error?: any;
+	/**
+	 * If the promise has resolved, this contains the resolved value.
+	 */
 	value?: T;
+	/**
+	 * If the promise has rejected, this contains the rejection error.
+	 */
+	error?: any;
 }
 
 export function proxy<T extends any>(target: Promise<T>): PromiseProxy<T>;
