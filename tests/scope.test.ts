@@ -11,7 +11,7 @@ test('rerenders only the inner scope', async () => {
       cnt1++;
       $('span', () => {
         cnt2++;
-        $(":" + data.value);
+        $("#" + data.value);
       });
     });
   });
@@ -191,8 +191,8 @@ test('does not rerender on peek', async () => {
       cnt1++;
       $('span', () => {
         cnt2++;
-        $(":" + peek(() => data.value));
-        $(":" + unproxy(data).value);
+        $("#" + peek(() => data.value));
+        $("#" + unproxy(data).value);
       });
     });
   });
@@ -222,7 +222,7 @@ test('allows modifying proxied objects from within scopes', async () => {
     });
     
     onEach(inverse, (value, key) => {
-      $(":" + key + "=" + value);
+      $("#" + key + "=" + value);
       cnt3++;
     });
   });

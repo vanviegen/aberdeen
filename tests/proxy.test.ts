@@ -184,9 +184,9 @@ test('proxy supports array methods', () => {
 test(`proxy 'has'`, async () => {
   const data = proxy({x: 3, y: undefined} as Record<string,number|undefined>);
   let cnt = 0;
-  $(function() { cnt++; $(`:x=${"x" in data}`); })
-  $(function() { cnt++; $(`:y=${"y" in data}`); })
-  $(function() { cnt++; $(`:z=${"z" in data}`); })
+  $(function() { cnt++; $(`#x=${"x" in data}`); })
+  $(function() { cnt++; $(`#y=${"y" in data}`); })
+  $(function() { cnt++; $(`#z=${"z" in data}`); })
   assertBody('"x=true" "y=true" "z=false"')
   expect(cnt).toEqual(3);
 
@@ -222,7 +222,7 @@ test('unproxies refs', async () => {
   let a = ref(obj, 'a')
   
   $(() => {
-    $(':'+a.value)
+    $('#'+a.value)
   });
   assertBody('"1"');
 
@@ -245,7 +245,7 @@ test('proxy Promise resolve', async () => {
   }));
   
   $(() => {
-    $(':'+JSON.stringify(data));
+    $('#'+JSON.stringify(data));
   });
 
   assertBody(JSON.stringify(`{"busy":true}`));
@@ -269,5 +269,5 @@ test('proxy Promise reject', async () => {
   await passTime(20);
   expect(data.error).toBeInstanceOf(Error);
   expect(data.value).toBeUndefined();
-  assertBody(`"<object>" ul{li{"\\"busy\\": " "false"} li{"\\"error\\": " "<object>" ul}}`);
+  assertBody(`"<object>" ul{li{"\\"busy\\": " "false"} li{"\\"error\\": " "<error>" ul}}`);
 });

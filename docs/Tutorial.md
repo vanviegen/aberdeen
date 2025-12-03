@@ -10,7 +10,7 @@ This is a complete Aberdeen application:
 
 ```javascript
 import {$} from 'aberdeen';
-$('h3:Hello world');
+$('h3#Hello world');
 ```
 
 It adds a `<h3>Hello world</h3>` element to the `<body>` (which is the default mount point).
@@ -20,10 +20,10 @@ The {@link aberdeen.$} function accepts various forms of arguments, which can be
 When a string is passed:
 - The inital part (if any) is the name of the element to be created.
 - One or multiple CSS classes can be added to the 'current' element, by prefixing them with a `.`.
-- Content text can be added by prefixing it with a `:`.
+- Content text can be added by prefixing it with a `#`.
 
 ```javascript
-$('button.outline.secondary:Pressing me does nothing!');
+$('button.outline.secondary#Pressing me does nothing!');
 ```
 
 Note that you can play around, modifying any example while seeing its live result by pressing the *Edit* button that appears when hovering over an example!
@@ -31,13 +31,13 @@ Note that you can play around, modifying any example while seeing its live resul
 Multiple strings can be passed, so the above could just as well be written as:
 
 ```javascript
-$('button', '.outline', '.secondary', ':Pressing me does nothing!');
+$('button', '.outline', '.secondary', '#Pressing me does nothing!');
 ```
 
 Also, we can create multiple nested DOM elements in a single {@link aberdeen.$} invocation, *if* the parents need to have only a single child. For instance:
 
 ```javascript
-$('div.box', ':Text within the div element...', 'input');
+$('div.box', '#Text within the div element...', 'input');
 ```
 
 In order to pass in additional properties and attributes to the 'current' DOM element, we can pass in an object. So to extend the above example:
@@ -59,6 +59,21 @@ $('div.box', 'input', {
 
 Note that the example is interactive - try typing something!
 
+## Inline styles
+
+To set inline CSS styles on elements, prefix the property name with `$` in an object:
+
+```javascript
+$('div.box#Styled text', {$color: 'red', $backgroundColor: 'yellow'});
+```
+
+For convenience, you can also use the string shorthand with a colon:
+
+```javascript
+$('div.box color:red backgroundColor:yellow#Styled text');
+```
+
+## Nesting content
 Of course, putting everything in a single {@link aberdeen.$} call will get messy soon, and you'll often want to nest more than one child within a parent. To do that, you can pass in a *content* function to {@link aberdeen.$}, like this:
 
 ```javascript
@@ -67,7 +82,7 @@ $('div.box.row', {id: 'cityContainer'}, () => {
         value: 'London',
         placeholder: 'City'
     });
-    $('button:Confirm', {
+    $('button#Confirm', {
         click: () => alert("You got it!")
     });
 });
@@ -90,8 +105,8 @@ const user = proxy({
 });
 
 $('div', () => {
-    $(`h3:Hello, ${user.name}!`);
-    $(`p:You are ${user.age} years old.`);
+    $(`h3#Hello, ${user.name}!`);
+    $(`p#You are ${user.age} years old.`);
 });
 
 setInterval(() => {
@@ -113,11 +128,11 @@ const user = proxy({
 $('div', () => {
     $(`h3`, () => {
         console.log('Name draws:', user.name)
-        $(`:Hello, ${user.name}!`);
+        $(`#Hello, ${user.name}!`);
     });
     $(`p`, () => {
         console.log('Age draws:', user.age)
-        $(`:You are ${user.age} years old.`);
+        $(`#You are ${user.age} years old.`);
     });
 });
 
@@ -139,11 +154,11 @@ const user = proxy({
 
 $('div', () => {
     if (user.loggedIn) {
-        $('button.outline:Logout', {
+        $('button.outline#Logout', {
             click: () => user.loggedIn = false
         });
     } else {
-        $('button:Login', {
+        $('button#Login', {
             click: () => user.loggedIn = true
         });
     }
@@ -158,15 +173,30 @@ The {@link aberdeen.proxy} method wraps an object in a JavaScript [Proxy](https:
 const cnt = proxy(42);
 $('div.row', () => {
     // This scope will not have to redraw
-    $('button:-', {click: () => cnt.value--});
+    $('button#-', {click: () => cnt.value--});
     $('div', {text: cnt});
-    $('button:+', {click: () => cnt.value++});
+    $('button#+', {click: () => cnt.value++});
 });
 ```
 
 The reason the `div.row` scope doesn't redraw when `cnt.value` changes is that we're passing the entire `cnt` observable object to the `text:` property. Aberdeen then internally subscribes to `cnt.value` for just that text node, ensuring minimal updates.
 
 If we would have done `$('div', {text: count.value});` instead, we *would* have subscribed to `count.value` within the `div.row` scope, meaning we'd be redrawing the two buttons and the div every time the count changes.
+
+This also works for other properties, such as inline styles:
+
+```javascript
+import { $, proxy } from 'aberdeen';
+
+const textColor = proxy('blue');
+
+$('div.box color:', textColor, '#Click me to change color', {
+    click: () => textColor.value = textColor.value === 'blue' ? 'red' : 'blue'
+});
+```
+
+This way, when `textColor.value` changes, only the style is updated without recreating the element.
+
 
 ## Observable arrays
 
@@ -177,18 +207,18 @@ const items = proxy([1, 2, 3]);
 
 $('h3', () => {
     // This subscribes to the length of the array and to the value at `items.length-1` in the array.
-    $(':Last item: '+items[items.length-1]);
+    $('#Last item: '+items[items.length-1]);
 })
 
 $('ul', () => {
     // This subscribes to the entire array, and thus redraws all <li>s when any item changes.
     // In the next section, we'll learn about a better way.
     for (const item of items) {
-        $('li', `:Item ${item}`);
+        $('li', `#Item ${item}`);
     }
 });
 
-$('button:Add', {click: () => items.push(items.length+1)});
+$('button#Add', {click: () => items.push(items.length+1)});
 ```
 
 ## TypeScript and classes
@@ -206,8 +236,8 @@ class Widget {
 
 let graph: Widget = proxy(new Widget('Graph', 200, 100));
 
-$('h3', () => $(':'+graph));
-$('button:Grow', {click: () => graph.grow()});
+$('h3', () => $('#'+graph));
+$('button#Grow', {click: () => graph.grow()});
 ```
 
 The type returned by {@link aberdeen.proxy} matches the input type, meaning the type system does not distinguish proxied and unproxied objects. That makes sense, as they have the exact same methods and properties (though proxied objects may have additional side effects).
@@ -233,21 +263,21 @@ setInterval(() => {
     else delete items[randomInt(7)];
 }, 500);
 
-$('div.row.wide', {$height: '250px'}, () => {
-    $('div.box:By index', () => {
+$('div.row.wide height:250px', () => {
+    $('div.box#By index', () => {
         onEach(items, (item, index) => {
             // Called only for items that are created/updated
-            $(`li:${item.label} (prio ${item.prio})`)
+            $(`li#${item.label} (prio ${item.prio})`)
         });
     })
-    $('div.box:By label', () => {
+    $('div.box#By label', () => {
         onEach(items, (item, index) => {
-            $(`li:${item.label} (prio ${item.prio})`)
+            $(`li#${item.label} (prio ${item.prio})`)
         }, item => item.label);
     })
-    $('div.box:By desc prio, then label', () => {
+    $('div.box#By desc prio, then label', () => {
         onEach(items, (item, index) => {
-            $(`li:${item.label} (prio ${item.prio})`)
+            $(`li#${item.label} (prio ${item.prio})`)
         }, item => [-item.prio, item.label]);
     })
 })
@@ -260,17 +290,17 @@ const pairs = proxy({A: 'Y', B: 'X',});
 
 const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0-9]+/g, '').replace(/^\w/, c => c.toUpperCase());
 
-$('button:Add item', {click: () => pairs[randomWord()] = randomWord()});
+$('button#Add item', {click: () => pairs[randomWord()] = randomWord()});
 
-$('div.row.wide', {$marginTop: '1em'}, () => {
-    $('div.box:By key', () => {
+$('div.row.wide marginTop:1em', () => {
+    $('div.box#By key', () => {
         onEach(pairs, (value, key) => {
-            $(`li:${key}: ${value}`)
+            $(`li#${key}: ${value}`)
         });
     })
-    $('div.box:By desc value', () => {
+    $('div.box#By desc value', () => {
         onEach(pairs, (value, key) => {
-            $(`li:${key}: ${value}`)
+            $(`li#${key}: ${value}`)
         }, value => invertString(value));
     })
 })
@@ -303,17 +333,17 @@ $('label', () => {
         type: 'checkbox', 
         bind: ref(user, 'active')
     });
-}, ':Active');
+}, '#Active');
 
 // Display the current state
 $('div.box', () => {
-    $(`p:Name: ${user.name} `, () => {
+    $(`p#Name: ${user.name} `, () => {
         // Binding works both ways
-        $('button.outline.secondary:!', {
+        $('button.outline.secondary#!', {
             click: () => user.name += '!'
         });
     });
-    $(`p:Status: ${user.active ? 'Active' : 'Inactive'}`);
+    $(`p#Status: ${user.active ? 'Active' : 'Inactive'}`);
 });
 ```
 
@@ -340,7 +370,7 @@ const myBoxStyle = insertCss({
 
 // myBoxStyle is now something like ".AbdStl1", the name for a generated CSS class.
 // Here's how to use it:
-$('div.box', myBoxStyle, 'button:Click me');
+$('div.box', myBoxStyle, 'button#Click me');
 ```
 
 This allows you to create single-file components with advanced CSS rules. By enabling the `global` flag, it's also possible to add CSS without a class prefix.
@@ -368,11 +398,11 @@ let titleStyle = insertCss({
 const show = proxy(true);
 $('label', () => {
     $('input', {type: 'checkbox', bind: show});
-    $(':Show title');
+    $('#Show title');
 });
 $(() => {
     if (!show.value) return;
-    $('h2:(Dis)appearing text', titleStyle, {
+    $('h2#(Dis)appearing text', titleStyle, {
         create: '.faded.imploded',
         destroy: '.faded.exploded'
     });
@@ -399,20 +429,20 @@ setInterval(() => {
     else delete items[randomInt(7)];
 }, 500);
 
-$('div.row.wide', {$height: '250px'}, () => {
-    $('div.box:By index', () => {
+$('div.row.wide height:250px', () => {
+    $('div.box#By index', () => {
         onEach(items, (item, index) => {
-            $(`li:${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
+            $(`li#${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
         });
     })
-    $('div.box:By label', () => {
+    $('div.box#By label', () => {
         onEach(items, (item, index) => {
-            $(`li:${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
+            $(`li#${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
         }, item => item.label);
     })
-    $('div.box:By desc prio, then label', () => {
+    $('div.box#By desc prio, then label', () => {
         onEach(items, (item, index) => {
-            $(`li:${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
+            $(`li#${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
         }, item => [-item.prio, item.label]);
     })
 });
@@ -430,7 +460,7 @@ $(() => {
 });
 
 $('h3', {text: derived});
-$('button:Increment', {click: () => original.value++});
+$('button#Increment', {click: () => original.value++});
 ```
 
 The {@link aberdeen.derive} function makes the above a little easier. It works just like passing a function to {@link aberdeen.$}, creating an observer, the only difference being that the value returned by the function is reactively assigned to the `value` property of the observable object returned by `derive`. So the above could also be written as:
@@ -440,7 +470,7 @@ const original = proxy(1);
 const derived = derive(() => original.value * 42);
 
 $('h3', {text: derived});
-$('button:Increment', {click: () => original.value++});
+$('button#Increment', {click: () => original.value++});
 ```
 
 For deriving values from (possibly large) arrays or objects, Aberdeen provides specialized functions that enable fast, incremental updates to derived data: {@link aberdeen.map} (each item becomes zero or one derived item), {@link aberdeen.multiMap} (each item becomes any number of derived items), {@link aberdeen.count} (reactively counts the number of object properties), {@link aberdeen.isEmpty} (true when the object/array has no items) and {@link aberdeen.partition} (sorts each item into one or more buckets). An example:
@@ -474,8 +504,8 @@ $('p', {text: message});
 $(() => {
     // isEmpty only causes a re-run when the count changes between zero and non-zero
     if (aberdeen.isEmpty(overweightBmis)) return;
-    $('p:These are their BMIs:', () => {
-        aberdeen.onEach(overweightBmis, bmi => $(': '+bmi), bmi => -bmi);
+    $('p#These are their BMIs:', () => {
+        aberdeen.onEach(overweightBmis, bmi => $('# '+bmi), bmi => -bmi);
         // Sort by descending BMI
     });
 })

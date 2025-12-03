@@ -138,7 +138,7 @@ function partToStr(part: number | string): string {
  * ]);
  *
  * onEach(users, (user) => {
- *     $(`p:${user.name}: ${user.score}`);
+ *     $(`p#${user.name}: ${user.score}`);
  * }, (user) => invertString(user.name)); // Reverse alphabetic order
  * ```
  *
@@ -166,7 +166,9 @@ abstract class Scope implements QueueRunner {
 
 	[ptr: ReverseSortedSetPointer]: this;
 
-	abstract onChange(index: any): void;
+	onChange(index: any): void {
+		queue(this);
+	}
 	abstract queueRun(): void;
 
 	abstract getLastNode(): Node | undefined;
@@ -196,8 +198,8 @@ abstract class ContentScope extends Scope {
 	// be for child scopes, subscriptions as well as `clean(..)` hooks.
 	cleaners: Array<{ delete: (scope: Scope) => void } | (() => void)>;
 
-	// Whether this scope is within an SVG namespace context
-	inSvgNamespace: boolean = false;
+	abstract svg: boolean;
+	abstract el: Element;
 
 	constructor(
 		cleaners: Array<{ delete: (scope: Scope) => void } | (() => void)> = [],
@@ -210,8 +212,6 @@ abstract class ContentScope extends Scope {
 
 	// Should be subclassed in most cases..
 	redraw() {}
-
-	abstract parentElement: Element;
 
 	getLastNode(): Node | undefined {
 		return findLastNodeInPrevSiblings(this.lastChild);
@@ -260,16 +260,15 @@ class ChainedScope extends ContentScope {
 
 	constructor(
 		// The parent DOM element we'll add our child nodes to.
-		public parentElement: Element,
+		public el: Element,
+		// Whether this scope is within an SVG namespace context
+		public svg: boolean,
 		// When true, we share our 'cleaners' list with the parent scope.
 		useParentCleaners = false,
 	) {
 		super(useParentCleaners ? currentScope.cleaners : []);
 		
-		// Inherit SVG namespace state from current scope
-		this.inSvgNamespace = currentScope.inSvgNamespace;
-		
-		if (parentElement === currentScope.parentElement) {
+		if (el === currentScope.el) {
 			// If `currentScope` is not actually a ChainedScope, prevSibling will be undefined, as intended
 			this.prevSibling = currentScope.getChildPrevSibling();
 			currentScope.lastChild = this;
@@ -300,12 +299,13 @@ class ChainedScope extends ContentScope {
  */
 class RegularScope extends ChainedScope {
 	constructor(
-		parentElement: Element,
+		el: Element,
+		svg: boolean,
 		// The function that will be reactively called. Elements it creates using `$` are
 		// added to the appropriate position within `parentElement`.
 		public renderer: () => any,
 	) {
-		super(parentElement);
+		super(el, svg);
 
 		// Do the initial run
 		this.redraw();
@@ -325,23 +325,23 @@ class RegularScope extends ChainedScope {
 }
 
 class RootScope extends ContentScope {
-	parentElement = document.body;
+	el = document.body;
+	svg = false;
 	getPrecedingNode(): Node | undefined {
 		return undefined;
 	}
 }
 
 class MountScope extends ContentScope {
+	svg: boolean;
 	constructor(
 		// The parent DOM element we'll add our child nodes to
-		public parentElement: Element,
+		public el: Element,
 		// The function that
 		public renderer: () => any,
 	) {
 		super();
-		
-		// Inherit SVG namespace state from current scope
-		this.inSvgNamespace = currentScope.inSvgNamespace;
+		this.svg = el.namespaceURI === 'http://www.w3.org/2000/svg';
 		
 		this.redraw();
 		currentScope.cleaners.push(this);
@@ -408,11 +408,9 @@ class ResultScope<T> extends ChainedScope {
 	public result: ValueRef<T> = optProxy({ value: undefined });
 
 	constructor(
-		parentElement: Element,
 		public renderer: () => T,
 	) {
-		super(parentElement);
-
+		super(currentScope.el, currentScope.svg);
 		this.redraw();
 	}
 
@@ -435,18 +433,19 @@ class ResultScope<T> extends ChainedScope {
  */
 
 class SetArgScope extends ChainedScope {
+	public svg = false;
 	constructor(
-		parentElement: Element,
-		public key: string,
-		public target: { value: any },
+		el: Element,
+		private key: string,
+		private target: { value: any },
 	) {
-		super(parentElement);
+		super(el, el.namespaceURI === 'http://www.w3.org/2000/svg');
 		this.redraw();
 	}
 	redraw() {
 		const savedScope = currentScope;
 		currentScope = this;
-		applyArg(this.key, this.target.value);
+		applyArg(this.el, this.key, this.target.value);
 		currentScope = savedScope;
 	}
 }
@@ -454,7 +453,7 @@ class SetArgScope extends ChainedScope {
 /** @internal */
 class OnEachScope extends Scope {
 	// biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: circular, as currentScope is initialized with a Scope
-	parentElement: Element = currentScope.parentElement;
+	parentElement: Element = currentScope.el;
 	prevSibling: Node | Scope | undefined;
 
 	/** The data structure we are iterating */
@@ -556,7 +555,8 @@ class OnEachScope extends Scope {
 /** @internal */
 class OnEachItemScope extends ContentScope {
 	sortKey: string | number | undefined; // When undefined, this scope is currently not showing in the list
-	public parentElement: Element;
+	public el: Element;
+	public svg: boolean;
 
 	constructor(
 		public parent: OnEachScope,
@@ -564,10 +564,10 @@ class OnEachItemScope extends ContentScope {
 		topRedraw: boolean,
 	) {
 		super();
-		this.parentElement = parent.parentElement;
+		this.el = parent.parentElement;
 		
 		// Inherit SVG namespace state from current scope
-		this.inSvgNamespace = currentScope.inSvgNamespace;
+		this.svg = currentScope.svg;
 
 		this.parent.byIndex.set(this.itemIndex, this);
 
@@ -711,8 +711,12 @@ class OnEachItemScope extends ContentScope {
 	}
 }
 
-function addNode(node: Node) {
-	const parentEl = currentScope.parentElement;
+function addNode(el: Element, node: Node) {
+	if (el !== currentScope.el) {
+		el.appendChild(node);
+		return;
+	}
+	const parentEl = currentScope.el;
 	const prevNode = currentScope.getInsertAfterNode();
 	parentEl.insertBefore(
 		node,
@@ -842,7 +846,7 @@ export function onEach<K extends string | number | symbol, T>(
  * const items = proxy(['apple', 'banana', 'cherry']);
  *
  * // Basic iteration
- * onEach(items, (item, index) => $(`li:${item} (#${index})`));
+ * onEach(items, (item, index) => $(`li#${item} (#${index})`));
  *
  * // Add a new item - the list updates automatically
  * setTimeout(() => items.push('durian'), 2000);
@@ -861,7 +865,7 @@ export function onEach<K extends string | number | symbol, T>(
  *
  * // Sort by name alphabetically
  * onEach(users, (user) => {
- *     $(`p:${user.name} (id=${user.id})`);
+ *     $(`p#${user.name} (id=${user.id})`);
  * }, (user) => [user.group, user.name]); // Sort by group, and within each group sort by name
  * ```
  *
@@ -873,8 +877,8 @@ export function onEach<K extends string | number | symbol, T>(
  * $('dl', () => {
  *     onEach(config, (value, key) => {
  *         if (key === 'showTips') return; // Don't render this one
- *         $('dt:'+key);
- *         $('dd:'+value);
+ *         $('dt#'+key);
+ *         $('dd#'+value);
  *     });
  * });
  *
@@ -921,9 +925,9 @@ const EMPTY = Symbol("empty");
  * // Reactively display a message if the items array is empty
  * $('div', () => {
  *     if (isEmpty(items)) {
- *         $('p', 'i:No items yet!');
+ *         $('p', 'i#No items yet!');
  *     } else {
- * 		   onEach(items, item=>$('p:'+item));
+ * 		   onEach(items, item=>$('p#'+item));
  *     }
  * });
  *
@@ -1750,7 +1754,7 @@ const refHandler: ProxyHandler<RefTarget> = {
  * });
  *
  * // Usage as a dynamic property, causes a TextNode with just the name to be created and live-updated
- * $('p:Selected color: ', {
+ * $('p#Selected color: ', {
  *   text: ref(formData, 'color'),
  *   $color: ref(formData, 'color')
  * });
@@ -1813,9 +1817,8 @@ function applyBind(el: HTMLInputElement, target: any) {
 	});
 }
 
-const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
-	create: (value: any) => {
-		const el = currentScope.parentElement;
+const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
+	create: (el: Element, value: any) => {
 		if (currentScope !== topRedrawScope) return;
 		if (typeof value === "function") {
 			value(el);
@@ -1829,19 +1832,18 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
 			})();
 		}
 	},
-	destroy: (value: any) => {
-		const el = currentScope.parentElement;
+	destroy: (el: Element, value: any) => {
 		onDestroyMap.set(el, value);
 	},
-	html: (value: any) => {
+	html: (el: Element, value: any) => {
 		const tmpParent = document.createElement(
-			currentScope.parentElement.tagName,
+			currentScope.el.tagName,
 		);
 		tmpParent.innerHTML = `${value}`;
-		while (tmpParent.firstChild) addNode(tmpParent.firstChild);
+		while (tmpParent.firstChild) addNode(el, tmpParent.firstChild);
 	},
-	text: (value: any) => {
-		addNode(document.createTextNode(value));
+	text: (el: Element, value: any) => {
+		addNode(el, document.createTextNode(value));
 	},
 };
 
@@ -1853,12 +1855,12 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  * @param {...(string | function | object | false | undefined | null)} args - Any number of arguments can be given. How they're interpreted depends on their types:
  *
  * - `string`: Strings can be used to create and insert new elements, set classnames for the *current* element, and add text to the current element.
- *   The format of a string is: (**tag** | `.` **class** | **key**=**val** | **key**="**long val**")* (':' **text** | **key**=)?
+ *   The format of a string is: (**tag** | `.` **class** | **key**=**val** | **key**="**long val**")* ('#' **text** | **key**=)?
  *   So there can be:
  *   - Any number of **tag** element, like `h1` or `div`. These elements are created, added to the *current* element, and become the new *current* element for the rest of this `$` function execution.
  *   - Any number of CSS classes prefixed by `.` characters. These classes will be added to the *current* element. Optionally, CSS classes can be appended to a **tag** without a space. So both `div.myclass` and `div .myclass` are valid and do the same thing.
  *   - Any number of key/value pairs with string values, like `placeholder="Your name"` or `data-id=123`. These will be handled according to the rules specified for `object`, below, but with the caveat that values can only be strings. The quotes around string values are optional, unless the value contains spaces. It's not possible to escape quotes within the value. If you want to do that, or if you have user-provided values, use the `object` syntax (see below) or end your string with `key=` followed by the data as a separate argument (see below).
- *   - The string may end in a ':' followed by text, which will be added as a TextNode to the *current* element. The text ranges til the end of the string, and may contain any characters, including spaces and quotes.
+ *   - The string may end in a '#' followed by text, which will be added as a TextNode to the *current* element. The text ranges til the end of the string, and may contain any characters, including spaces and quotes.
  *   - Alternatively, the string may end in a key followed by an '=' character, in which case the value is expected as a separate argument. The key/value pair is set according to the rules specified for `object` below. This is useful when the value is not a string or contains spaces or user data. Example: `$('button text="Click me" click=', () => alert('Clicked!'))` or `$('input.value=', someUserData, "placeholder=", "Type your stuff")`.
  * - `function`: When a function (without argument nor a return value) is passed in, it will be reactively executed in its own observer scope, preserving the *current element*. So any `$()` invocations within this function will create DOM elements with our *current* element as parent. If the function reads observable data, and that data is changed later on, the function we re-execute (after side effects, such as DOM modifications through `$`, have been cleaned - see also {@link clean}).
  * - `object`: When an object is passed in, its key-value pairs are used to modify the *current* element in the following ways...
@@ -1874,7 +1876,7 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  *   - `{<any>: <obsvalue>}`: Create a new observer scope and read the `value` property of the given observable (proxy) variable from within it, and apply the contained value using any of the other rules in this list. Example:
  *      ```typescript
  *      const myColor = proxy('red');
- *      $('p:Test', {$color: myColor, click: () => myColor.value = 'yellow'})
+ *      $('p#Test', {$color: myColor, click: () => myColor.value = 'yellow'})
  *      // Clicking the text will cause it to change color without recreating the <p> itself
  *      ```
  *      This is often used together with {@link ref}, in order to use properties other than `.value`.
@@ -1887,7 +1889,7 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  *
  * @example Create Element
  * ```typescript
- * $('button.secondary.outline:Submit', {
+ * $('button.secondary.outline#Submit', {
  *   disabled: false,
  *   click: () => console.log('Clicked!'),
  *   $color: 'red'
@@ -1904,7 +1906,7 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  *
  * @example Create Nested Elements
  * ```typescript
- * let inputElement: Element = $('label:Click me', 'input', {type: 'checkbox'});
+ * let inputElement: Element = $('label#Click me', 'input', {type: 'checkbox'});
  * // You should usually not touch raw DOM elements, unless when integrating
  * // with non-Aberdeen code.
  * console.log('DOM element:', inputElement);
@@ -1915,8 +1917,8 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  * const state = proxy({ count: 0 });
  * $('div', () => { // Outer element
  *   // This scope re-renders when state.count changes
- *   $(`p:Count is ${state.count}`);
- *   $('button:Increment', { click: () => state.count++ });
+ *   $(`p#Count is ${state.count}`);
+ *   $('button#Increment', { click: () => state.count++ });
  * });
  * ```
  *
@@ -1925,17 +1927,17 @@ const SPECIAL_PROPS: { [key: string]: (value: any) => void } = {
  * const user = proxy({ name: '' });
  * $('input', { placeholder: 'Name', bind: ref(user, 'name') });
  * $('h3', () => { // Reactive scope
- *   $(`:Hello ${user.name || 'stranger'}`);
+ *   $(`#Hello ${user.name || 'stranger'}`);
  * });
  * ```
  *
  * @example Conditional Rendering
  * ```typescript
  * const show = proxy(false);
- * $('button', { click: () => show.value = !show.value }, () => $(show.value ? ':Hide' : ':Show'));
+ * $('button', { click: () => show.value = !show.value }, () => $(show.value ? '#Hide' : '#Show'));
  * $(() => { // Reactive scope
  *   if (show.value) {
- *     $('p:Details are visible!');
+ *     $('p#Details are visible!');
  *   }
  * });
  * ```
@@ -1951,128 +1953,104 @@ export function $(
 		| Record<string, any>
 	)[]
 ): undefined | Element {
-	let savedCurrentScope: undefined | ContentScope;
-	let err: undefined | string;
-	let result: undefined | Element;
-	let nextArgIsProp: undefined | string;
+	let el: undefined | Element = currentScope.el;
+	let svg: boolean = currentScope.svg
 
-	for (let arg of args) {
-		if (nextArgIsProp) {
-			applyArg(nextArgIsProp, arg);
-			nextArgIsProp = undefined;
-		} else if (arg == null || arg === false) {
+	const argCount = args.length;
+	for(let argIndex = 0; argIndex < argCount; argIndex++) {
+		const arg = args[argIndex];
+		if (arg == null || arg === false) {
 			// Ignore
 		} else if (typeof arg === "string") {
-			let pos = 0;
 			let argLen = arg.length;
-			while(pos < argLen) {
-				let nextSpace = arg.indexOf(" ", pos);
-				if (nextSpace < 0) nextSpace = arg.length;
-				let part = arg.substring(pos, nextSpace);
-				const oldPos = pos;
-				pos = nextSpace + 1;
-				
-				const firstIs = part.indexOf('=');
-				const firstColon = part.indexOf(':');
-				if (firstIs >= 0 && (firstColon < 0 || firstIs < firstColon)) {
-					const prop = part.substring(0, firstIs);
-					if (firstIs < part.length - 1) {
-						let value = part.substring(firstIs + 1);
-						if (value[0] === '"') {
-							const closeIndex = arg.indexOf('"', firstIs+2+oldPos);
-							if (closeIndex < 0) throw new Error(`Unterminated string for '${prop}'`);
-							value = arg.substring(firstIs+2+oldPos, closeIndex);
-							pos = closeIndex + 1;
-							if (arg[pos] === ' ') pos++;
-						}
-						applyArg(prop, value);
-						continue;
-					} else {
-						if (pos < argLen) throw new Error(`No value given for '${part}'`);
-						nextArgIsProp = prop;
-						break
-					}
-				}
-				
-				let text;
-				if (firstColon >= 0) {
-					// Read to the end of the arg, ignoring any spaces
-					text = arg.substring(firstColon + 1 + oldPos);
-					part = part.substring(0, firstColon);
-					if (!text) {
-						if (pos < argLen) throw new Error(`No value given for '${part}'`);
-						nextArgIsProp = 'text';
+			let nextPos = 0;
+			for(let pos=0; pos<argLen; pos=nextPos+1) {
+				nextPos = findFirst(arg, " .=:#", pos);
+				const next = arg[nextPos];
+
+				if (next === ":" || next === "=") {
+					let key = arg.substring(pos, nextPos);
+					if (next === ':') key = '$' + key; // Style prefix
+					if (nextPos + 1 >= argLen) {
+						applyArg(el, key, args[++argIndex]);
 						break;
 					}
-					pos = argLen;
-				}
-
-				let classes: undefined | string;
-				const classPos = part.indexOf(".");
-				if (classPos >= 0) {
-					classes = part.substring(classPos + 1);
-					part = part.substring(0, classPos);
-				}
-
-				if (part) { // Add an element
-					// Determine which namespace to use for element creation
-					const svg = currentScope.inSvgNamespace || part === 'svg';
-					if (svg) {
-						result = document.createElementNS('http://www.w3.org/2000/svg', part);
+					if (arg[nextPos+1] === '"') {
+						const endIndex = findFirst(arg, '"', nextPos + 2);
+						const value = arg.substring(nextPos+2, endIndex);
+						applyArg(el, key, value);
+						nextPos = endIndex;
 					} else {
-						result = document.createElement(part);
+						const endIndex = findFirst(arg, " ", nextPos + 1);
+						const value = arg.substring(nextPos + 1, endIndex);
+						applyArg(el, key, value);
+						nextPos = endIndex;
 					}
-					addNode(result);
-					if (!savedCurrentScope) savedCurrentScope = currentScope;
-					const newScope = new ChainedScope(result, true);
-				
-					// SVG namespace should be inherited by children
-					if (svg) newScope.inSvgNamespace = true;
-					
-					if (topRedrawScope === currentScope) topRedrawScope = newScope;
-					currentScope = newScope;
-				}
+				} else {
+					if (nextPos > pos) { // Up til this point if non-empty, is a tag
+						const tag = arg.substring(pos, nextPos);
+						// Determine which namespace to use for element creation
+						svg ||= tag === 'svg';
+						let newEl = svg ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag);
+						addNode(el, newEl);
+						el = newEl;
+					}
 
-				if (text) addNode(document.createTextNode(text));
-				if (classes) {
-					const el = currentScope.parentElement;
-					el.classList.add(...classes.split("."));
-					if (!savedCurrentScope) {
-						clean(() => el.classList.remove(...classes.split(".")));
+					if (next === "#") { // The rest of the string is text (or a text arg follows)	
+						const text = nextPos + 1 < argLen ? arg.substring(nextPos + 1) : args[++argIndex];
+						applyArg(el, "text", text);
+						break;
+					}
+
+					if (next === ".") { // Class name
+						let classEnd = findFirst(arg, " #=.", nextPos + 1);
+						if (arg[classEnd] === '=' && classEnd + 1 >= argLen) {
+							// Conditional class name. Pass to applyArg including the leading '.'
+							applyArg(el, arg.substring(nextPos, classEnd), args[++argIndex]);
+							nextPos = classEnd;
+						} else {
+							let className: any = arg.substring(nextPos + 1, classEnd);
+							el.classList.add(className || args[++argIndex]);
+							nextPos = classEnd - 1;
+						}
 					}
 				}
 			}
 		} else if (typeof arg === "object") {
 			if (arg.constructor !== Object) {
 				if (arg instanceof Node) {
-					addNode(arg);
+					addNode(el, arg);
 					if (arg instanceof Element) {
-						// If it's an Element, it may contain children, so we make it the current scope
-						if (!savedCurrentScope) savedCurrentScope = currentScope;
-						currentScope = new ChainedScope(arg, true);
-						currentScope.lastChild = arg.lastChild || undefined;
+						el = arg;
+						svg = arg.namespaceURI === 'http://www.w3.org/2000/svg';
 					}
 				} else {
-					err = `Unexpected argument: ${arg}`;
-					break;
+					throw new Error(`Unexpected argument: ${arg}`);
 				}
 			} else {
 				for (const key of Object.keys(arg)) {
-					const val = arg[key];
-					applyArg(key, val);
+					applyArg(el, key, arg[key]);
 				}
 			}
 		} else if (typeof arg === "function") {
-			new RegularScope(currentScope.parentElement, arg);
+			new RegularScope(el, svg, arg);
 		} else {
-			err = `Unexpected argument: ${arg}`;
-			break;
+			throw new Error(`Unexpected argument: ${arg}`);
 		}
 	}
-	if (nextArgIsProp !== undefined) throw new Error(`No value given for '${nextArgIsProp}='`);
-	if (savedCurrentScope) currentScope = savedCurrentScope;
-	if (err) throw new Error(err);
-	return result;
+	return el;
+}
+
+function findFirst(str: string, chars: string, startPos: number): number {
+	if (chars.length === 1) {
+		const idx = str.indexOf(chars, startPos);
+		return idx >= 0 ? idx : str.length;
+	}
+	const strLen = str.length;
+	for (let i = startPos; i < strLen; i++) {
+		if (chars.indexOf(str[i]) >= 0) return i;
+	}
+	return strLen;
 }
 
 let cssCount = 0;
@@ -2114,8 +2092,8 @@ let cssCount = 0;
  *
  * // Apply the styles
  * $(scopeClass, () => { // Add class to the div
- *   $(`:Scoped content`);
- *   $('div.child-element:Child'); // .AbdStl1 .child-element rule applies
+ *   $(`#Scoped content`);
+ *   $('div.child-element#Child'); // .AbdStl1 .child-element rule applies
  * });
  * ```
  *
@@ -2131,13 +2109,13 @@ let cssCount = 0;
  *   }
  * }, true); // Pass true for global
  *
- * $('a:Styled link');
+ * $('a#Styled link');
  * ```
  */
 export function insertCss(style: object, global = false): string {
 	const prefix = global ? "" : `.AbdStl${++cssCount}`;
 	const css = styleToCss(style, prefix);
-	if (css) $(`style:${css}`);
+	if (css) $(`style#${css}`);
 	return prefix;
 }
 
@@ -2166,8 +2144,7 @@ function styleToCss(style: object, prefix: string): string {
 	return rules;
 }
 
-function applyArg(key: string, value: any) {
-	const el = currentScope.parentElement;
+function applyArg(el: Element, key: string, value: any) {
 	if (typeof value === "object" && value !== null && value[TARGET_SYMBOL]) {
 		// Value is a proxy
 		if (key === "bind") {
@@ -2191,11 +2168,11 @@ function applyArg(key: string, value: any) {
 		// Do nothing
 	} else if (key in SPECIAL_PROPS) {
 		// Special property
-		SPECIAL_PROPS[key](value);
+		SPECIAL_PROPS[key](el, value);
 	} else if (typeof value === "function") {
 		// Event listener
 		el.addEventListener(key, value);
-		clean(() => el.removeEventListener(key, value));
+		if (el === currentScope.el) clean(() => el.removeEventListener(key, value));
 	} else if (
 		value === true ||
 		value === false ||
@@ -2240,7 +2217,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
  *
  *   try {
  *     // Attempt to show a custom message in the UI
- *     $('div.error-message:Oops, something went wrong!');
+ *     $('div.error-message#Oops, something went wrong!');
  *   } catch (e) {
  *     // Ignore errors during error handling itself
  *   }
@@ -2297,7 +2274,7 @@ export function setErrorHandler(
  * ```
  */
 export function getParentElement(): Element {
-	return currentScope.parentElement;
+	return currentScope.el;
 }
 
 /**
@@ -2319,7 +2296,7 @@ export function getParentElement(): Element {
  *
  * // Show the array items and maintain the sum
  * onEach(myArray, (item, index) => {
- *     $(`code:${index}→${item}`);
+ *     $(`code#${index}→${item}`);
  *     // We'll update sum.value using peek, as += first does a read, but
  *     // we don't want to subscribe.
  *     peek(() => sum.value += item);
@@ -2362,14 +2339,14 @@ export function clean(cleaner: () => void) {
  *
  * $('main', () => {
  *   console.log('Welcome');
- *   $('h3:Welcome, ' + data.user); // Reactive text
+ *   $('h3#Welcome, ' + data.user); // Reactive text
  *
  *   derive(() => {
  *     // When data.notifications changes, only this inner scope reruns,
  *     // leaving the `<p>Welcome, ..</p>` untouched.
  *     console.log('Notifications');
- *     $('code.notification-badge:' + data.notifications);
- *     $('a:Notify!', {click: () => data.notifications++});
+ *     $('code.notification-badge#' + data.notifications);
+ *     $('a#Notify!', {click: () => data.notifications++});
  *   });
  * });
  * ```
@@ -2383,7 +2360,7 @@ export function clean(cleaner: () => void) {
  * const double = derive(() => counter.value * 2);
  *
  * $('h3', () => {
- *     $(`:counter=${counter.value} double=${double.value}`);
+ *     $(`#counter=${counter.value} double=${double.value}`);
  * })
  * ```
  *
@@ -2391,7 +2368,7 @@ export function clean(cleaner: () => void) {
  * @param func Func without a return value.
  */
 export function derive<T>(func: () => T): ValueRef<T> {
-	return new ResultScope<T>(currentScope.parentElement, func).result;
+	return new ResultScope<T>(func).result;
 }
 
 /**
@@ -2423,12 +2400,12 @@ export function derive<T>(func: () => T): ValueRef<T> {
  * setInterval(() => runTime.value++, 1000);
  *
  * mount(document.getElementById('app-root'), () => {
- *   $('h4:Aberdeen App');
- *   $(`p:Run time: ${runTime.value}s`);
+ *   $('h4#Aberdeen App');
+ *   $(`p#Run time: ${runTime.value}s`);
  *   // Conditionally render some content somewhere else in the static page
  *   if (runTime.value&1) {
  *     mount(document.getElementById('title-extra'), () =>
- *       $(`i:(${runTime.value}s)`)
+ *       $(`i#(${runTime.value}s)`)
  *     );
  *   }
  * });
@@ -2803,7 +2780,7 @@ export function partition<
  *   items: ['a', 'b']
  * });
  *
- * $('h2:Live State Dump');
+ * $('h2#Live State Dump');
  * dump(state);
  *
  * // Change state later, the dump in the DOM will update
@@ -2812,20 +2789,22 @@ export function partition<
  */
 export function dump<T>(data: T): T {
 	if (data && typeof data === "object") {
-		$(`:<${data.constructor.name || "unknown object"}>`);
+		const name = data.constructor.name.toLowerCase() || "unknown object";
+		$(`#<${name}>`);
 		if (NO_COPY in data ) {
-			$(": [NO_COPY]");
+			$("# [NO_COPY]");
 		} else {
 			$("ul", () => {
 				onEach(data as any, (value, key) => {
-					$(`li:${JSON.stringify(key)}: `, () => {
+					$("li", () => {
+						$(`#${JSON.stringify(key)}: `);
 						dump(value);
 					});
 				});
 			});
 		}
-	} else {
-		$(":" + JSON.stringify(data));
+	} else if (data !== undefined) {
+		$("#" + JSON.stringify(data));
 	}
 	return data;
 }
@@ -2847,7 +2826,7 @@ function handleError(e: any, showMessage: boolean) {
 		console.error(e);
 	}
 	try {
-		if (showMessage) $("div.aberdeen-error:Error");
+		if (showMessage) $("div.aberdeen-error#Error");
 	} catch {
 		// Error while adding the error marker to the DOM. Apparently, we're in
 		// an awkward context. The error should already have been logged by

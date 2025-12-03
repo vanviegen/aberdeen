@@ -38,7 +38,7 @@ $('h3', () => {
 $('input placeholder=Question bind=', ref(state, 'question'))
 
 // Allow state.answer to be modified using both an <input> and buttons
-$('div.row $marginTop=1em', () => {
+$('div.row marginTop:1em', () => {
     $('button text=- click=', () => state.answer--);
     $('input type=number bind=', ref(state, 'answer'))
     $('button text=+ click=', () => state.answer++);
@@ -79,10 +79,10 @@ function drawMain() {
 
     // Add item and delete checked buttons.
     $('div.row', () => {
-        $('button:+', {
+        $('button#+', {
             click: () => items.push(new TodoItem("")),
         });
-        $('button.outline:Delete checked', {
+        $('button.outline#Delete checked', {
             click: () => {
                 for(let idx in items) {
                     if (items[idx].done) delete items[idx];
@@ -104,7 +104,7 @@ function drawItem(item) {
         $({".done": ref(item,'done')});
 
         // The checkmark is hidden using CSS
-        $('div.checkmark:✅');
+        $('div.checkmark#✅');
 
         if (editing.value) {
             // Label <input>. Save using enter or button.
@@ -117,15 +117,15 @@ function drawItem(item) {
                 value: item.label,
                 keydown: e => e.key==='Enter' && save(),
             });
-            $('button.outline:Cancel', {click: () => editing.value = false});
-            $('button:Save', {click: save});
+            $('button.outline#Cancel', {click: () => editing.value = false});
+            $('button#Save', {click: save});
         } else {
             // Label as text. 
-            $('p:' + item.label);
+            $('p#' + item.label);
 
             // Edit icon, if not done.
             if (!item.done) {
-                $('a:Edit', {
+                $('a#Edit', {
                     click: e => {
                         editing.value = true;
                         e.stopPropagation(); // We don't want to toggle as well.
@@ -134,7 +134,7 @@ function drawItem(item) {
             }
             
             // Clicking a row toggles done.
-            $({click: () => item.done = !item.done, $cursor: 'pointer'});
+            $('cursor:pointer click=', () => item.done = !item.done);
         }
     });
 }
@@ -173,6 +173,14 @@ Some further examples:
 And you may want to study the examples above, of course!
 
 ## Changelog
+
+### 1.3.0 (2025-12-03)
+**Breaking changes:**
+- The shortcut for setting inline CSS styles in now `$('div color:red')` instead of `$('div $color=red')`.
+- The shortcut for adding text content is now `$('p#Hello')` instead of `$('p:Hello')`. It now also works with dynamic content: `$('p#', myObservable)`.
+
+**Enhancements:**
+- New A() string parser, reducing complexity and line count.
 
 ### 1.2.0 (2025-09-27)
 

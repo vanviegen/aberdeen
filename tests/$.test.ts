@@ -12,9 +12,9 @@ test('creates nested nodes', () => {
 });
 
 test('creates elements with text', () => {
-	$('div.cls:This is my :-containg text!')
+	$('div.cls#This is my #-containg text!')
 	$('h2', {text: 'More text...'})
-	assertBody(`div.cls{"This is my :-containg text!"} h2{"More text..."}`)
+	assertBody(`div.cls{"This is my #-containg text!"} h2{"More text..."}`)
 })
 
 test('reactively modifies attributes that have proxies as values', async () => {
@@ -66,7 +66,7 @@ test('reacts to conditions', async () => {
 test('long-form string args', async () => {
 	const enabled = proxy(false);
 	$(() => {
-		$('div.cls text=Title .enabled=', enabled, '$color=red span .important $fontDecoration=underline :The rest is text');
+		$('div.cls text=Title .enabled=', enabled, '$color=red span .important $fontDecoration=underline #The rest is text');
 	})
 	assertBody(`div.cls{color:red "Title" span.important{fontDecoration:underline "The rest is text"}}`);
 
@@ -80,3 +80,59 @@ test('long-form string arg escaping', async () => {
 	$('div text="My title" $margin="0 auto".cls');
 	assertBody(`div.cls{margin:"0 auto" "My title"}`);
 })
+
+test('reactive proxy text with # shorthand', async () => {
+	const text = proxy('Hello');
+	mount(document.body, () => {
+		$('p#', text);
+	});
+	assertBody(`p{"Hello"}`);
+
+	text.value = 'World';
+	await passTime();
+	assertBody(`p{"World"}`);
+});
+
+test('reactive proxy text with # and static prefix', async () => {
+	const name = proxy('Alice');
+	mount(document.body, () => {
+		$('p', () => {
+			$('#Hello, ');
+			$({text: name});
+		});
+	});
+	assertBody(`p{"Hello, " "Alice"}`);
+
+	name.value = 'Bob';
+	await passTime();
+	assertBody(`p{"Hello, " "Bob"}`);
+});
+
+test('inline style with colon shorthand', () => {
+	$('div color:red');
+	assertBody(`div{color:red}`);
+});
+
+test('inline style with reactive proxy value', async () => {
+	const color = proxy('red');
+	mount(document.body, () => {
+		$('div color:', color);
+	});
+	assertBody(`div{color:red}`);
+
+	color.value = 'blue';
+	await passTime();
+	assertBody(`div{color:blue}`);
+});
+
+test('multiple inline styles with reactive proxy', async () => {
+	const bgColor = proxy('white');
+	mount(document.body, () => {
+		$('div color:red background-color:', bgColor);
+	});
+	assertBody(`div{background-color:white color:red}`);
+
+	bgColor.value = 'black';
+	await passTime();
+	assertBody(`div{background-color:black color:red}`);
+});

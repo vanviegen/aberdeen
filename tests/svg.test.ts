@@ -54,7 +54,7 @@ test('creates nested SVG elements with SVG namespace', () => {
 	$('svg', () => {
 		$('g', () => {
 			$('rect', {x: 10, y: 10, width: 50, height: 30});
-			$('text', () => $(':Hello SVG'));
+			$('text', () => $('#Hello SVG'));
 		});
 	});
 	
@@ -72,11 +72,11 @@ test('creates nested SVG elements with SVG namespace', () => {
 
 test('mixes HTML and SVG correctly', () => {
 	$('div', () => {
-		$('h1:Title');
+		$('h1#Title');
 		$('svg', () => {
 			$('circle', {cx: 25, cy: 25, r: 20});
 		});
-		$('p:Description');
+		$('p#Description');
 	});
 	
 	const div = document.body.firstChild as Element;

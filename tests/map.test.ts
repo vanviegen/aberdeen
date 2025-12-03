@@ -130,7 +130,7 @@ test('isEmpty works on arrays', async () => {
     let cnt = 0;
     $(() => {
         cnt++;
-        $(isEmpty(data,) ? ":empty" : ":not empty");
+        $(isEmpty(data,) ? "#empty" : "#not empty");
     })
     assertBody(`"empty"`);
     expect(cnt).toBe(1);
@@ -162,7 +162,7 @@ test('isEmpty works on arrays', async () => {
     
     unmountAll();
     $(() => { // test initial value for isEmpty
-        $(isEmpty(data,) ? ":empty2" : ":not empty2");
+        $(isEmpty(data,) ? "#empty2" : "#not empty2");
     })
     assertBody(`"not empty2"`);
 })
@@ -173,7 +173,7 @@ test('isEmpty works on objects', async () => {
     let cnt = 0;
     $(() => {
         cnt++;
-        $(isEmpty(data,) ? ":empty" : ":not empty");
+        $(isEmpty(data,) ? "#empty" : "#not empty");
     })
     assertBody(`"empty"`);
     expect(cnt).toBe(1);
@@ -203,7 +203,7 @@ test('isEmpty works on objects', async () => {
     
     data.x = 1;
     $(() => { // test initial value for isEmpty
-        $(isEmpty(data,) ? ":empty2" : ":not empty2");
+        $(isEmpty(data,) ? "#empty2" : "#not empty2");
     })
     assertBody(`"not empty2"`);
 })
@@ -258,7 +258,7 @@ test('partition partitions array items into single buckets', async () => {
         { id: 102, type: 'B', tags: ['y'] },
         { id: 103, type: 'A', tags: ['x', 'y'] },
     ]);
-    const partKey = proxy('type');
+    const partKey = proxy('type') as {value: 'type' | 'tags'};
     let partitionFuncCalls = 0;
     
     const partitioned = partition(source, (item, _index) => {
@@ -274,7 +274,7 @@ test('partition partitions array items into single buckets', async () => {
     onEach(partitioned, (bucket, bucketKey) => {
         $(`p.${bucketKey}`, () => {
             onEach(bucket, (item, originalIndex) => {
-                $(`:id=${item.id} index=${originalIndex}`);
+                $(`#id=${item.id} index=${originalIndex}`);
             });
         });
     });

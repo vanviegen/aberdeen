@@ -61,7 +61,7 @@ test('merges', async () => {
 		cnt1++;
 		onEach(data, (item, index) => {
 			cnt2++;
-			$('div:' + item);
+			$('div#' + item);
 		});
 	});
 

@@ -63,7 +63,7 @@ test('onEach rerenders items on unrelated observable changes', async () => {
   ]);
   let cnt = 0;
   onEach(data, function(item) {
-    $(`div:${item.id}=${item.name}`)
+    $(`div#${item.id}=${item.name}`)
     cnt++;
   })
   expect(cnt).toEqual(3);
@@ -422,7 +422,7 @@ test('onEach reruns', async () => {
   $(() => {
     ids.length; // Cause onEach to rerun completely
     onEach(ids, id => {
-      $("div:" + id)
+      $("div#" + id)
     })
   })
 
