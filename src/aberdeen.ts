@@ -1943,16 +1943,7 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
  * ```
  */
 
-export function $(
-	...args: (
-		| string
-		| null
-		| undefined
-		| false
-		| (() => void)
-		| Record<string, any>
-	)[]
-): undefined | Element {
+export function $(...args: any[]): undefined | Element {
 	let el: undefined | Element = currentScope.el;
 	let svg: boolean = currentScope.svg
 

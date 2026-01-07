@@ -174,6 +174,10 @@ And you may want to study the examples above, of course!
 
 ## Changelog
 
+### 1.3.1 (2025-01-07)
+**Fixes:**
+- Argument types accepted by `$` were too restrictive, as something like `$('prop=', myVal)` should be able to accept any type for `myVal`.
+
 ### 1.3.0 (2025-12-03)
 **Breaking changes:**
 - The shortcut for setting inline CSS styles in now `$('div color:red')` instead of `$('div $color=red')`.
