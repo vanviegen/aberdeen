@@ -26,7 +26,7 @@ class Node {
     return siblings[idx + delta];
   }
 
-  visit(visitor: (Element) => void) {
+  visit(visitor: (el: Node) => void) {
     visitor(this);
     for(let c of this.childNodes) {
       c.visit(visitor);

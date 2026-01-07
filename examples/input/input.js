@@ -14,9 +14,9 @@ const data = proxy({
 
 // Add an <h2>. Unless `mount` is used, our root is the `<body>`.
 $('h2', () => {
-    // Add a text node (':' prefix) to h2. This anonymous function will be rerun whenever
+    // Add a text node ('#' prefix) to h2. This anonymous function will be rerun whenever
     // `data.name` changes, first removing the earlier text node.
-    $(":" + (data.name || "Nobody") + "'s biography");
+    $("#", (data.name || "Nobody") + "'s biography");
 });
 
 // We're creating a two-way binding between this input element and `data.name`.
@@ -28,7 +28,7 @@ $('input', { type: 'number', placeholder: 'Age', bind: ref(data, 'age') });
 
 $('label', () => {
     $('input', { type: 'checkbox', bind: ref(data, 'active') });
-    $(':Active member');
+    $('#Active member');
 });
 
 $(() => {
@@ -48,11 +48,11 @@ $(() => {
     }
 });
 
-$('select', () => {
-    $('option:Man', { value: "m" });
-    $('option:Woman', { value: "w" });
-    $('option:Other', { value: "o" });
-}, { bind: ref(data, 'gender') });
+$('select', { bind: ref(data, 'gender') }, () => {
+    $('option#Man', { value: "m" });
+    $('option#Woman', { value: "w" });
+    $('option#Other', { value: "o" });
+});
 
 $(() => {
     if (data.gender === 'o') {
@@ -68,7 +68,7 @@ $(() => {
 });
 
 $('fieldset', () => {
-    $('legend:Vehicle')
+    $('legend#Vehicle')
     const vehicles = { plane: 'Plane', car: 'Car', bike: 'Bicycle', none: 'None' };
     for (let id in vehicles) {
         $('label', () => {
@@ -78,7 +78,7 @@ $('fieldset', () => {
                 value: id, 
                 bind: ref(data, 'vehicle') 
             });
-            $(":" + vehicles[id]);
+            $("#", vehicles[id]);
         });
     }
 });
@@ -87,7 +87,7 @@ $('textarea', { placeholder: "Biography", bind: ref(data, 'bio') });
 
 $('label', () => {
     $('input', { type: 'color', bind: ref(data, 'color') });
-    $(':Favorite color');
+    $('#Favorite color');
 });
 
 $('input', { type: 'range', min: 50, max: 230, bind: ref(data, 'height') });

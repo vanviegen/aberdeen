@@ -53,7 +53,7 @@ $(() => {
             }
             
             $('div', { $flex: 1 });
-            $('button.no-line:Modal!', {
+            $('button.no-line#Modal!', {
                 click: () => route.push({state: {modal: 'settings'}})
             });
         });

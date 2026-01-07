@@ -24,13 +24,13 @@ const addItems = (count) => {
 addItems(100);
 
 // By default, html elements are added to the <body>:
-$('button:Add 10', { click: () => addItems(10) });
-$('button:Add 100', { click: () => addItems(100) });
-$('button:Add 1000', { click: () => addItems(1000) });
+$('button#Add 10', { click: () => addItems(10) });
+$('button#Add 100', { click: () => addItems(100) });
+$('button#Add 1000', { click: () => addItems(1000) });
 $('input', { placeholder: 'Search first name', autofocus: true, bind: ref(search, 'value') });
 $('label', () => {
 	$('input', {type: 'checkbox', bind: animate});
-	$(":Animate");
+	$("#Animate");
 });
 
 const gameStyle = insertCss({
@@ -67,10 +67,10 @@ $('div', gameStyle, {[animateStyle]: animate}, () => {
 		for (let i = 0; i < COLUMN_NAMES.length; i++) {
 			$('div', {click: () => orderIndex.value = i}, () => {
 				// Show triangle when we're sorting by this column
-				$(':' + COLUMN_NAMES[i] + (orderIndex.value === i ? ' ▼' : ''));
+				$('#', COLUMN_NAMES[i] + (orderIndex.value === i ? ' ▼' : ''));
 			});
 		}
-		$('div:Delete')
+		$('div#Delete')
 	});
 
 	// The second argument is the render function, the third argument returns the
@@ -83,7 +83,7 @@ $('div', gameStyle, {[animateStyle]: animate}, () => {
 				$('div', { text: field });
 			});
 			
-			$('div:⌫', { 
+			$('div#⌫', { 
 				click: () => {
 					// Remove the item from the array
 					delete items[index];

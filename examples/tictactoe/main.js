@@ -39,17 +39,17 @@ function drawStatusMessage(history) {
         const board = getBoard(history);
         const winner = calculateWinner(board);
         if (winner) {
-            $(`:Winner: ${winner}!`);
+            $(`#Winner: ${winner}!`);
         } else if (board.filter(square=>square).length === 9) {
-            $(`:It's a draw...`);
+            $(`#It's a draw...`);
         } else {
-            $(`:Current player: ${getCurrentMarker(board)}`);
+            $(`#Current player: ${getCurrentMarker(board)}`);
         }
     });
 }
 
 function drawTurns(history) {
-    $('div:Select a turn:')
+    $('div#Select a turn:')
     // Reactively iterate all (historic) board versions
     onEach(history.boards, (_, index) => {
         $('button', {

@@ -162,7 +162,7 @@ Some further examples:
 - [Input demo](https://aberdeenjs.org/examples/input/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/input)
 - [Tic Tac Toe demo](https://aberdeenjs.org/examples/tictactoe/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/tictactoe)
 - [List demo](https://aberdeenjs.org/examples/list/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/list)
-- [Routing demo](https://aberdeenjs.org/examples/router/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/router)
+- [Routing demo](https://aberdeenjs.org/examples/route/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/route)
 - [JS Framework Benchmark demo](https://aberdeenjs.org/examples/js-framework-benchmark/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/js-framework-benchmark)
 
 ## Learning Aberdeen
@@ -173,6 +173,14 @@ Some further examples:
 And you may want to study the examples above, of course!
 
 ## Changelog
+
+### 1.3.2 (2025-01-07)
+
+**Enhancements:**
+- It's now okay to first define a SELECT binding and then add its OPTIONs right after, while still allowing the binding to set the initial value. This used to throw an async error.
+
+**Fixes:**
+- Turns out some examples were still using old text content syntax.
 
 ### 1.3.1 (2025-01-07)
 **Fixes:**

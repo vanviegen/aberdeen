@@ -2,10 +2,10 @@ import { $, proxy } from '../../dist/aberdeen.js';
 
 const radius = proxy(20);
 
-$('h1:Aberdeen SVG Support Demo');
+$('h1#Aberdeen SVG Support Demo');
 
 $('div', () => {
-    $('p:This is an inline SVG:')
+    $('p#This is an inline SVG:')
     $('svg', { width: 100, height: 100, $backgroundColor: '#eee' }, () => {
         // SVG elements are created with proper SVG namespace
         $('circle', {
@@ -29,7 +29,7 @@ $('div', () => {
     });
     
     $('p', () => {
-        $('button:Decrement radius', {click: () => radius.value -= 5});
-        $('button:Increment radius', {click: () => radius.value += 5});
+        $('button#Decrement radius', {click: () => radius.value -= 5});
+        $('button#Increment radius', {click: () => radius.value += 5});
     });
 });

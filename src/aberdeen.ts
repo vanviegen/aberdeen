@@ -190,6 +190,19 @@ abstract class Scope implements QueueRunner {
 }
 
 /**
+ * Execute a function once, after all currently scheduled jobs are completed.
+ */
+class DelayedOneTimeRunner implements QueueRunner {
+	prio: number = --lastPrio;
+	[ptr: ReverseSortedSetPointer]: this;
+	constructor(
+		public queueRun: () => void
+	) {
+		queue(this);
+	}
+}
+
+/**
  * All Scopes that can hold nodes and subscopes, including `SimpleScope` and `OnEachItemScope`
  * but *not* `OnEachScope`, are `ContentScope`s.
  */
@@ -1806,8 +1819,10 @@ function applyBind(el: HTMLInputElement, target: any) {
 		onProxyChange = () => {
 			el.value = target.value;
 			// biome-ignore lint/suspicious/noDoubleEquals: it's fine for numbers to be casts to strings here
-			if (el.tagName === "SELECT" && el.value != target.value)
-				throw new Error(`SELECT has no '${target.value}' OPTION (yet)`);
+			if (el.tagName === "SELECT" && el.value != target.value) {
+				// Presumable, OPTIONs haven't been created yet. Try again after all currently queued work has been done.
+				new DelayedOneTimeRunner(() => el.value = target.value);
+			}
 		};
 	}
 	derive(onProxyChange);
