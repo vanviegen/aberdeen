@@ -285,6 +285,8 @@ class ChainedScope extends ContentScope {
 			// If `currentScope` is not actually a ChainedScope, prevSibling will be undefined, as intended
 			this.prevSibling = currentScope.getChildPrevSibling();
 			currentScope.lastChild = this;
+		} else {
+			this.prevSibling = el.lastChild || undefined;
 		}
 
 		// We're always adding ourselve as a cleaner, in order to run our own cleaners

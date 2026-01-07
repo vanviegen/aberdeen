@@ -208,3 +208,11 @@ test('merges objects collapsing changes', async () => {
   merge(data, {c: 4});
   expect(cnt).toEqual(2);
 });
+
+test('text in content function comes after argument text', async () => {
+  $('p#abc', '#def', () => {
+    $('#ghi');
+    $('#jkl')
+  })
+  assertBody(`p{"abc" "def" "ghi" "jkl"}`);
+});
