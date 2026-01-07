@@ -1,5 +1,5 @@
 import { test } from "bun:test";
-import { insertCss } from "../src/aberdeen";
+import { insertCss, insertGlobalCss } from "../src/aberdeen";
 import { assertCss } from './helpers';
 
 test('Basic style', async () => {
@@ -38,12 +38,12 @@ test('Complex selectors', async () => {
 });
 
 test('Global style', async () => {
-  insertCss({
+  insertGlobalCss({
     h1: {
       color: 'red'
     },
     margin: 4,
-  }, true);
+  });
   assertCss(
     `*{margin:4;}`,
     `h1{color:red;}`,

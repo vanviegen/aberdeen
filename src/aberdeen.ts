@@ -1704,6 +1704,26 @@ export const NO_COPY = Symbol("NO_COPY");
 (Promise.prototype as any)[NO_COPY] = true;
 
 /**
+ * CSS variable lookup table for the `@` value prefix.
+ * 
+ * When a CSS value starts with `@`, the rest is used as a key to look up the actual value.
+ * Pre-initialized with keys '1'-'12' mapping to an exponential rem scale (e.g., @1=0.25rem, @3=1rem).
+ * 
+ * @example
+ * ```typescript
+ * cssVars.primary = '#3b82f6';
+ * cssVars[3] = '16px'; // Override @3 to be 16px instead of 1rem
+ * $('p color:@primary'); // Sets color to #3b82f6
+ * $('div mt:@3'); // Sets margin-top to 16px
+ * ```
+ */
+export const cssVars: Record<string, string> = optProxy({});
+
+for (let i = 1; i <= 12; i++) {
+	cssVars[i] = 2 ** (i - 3) + "rem";
+}
+
+/**
  * Clone an (optionally proxied) object or array.
  *
  * @param src The object or array to clone. If it is proxied, `clone` will subscribe to any changes to the (nested) data structure.
@@ -2064,7 +2084,7 @@ function findFirst(str: string, chars: string, startPos: number): number {
 let cssCount = 0;
 
 /**
- * Inserts CSS rules into the document, optionally scoping them with a unique class name.
+ * Inserts CSS rules into the document, scoping them with a unique class name.
  *
  * Takes a JavaScript object representation of CSS rules. camelCased property keys are
  * converted to kebab-case (e.g., `fontSize` becomes `font-size`).
@@ -2075,11 +2095,9 @@ let cssCount = 0;
  *   - In case a selector contains a `&`, that character will be replaced by the parent selector.
  *   - Selectors will be split on `,` characters, each combining with the parent selector with *or* semantics.
  *   - Selector starting with `'@'` define at-rules like media queries. They may be nested within regular selectors.
- * @param global - If `true`, styles are inserted globally without prefixing.
- *                 If `false` (default), all selectors are prefixed with a unique generated
- *                 class name (e.g., `.AbdStl1`) to scope the styles.
- * @returns The unique class name prefix used for scoping (e.g., `.AbdStl1`), or an empty string
- *          if `global` was `true`. Use this prefix with {@link $} to apply the styles.
+ * @param global - @deprecated Use {@link insertGlobalCss} instead.
+ * @returns The unique class name prefix used for scoping (e.g., `.AbdStl1`). Use this 
+ *          prefix with {@link $} to apply the styles.
  *
  * @example Scoped Styles
  * ```typescript
@@ -2104,21 +2122,6 @@ let cssCount = 0;
  *   $('div.child-element#Child'); // .AbdStl1 .child-element rule applies
  * });
  * ```
- *
- * @example Global Styles
- * ```typescript
- * insertCss({
- *   '*': {
- *     fontFamily: 'monospace',
- *   },
- *   'a': {
- *     textDecoration: 'none',
- *     color: "#107ab0",
- *   }
- * }, true); // Pass true for global
- *
- * $('a#Styled link');
- * ```
  */
 export function insertCss(style: object, global = false): string {
 	const prefix = global ? "" : `.AbdStl${++cssCount}`;
@@ -2126,6 +2129,53 @@ export function insertCss(style: object, global = false): string {
 	if (css) $(`style#${css}`);
 	return prefix;
 }
+
+/**
+ * Inserts CSS rules globally.
+ * 
+ * Works exactly like {@link insertCss}, but without prefixing selectors with a unique class name.
+ * 
+ * @example Global Styles
+ * ```typescript
+ * insertGlobalCss({
+ *   '*': {
+ *     fontFamily: 'monospace',
+ *     m: 0, // Using shortcut for margin
+ *   },
+ *   'a': {
+ *     textDecoration: 'none',
+ *     fg: "@primary", // Using foreground shortcut and CSS variable
+ *   }
+ * });
+ *
+ * $('a#Styled link');
+ * ```
+ */
+export function insertGlobalCss(style: object): string {
+	return insertCss(style, true);
+}
+
+const CSS_SHORT: Record<string, string | string[]> = {
+	m: "margin",
+	mt: "marginTop",
+	mb: "marginBottom",
+	ml: "marginLeft",
+	mr: "marginRight",
+	mh: ["marginLeft", "marginRight"],
+	mv: ["marginTop", "marginBottom"],
+	p: "padding",
+	pt: "paddingTop",
+	pb: "paddingBottom",
+	pl: "paddingLeft",
+	pr: "paddingRight",
+	ph: ["paddingLeft", "paddingRight"],
+	pv: ["paddingTop", "paddingBottom"],
+	w: "width",
+	h: "height",
+	bg: "background",
+	fg: "color",
+	r: "borderRadius",
+};
 
 function styleToCss(style: object, prefix: string): string {
 	let props = "";
@@ -2144,7 +2194,11 @@ function styleToCss(style: object, prefix: string): string {
 					);
 				}
 			} else {
-				props += `${k.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}:${v};`;
+				const val = v == null || v === false ? "" : typeof v === 'string' ? (v[0] === '@' ? (cssVars as any)[v.substring(1)] || "" : v) : String(v);
+				const expanded = CSS_SHORT[k] || k;
+				for (const prop of (Array.isArray(expanded) ? expanded : [expanded])) {
+					props += `${prop.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}:${val};`;
+				}
 			}
 		}
 	}
@@ -2167,10 +2221,15 @@ function applyArg(el: Element, key: string, value: any) {
 		if (value) el.classList.add(...classes);
 		else el.classList.remove(...classes);
 	} else if (key[0] === "$") {
-		// Style
-		const name = key.substring(1);
-		if (value == null || value === false) (el as any).style[name] = "";
-		else (el as any).style[name] = `${value}`;
+		// Style (with shortcuts)
+		key = key.substring(1);
+		const val = value == null || value === false ? "" : typeof value === 'string' ? (value[0] === '@' ? (cssVars as any)[value.substring(1)] || "" : value) : String(value);
+		const expanded = CSS_SHORT[key] || key;
+		if (typeof expanded === "string") {
+			(el as any).style[expanded] = val;
+		} else {
+			for (const prop of expanded) (el as any).style[prop] = val;
+		}
 	} else if (value == null) {
 		// Value left empty
 		// Do nothing

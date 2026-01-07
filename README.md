@@ -174,6 +174,18 @@ And you may want to study the examples above, of course!
 
 ## Changelog
 
+### 1.4.0 (2025-01-07)
+
+**Enhancements:**
+- Shortcuts for common CSS properties. For instance: `$('div mv:10px')` for setting vertical (top and bottom) margins.
+- Variables you can set and use in CSS styles, e.g. `$('div bg:@myColor')` after setting `cssVars.myColor = 'red'`.
+- Default CSS variables are defined for spacing: `@2` is `0.5rem`, `@3` is `1rem`, etc. For example: `$('r:@3')` sets border radius to (a dynamically configurable) `1rem`.
+- All CSS shortcuts and `@` variables are also supported in `insertCss` and `insertGlobalCss`.
+- Added `insertGlobalCss` for adding global styles. The `global` argument to `insertCss` is now deprecated.
+
+**Fixes:**
+- When doing `$('div #first', () => $('#second'))`, *second* now comes after *first*. It used to be the other way around.
+
 ### 1.3.2 (2025-01-07)
 
 **Enhancements:**

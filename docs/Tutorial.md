@@ -73,6 +73,80 @@ For convenience, you can also use the string shorthand with a colon:
 $('div.box color:red backgroundColor:yellow#Styled text');
 ```
 
+## CSS shortcuts
+
+Aberdeen provides shortcuts for commonly used CSS properties, making your code more concise.
+
+### Property shortcuts
+
+Common property names are automatically expanded:
+
+| Shortcut | Expands to |
+|----------|------------|
+| `m`, `mt`, `mb`, `ml`, `mr` | `margin`, `marginTop`, `marginBottom`, `marginLeft`, `marginRight` |
+| `mv`, `mh` | Vertical (top+bottom) or horizontal (left+right) margins |
+| `p`, `pt`, `pb`, `pl`, `pr` | `padding`, `paddingTop`, `paddingBottom`, `paddingLeft`, `paddingRight` |
+| `pv`, `ph` | Vertical or horizontal padding |
+| `w`, `h` | `width`, `height` |
+| `bg` | `background` |
+| `fg` | `color` |
+| `r` | `borderRadius` |
+
+```javascript
+$('div mv:10px ph:20px bg:lightblue r:10% #Styled box');
+```
+
+### CSS variables
+
+Values starting with `@` look up the value from the {@link aberdeen.cssVars} observable.
+
+```javascript
+import { $, cssVars } from 'aberdeen';
+
+cssVars.primary = '#3b82f6';
+cssVars.danger = '#ef4444';
+cssVars.textLight = '#f8fafc';
+
+$('button bg:@primary fg:@textLight #Primary');
+$('button bg:@danger fg:@textLight #Danger');
+```
+
+Since `cssVars` is observable, changes to it will reactively update any elements using those values.
+
+#### Predefined spacing
+Aberdeen pre-initializes `cssVars` with keys `@1` through `@12` mapping to an exponential `rem` scale:
+
+| Value | Result |
+|-------|--------|
+| `@1` | 0.25rem |
+| `@2` | 0.5rem |
+| `@3` | 1rem |
+| `@4` | 2rem |
+| `@5` | 4rem |
+| ... | 2^(n-3) rem |
+
+```javascript
+$('div mt:@3 ph:@4 #This text has 1rem top margin, 2rem left+right padding');
+```
+
+If you want different spacing, you can of course (dynamically) modify these values.
+
+
+```javascript
+import { $, cssVars } from 'aberdeen';
+
+cssVars.primary = '#3b82f6';
+cssVars.danger = '#ef4444';
+cssVars.textLight = '#f8fafc';
+
+$('button bg:@primary color:@textLight #Primary');
+$('button bg:@danger color:@textLight #Danger');
+```
+
+Since `cssVars` is observable, changes to it will reactively update any elements using those values.
+
+These shortcuts and variables are also available when using {@link aberdeen.insertCss}.
+
 ## Nesting content
 Of course, putting everything in a single {@link aberdeen.$} call will get messy soon, and you'll often want to nest more than one child within a parent. To do that, you can pass in a *content* function to {@link aberdeen.$}, like this:
 
@@ -373,7 +447,23 @@ const myBoxStyle = insertCss({
 $('div.box', myBoxStyle, 'button#Click me');
 ```
 
-This allows you to create single-file components with advanced CSS rules. By enabling the `global` flag, it's also possible to add CSS without a class prefix.
+This allows you to create single-file components with advanced CSS rules. The {@link aberdeen.insertGlobalCss} function can be used to add CSS without a class prefix.
+
+Both functions support the same CSS shortcuts and variables as inline styles (see above). For example:
+
+```javascript
+import { cssVars, insertGlobalCss } from 'aberdeen';
+cssVars.boxBg = '#f0f0e0';
+insertGlobalCss({
+    body: {
+        m: 0, // Using shortcut for margin
+    },
+    form: {
+        bg: "@boxBg", // Using background shortcut and CSS variable
+        mv: "@3", // Set vertical margin to predefined spacing value @3 (1rem)
+    }
+});
+```
 
 Of course, if you dislike JavaScript-based CSS and/or prefer to use some other way to style your components, you can just ignore this Aberdeen function.
 
