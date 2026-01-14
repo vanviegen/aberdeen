@@ -2095,7 +2095,7 @@ let cssCount = 0;
  *   - In case a selector contains a `&`, that character will be replaced by the parent selector.
  *   - Selectors will be split on `,` characters, each combining with the parent selector with *or* semantics.
  *   - Selector starting with `'@'` define at-rules like media queries. They may be nested within regular selectors.
- * @param global - @deprecated Use {@link insertGlobalCss} instead.
+ * @param global - Deprecated! Use {@link insertGlobalCss} instead.
  * @returns The unique class name prefix used for scoping (e.g., `.AbdStl1`). Use this 
  *          prefix with {@link $} to apply the styles.
  *
