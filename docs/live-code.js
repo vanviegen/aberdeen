@@ -277,7 +277,7 @@ addEventListener('DOMContentLoaded', () => {
         );
         if (js === orgJs) {
             // No imports have been done, do our default input
-            js = `import {$,clean,clone,copy,count,dump,getParentElement,insertCss,invertString,isEmpty,map,merge,mount,multiMap,observe,onEach,partition,peek,proxy,ref,runQueue,setErrorHandler,unmountAll,unproxy} from "${absBase}assets/aberdeen/aberdeen.js";\n\n` + js;
+            js = `import {$,clean,clone,copy,count,dump,getParentElement,insertCss,invertString,isEmpty,map,merge,mount,multiMap,onEach,partition,peek,proxy,ref,runQueue,setErrorHandler,unmountAll,unproxy} from "${absBase}assets/aberdeen/aberdeen.js";\n\n` + js;
         }
         
         // Create edit button

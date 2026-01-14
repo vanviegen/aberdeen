@@ -227,13 +227,77 @@ function convertHTMLToAberdeen(html) {
 }
 
 // Process a node and return Aberdeen code
+const CSS_PROPERTY_TO_SHORTCUT = {
+  'margin': 'm',
+  'margin-top': 'mt',
+  'margin-bottom': 'mb',
+  'margin-left': 'ml',
+  'margin-right': 'mr',
+  'padding': 'p',
+  'padding-top': 'pt',
+  'padding-bottom': 'pb',
+  'padding-left': 'pl',
+  'padding-right': 'pr',
+  'width': 'w',
+  'height': 'h',
+  'background': 'bg',
+  'color': 'fg',
+  'border-radius': 'r',
+};
+
+function kebabToCamel(str) {
+  return str.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+}
+
+function convertStyleToAberdeen(styleString) {
+  const rules = styleString.split(';').map(s => s.trim()).filter(Boolean);
+  const resultParts = [];
+  
+  const props = {};
+  for (const rule of rules) {
+    const colonIndex = rule.indexOf(':');
+    if (colonIndex === -1) continue;
+    const key = rule.substring(0, colonIndex).trim();
+    const value = rule.substring(colonIndex + 1).trim();
+    props[key] = value;
+  }
+
+  const addPart = (key, value) => {
+    if (value.includes(' ')) {
+      resultParts.push(`${key}:"${value}"`);
+    } else {
+      resultParts.push(`${key}:${value}`);
+    }
+  };
+
+  const handleGroup = (prop1, prop2, shortcut) => {
+    if (props[prop1] && props[prop2] && props[prop1] === props[prop2]) {
+      addPart(shortcut, props[prop1]);
+      delete props[prop1];
+      delete props[prop2];
+    }
+  };
+
+  handleGroup('margin-top', 'margin-bottom', 'mv');
+  handleGroup('margin-left', 'margin-right', 'mh');
+  handleGroup('padding-top', 'padding-bottom', 'pv');
+  handleGroup('padding-left', 'padding-right', 'ph');
+
+  for (const [key, value] of Object.entries(props)) {
+    const shortcut = CSS_PROPERTY_TO_SHORTCUT[key] || kebabToCamel(key);
+    addPart(shortcut, value);
+  }
+
+  return resultParts.join(' ');
+}
+
 function processNode(node, indentLevel = 0) {
   const indent = '    '.repeat(indentLevel);
   
   // Handle text nodes
   if (node.type === 'text') {
     const text = node.content.trim();
-    return text ? `${indent}$(':${escapeString(text)}');\n` : ``;
+    return text ? `${indent}$('#${escapeString(text)}');\n` : ``;
   }
   
   // Handle comments
@@ -273,8 +337,17 @@ function processElement(node, indentLevel) {
     
     result += tagName + classes;
     
-    // Add attributes (excluding class)
-    const attributes = element.attributes.filter(attr => attr.name !== 'class');
+    // Add style shorthand
+    const styleAttr = element.attributes.find(attr => attr.name === 'style');
+    if (styleAttr) {
+      const styleShorthand = convertStyleToAberdeen(styleAttr.value);
+      if (styleShorthand) {
+        result += ' ' + styleShorthand;
+      }
+    }
+    
+    // Add attributes (excluding class and style)
+    const attributes = element.attributes.filter(attr => attr.name !== 'class' && attr.name !== 'style');
     const { attrString, separateArgs } = buildAttributeString(attributes);
     result += attrString;
     
@@ -287,8 +360,8 @@ function processElement(node, indentLevel) {
       const textContent = element.children[0].content.trim();
       if (i === chain.length - 1) {
         // If it's the last element in the chain and there are no other children,
-        // use the ':' syntax for text
-        result += ':' + escapeString(textContent);
+        // use the '#' syntax for text
+        result += '#' + escapeString(textContent);
       } else {
         // Treat text like any other attribute
         const textAttr = { name: 'text', value: textContent };
@@ -379,7 +452,7 @@ function buildAttributeString(attributes) {
     
     if (value === '') {
       // Boolean attribute
-      attrString += ` ${attr.name}`;
+      attrString += ` ${attr.name}=""`;
     } else if (value.includes('"')) {
       // Contains double quotes - must use separate argument
       attrString += ` ${attr.name}=`;

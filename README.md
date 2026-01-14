@@ -172,7 +172,30 @@ Some further examples:
 
 And you may want to study the examples above, of course!
 
+
+## AI Integration
+
+If you use Claude Code, GitHub Copilot or another AI agents that supports Skills, Aberdeen includes a `skill/` directory that provides specialized knowledge to the AI about how to use the library effectively.
+
+To use this, it is recommended to symlink the skill into your project's `.claude/skills` directory:
+
+```bash
+mkdir -p .claude/skills
+ln -s ../../node_modules/aberdeen/skill .claude/skills/aberdeen
+```
+
+
 ## Changelog
+### 1.4.1 (2026-01-14)
+
+**Additions:**
+- Created an AI agent Skill (Claude Code, GitHub Copilot) for using Aberdeen in your projects.
+
+**Enhancements:**
+- The `html-to-aberdeen` tool now automatically converts `style` attributes to Aberdeen's CSS shortcuts (like `mt:10px` for `margin-top: 10px`) and uses the modern `#text` syntax.
+
+**Fixes:**
+- Fixed an issue in `docs/live-code.js` where it was still trying to import the removed `observe` function.
 
 ### 1.4.0 (2025-01-07)
 

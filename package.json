@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "author": "Frank van Viegen",
   "main": "dist-min/aberdeen.js",
   "devDependencies": {
@@ -41,7 +41,8 @@
   "files": [
     "dist",
     "dist-min",
-    "src"
+    "src",
+    "skill"
   ],
   "bin": {
     "html-to-aberdeen": "./html-to-aberdeen"
