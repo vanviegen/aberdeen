@@ -2522,7 +2522,7 @@ export function unmountAll() {
  *
  */
 
-export function peek<T extends object>(target: T, key: keyof T): T[typeof key];
+export function peek<T extends object, K extends keyof T>(target: T, key: K): T[K];
 export function peek<K,V>(target: Map<K,V>, key: K): V | undefined;
 export function peek<T>(target: T[], key: number): T | undefined;
 export function peek<T>(target: () => T): T;
