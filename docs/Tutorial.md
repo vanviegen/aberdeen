@@ -22,15 +22,12 @@ When a string is passed:
 - One or multiple CSS classes can be added to the 'current' element, by prefixing them with a `.`.
 - Content text can be added by prefixing it with a `#`.
 
+Instead of the `#` prefix for text content, you can also use the `text=` property, like this: `$('h3 text="Hello world"')`. The double quotes are needed here only because our text contains a space.
+
+`$()` can accept multiple strings, so the following lines are equivalent:
+
 ```javascript
 $('button.outline.secondary#Pressing me does nothing!');
-```
-
-Note that you can play around, modifying any example while seeing its live result by pressing the *Edit* button that appears when hovering over an example!
-
-Multiple strings can be passed, so the above could just as well be written as:
-
-```javascript
 $('button', '.outline', '.secondary', '#Pressing me does nothing!');
 ```
 
@@ -40,34 +37,27 @@ Also, we can create multiple nested DOM elements in a single {@link aberdeen.$} 
 $('div.box', '#Text within the div element...', 'input');
 ```
 
-In order to pass in additional properties and attributes to the 'current' DOM element, we can pass in an object. So to extend the above example:
+Note that you can play around, modifying any example while seeing its live result by pressing the *Edit* button that appears when hovering over an example!
+
+In order to pass in additional properties and attributes to the 'current' DOM element, we can use the `key=value` or `key=`, value syntax. So to extend the above example:
 
 ```javascript
-$('div.box', {id: 'cityContainer'}, 'input', {value: 'London', placeholder: 'City'});
+$('div.box id=cityContainer input value=London placeholder=City');
 ```
 
 Note that `value` doesn't become an HTML attribute. This (together with `selectedIndex`) is one of two special cases, where Aberdeen applies it as a DOM property instead, in order to preserve the variable type (as attributes can only be strings).
 
-When a function is passed as a property value, it's used as an event listener. So to always log the current input value to the console you can do:
+When a value ends with `=`, the next argument is used as its value. This is used for dynamic values and event listeners. So to always log the current input value to the console you can do:
 
 ```javascript
-$('div.box', 'input', {
-    value: 'Marshmallow', 
-    input: el => console.log(el.target.value)
-});
+$('div.box input value=Marshmallow input=', el => console.log(el.target.value));
 ```
 
 Note that the example is interactive - try typing something!
 
 ## Inline styles
 
-To set inline CSS styles on elements, prefix the property name with `$` in an object:
-
-```javascript
-$('div.box#Styled text', {$color: 'red', $backgroundColor: 'yellow'});
-```
-
-For convenience, you can also use the string shorthand with a colon:
+To set inline CSS styles on elements, use the `property:value` or `property:`, value syntax:
 
 ```javascript
 $('div.box color:red backgroundColor:yellow#Styled text');
@@ -139,8 +129,8 @@ cssVars.primary = '#3b82f6';
 cssVars.danger = '#ef4444';
 cssVars.textLight = '#f8fafc';
 
-$('button bg:@primary color:@textLight #Primary');
-$('button bg:@danger color:@textLight #Danger');
+$('button bg:@primary fg:@textLight #Primary');
+$('button bg:@danger fg:@textLight #Danger');
 ```
 
 Since `cssVars` is observable, changes to it will reactively update any elements using those values.
@@ -151,14 +141,9 @@ These shortcuts and variables are also available when using {@link aberdeen.inse
 Of course, putting everything in a single {@link aberdeen.$} call will get messy soon, and you'll often want to nest more than one child within a parent. To do that, you can pass in a *content* function to {@link aberdeen.$}, like this:
 
 ```javascript
-$('div.box.row', {id: 'cityContainer'}, () => {
-    $('input', {
-        value: 'London',
-        placeholder: 'City'
-    });
-    $('button#Confirm', {
-        click: () => alert("You got it!")
-    });
+$('div.box.row id=cityContainer', () => {
+    $('input value=London placeholder=City');
+    $('button text=Confirm click=', () => alert("You got it!"));
 });
 ```
 
@@ -228,13 +213,9 @@ const user = proxy({
 
 $('div', () => {
     if (user.loggedIn) {
-        $('button.outline#Logout', {
-            click: () => user.loggedIn = false
-        });
+        $('button.outline text=Logout click=', () => user.loggedIn = false);
     } else {
-        $('button#Login', {
-            click: () => user.loggedIn = true
-        });
+        $('button text=Login click=', () => user.loggedIn = true);
     }
 });
 ```
@@ -247,9 +228,9 @@ The {@link aberdeen.proxy} method wraps an object in a JavaScript [Proxy](https:
 const cnt = proxy(42);
 $('div.row', () => {
     // This scope will not have to redraw
-    $('button#-', {click: () => cnt.value--});
-    $('div', {text: cnt});
-    $('button#+', {click: () => cnt.value++});
+    $('button text=- click=', () => cnt.value--);
+    $('div text=', cnt);
+    $('button text=+ click=', () => cnt.value++);
 });
 ```
 
@@ -264,8 +245,8 @@ import { $, proxy } from 'aberdeen';
 
 const textColor = proxy('blue');
 
-$('div.box color:', textColor, '#Click me to change color', {
-    click: () => textColor.value = textColor.value === 'blue' ? 'red' : 'blue'
+$('div.box color:', textColor, '#Click me to change color', 'click=', () => {
+    textColor.value = textColor.value === 'blue' ? 'red' : 'blue';
 });
 ```
 
@@ -288,11 +269,11 @@ $('ul', () => {
     // This subscribes to the entire array, and thus redraws all <li>s when any item changes.
     // In the next section, we'll learn about a better way.
     for (const item of items) {
-        $('li', `#Item ${item}`);
+        $(`li#Item ${item}`);
     }
 });
 
-$('button#Add', {click: () => items.push(items.length+1)});
+$('button text=Add click=', () => items.push(items.length+1));
 ```
 
 ## TypeScript and classes
@@ -311,7 +292,7 @@ class Widget {
 let graph: Widget = proxy(new Widget('Graph', 200, 100));
 
 $('h3', () => $('#'+graph));
-$('button#Grow', {click: () => graph.grow()});
+$('button text=Grow click=', () => graph.grow());
 ```
 
 The type returned by {@link aberdeen.proxy} matches the input type, meaning the type system does not distinguish proxied and unproxied objects. That makes sense, as they have the exact same methods and properties (though proxied objects may have additional side effects).
@@ -364,7 +345,7 @@ const pairs = proxy({A: 'Y', B: 'X',});
 
 const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0-9]+/g, '').replace(/^\w/, c => c.toUpperCase());
 
-$('button#Add item', {click: () => pairs[randomWord()] = randomWord()});
+$('button text="Add item" click=', () => pairs[randomWord()] = randomWord());
 
 $('div.row.wide marginTop:1em', () => {
     $('div.box#By key', () => {
@@ -396,17 +377,11 @@ const user = proxy({
 });
 
 // Text input binding
-$('input', { 
-    placeholder: 'Name',
-    bind: ref(user, 'name')
-});
+$('input placeholder=Name bind=', ref(user, 'name'));
 
 // Checkbox binding
 $('label', () => {
-    $('input', { 
-        type: 'checkbox', 
-        bind: ref(user, 'active')
-    });
+    $('input type=checkbox bind=', ref(user, 'active'));
 }, '#Active');
 
 // Display the current state
@@ -492,10 +467,7 @@ $('label', () => {
 });
 $(() => {
     if (!show.value) return;
-    $('h2#(Dis)appearing text', titleStyle, {
-        create: '.faded.imploded',
-        destroy: '.faded.exploded'
-    });
+    $('h2#(Dis)appearing text', titleStyle, 'create=.faded.imploded destroy=.faded.exploded');
 });
 ```
 
@@ -549,8 +521,8 @@ $(() => {
     derived.value = original.value * 42;
 });
 
-$('h3', {text: derived});
-$('button#Increment', {click: () => original.value++});
+$('h3 text=', derived);
+$('button text=Increment click=', () => original.value++);
 ```
 
 The {@link aberdeen.derive} function makes the above a little easier. It works just like passing a function to {@link aberdeen.$}, creating an observer, the only difference being that the value returned by the function is reactively assigned to the `value` property of the observable object returned by `derive`. So the above could also be written as:
@@ -559,8 +531,8 @@ The {@link aberdeen.derive} function makes the above a little easier. It works j
 const original = proxy(1);
 const derived = derive(() => original.value * 42);
 
-$('h3', {text: derived});
-$('button#Increment', {click: () => original.value++});
+$('h3 text=', derived);
+$('button text=Increment click=', () => original.value++);
 ```
 
 For deriving values from (possibly large) arrays or objects, Aberdeen provides specialized functions that enable fast, incremental updates to derived data: {@link aberdeen.map} (each item becomes zero or one derived item), {@link aberdeen.multiMap} (each item becomes any number of derived items), {@link aberdeen.count} (reactively counts the number of object properties), {@link aberdeen.isEmpty} (true when the object/array has no items) and {@link aberdeen.partition} (sorts each item into one or more buckets). An example:
@@ -590,7 +562,7 @@ const message = aberdeen.derive(
 );
 
 // Show the results
-$('p', {text: message});
+$('p text=', message);
 $(() => {
     // isEmpty only causes a re-run when the count changes between zero and non-zero
     if (aberdeen.isEmpty(overweightBmis)) return;

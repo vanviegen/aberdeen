@@ -30,7 +30,7 @@ $('input placeholder="Something containing spaces" value=', userInput);
 $('button text=', `Count: ${state.count}`);
 
 // Event handlers
-$('button#Click click=', () => console.log('clicked'));
+$('button text=Click click=', () => console.log('clicked'));
 
 // Nested content via function (creates reactive scope)
 $('ul', () => {

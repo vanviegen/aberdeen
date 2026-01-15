@@ -53,7 +53,7 @@ function queue(runner: QueueRunner) {
  * ```typescript
  * const data = proxy("before");
  *
- * $({text: data});
+ * $('#'+data);
  * console.log(1, document.body.innerHTML); // before
  *
  * // Make an update that should cause the DOM to change.
@@ -940,9 +940,9 @@ const EMPTY = Symbol("empty");
  * // Reactively display a message if the items array is empty
  * $('div', () => {
  *     if (isEmpty(items)) {
- *         $('p', 'i#No items yet!');
+ *         $('p i#No items yet!');
  *     } else {
- * 		   onEach(items, item=>$('p#'+item));
+ *         onEach(items, item => $('p#'+item));
  *     }
  * });
  *
@@ -995,7 +995,7 @@ export interface ValueRef<T> {
  * const cnt = count(items);
  *
  * // Create a DOM text node for the count:
- * $('div', {text: cnt});
+ * $('div text=', cnt);
  * // <div>2</div>
 
  * // Or we can use it in an {@link derive} function:
@@ -1782,17 +1782,10 @@ const refHandler: ProxyHandler<RefTarget> = {
  * const formData = proxy({ color: 'orange', velocity: 42 });
  *
  * // Usage with `bind`
- * $('input', {
- *   type: 'text',
- *   // Creates a two-way binding between the input's value and formData.username
- *   bind: ref(formData, 'color')
- * });
+ * $('input type=text bind=', ref(formData, 'color'));
  *
  * // Usage as a dynamic property, causes a TextNode with just the name to be created and live-updated
- * $('p#Selected color: ', {
- *   text: ref(formData, 'color'),
- *   $color: ref(formData, 'color')
- * });
+ * $('p text="Selected color: " text=', ref(formData, 'color'), 'color:', ref(formData, 'color'));
  *
  * // Changes are actually stored in formData - this causes logs like `{color: "Blue", velocity 42}`
  * $(() => console.log(formData))
@@ -1926,16 +1919,7 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
  *
  * @example Create Element
  * ```typescript
- * $('button.secondary.outline#Submit', {
- *   disabled: false,
- *   click: () => console.log('Clicked!'),
- *   $color: 'red'
- * });
- * ```
- * 
- * Which can also be written as:
- * ```typescript
- * $('button.secondary.outline text=Submit $color=red disabled=', false, 'click=', () => console.log('Clicked!'));
+ * $('button.secondary.outline text=Submit color:red disabled=', false, 'click=', () => console.log('Clicked!'));
  * ```
  * 
  * We want to set `disabled` as a property instead of an attribute, so we must use the `key=` syntax in order to provide
@@ -1943,7 +1927,7 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
  *
  * @example Create Nested Elements
  * ```typescript
- * let inputElement: Element = $('label#Click me', 'input', {type: 'checkbox'});
+ * let inputElement: Element = $('label text="Click me" input type=checkbox');
  * // You should usually not touch raw DOM elements, unless when integrating
  * // with non-Aberdeen code.
  * console.log('DOM element:', inputElement);
@@ -1955,14 +1939,14 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
  * $('div', () => { // Outer element
  *   // This scope re-renders when state.count changes
  *   $(`p#Count is ${state.count}`);
- *   $('button#Increment', { click: () => state.count++ });
+ *   $('button text=Increment click=', () => state.count++);
  * });
  * ```
  *
  * @example Two-way Binding
  * ```typescript
  * const user = proxy({ name: '' });
- * $('input', { placeholder: 'Name', bind: ref(user, 'name') });
+ * $('input placeholder=Name bind=', ref(user, 'name'));
  * $('h3', () => { // Reactive scope
  *   $(`#Hello ${user.name || 'stranger'}`);
  * });
@@ -1971,7 +1955,7 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
  * @example Conditional Rendering
  * ```typescript
  * const show = proxy(false);
- * $('button', { click: () => show.value = !show.value }, () => $(show.value ? '#Hide' : '#Show'));
+ * $('button click=', () => show.value = !show.value, () => $(show.value ? '#Hide' : '#Show'));
  * $(() => { // Reactive scope
  *   if (show.value) {
  *     $('p#Details are visible!');
@@ -2374,7 +2358,7 @@ export function getParentElement(): Element {
  * })
  *
  * // Show the sum
- * $('h1', {text: sum});
+ * $('h1 text=', sum);
  *
  * // Make random changes to the array
  * const rnd = () => 0|(Math.random()*20);
@@ -2412,8 +2396,8 @@ export function clean(cleaner: () => void) {
  *     // When data.notifications changes, only this inner scope reruns,
  *     // leaving the `<p>Welcome, ..</p>` untouched.
  *     console.log('Notifications');
- *     $('code.notification-badge#' + data.notifications);
- *     $('a#Notify!', {click: () => data.notifications++});
+ *     $('code.notification-badge text=', data.notifications);
+ *     $('a text=Notify! click=', () => data.notifications++);
  *   });
  * });
  * ```

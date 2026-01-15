@@ -79,14 +79,10 @@ function drawMain() {
 
     // Add item and delete checked buttons.
     $('div.row', () => {
-        $('button#+', {
-            click: () => items.push(new TodoItem("")),
-        });
-        $('button.outline#Delete checked', {
-            click: () => {
-                for(let idx in items) {
-                    if (items[idx].done) delete items[idx];
-                }
+        $('button text=+ click=', () => items.push(new TodoItem("")));
+        $('button.outline text="Delete checked" click=', () => {
+            for(let idx in items) {
+                if (items[idx].done) delete items[idx];
             }
         });
     });
@@ -99,37 +95,33 @@ function drawItem(item) {
     // create below, so that it will persist when that state reruns.
     let editing: {value: boolean} = proxy(item.label == '');
 
-    $('div.row', todoItemStyle, {create:grow, destroy: shrink}, () => {
+    $('div.row', todoItemStyle, 'create=', grow, 'destroy=', shrink, () => {
         // Conditionally add a class to `div.row`, based on item.done
         $({".done": ref(item,'done')});
 
         // The checkmark is hidden using CSS
-        $('div.checkmark#✅');
+        $('div.checkmark text=✅');
 
         if (editing.value) {
-            // Label <input>. Save using enter or button.
+            // Proxied string to hold label while being edited.
+            const labelCopy = proxy(item.label);
             function save() {
                 editing.value = false;
-                item.label = inputElement.value;
+                item.label = labelCopy.value;
             }
-            let inputElement = $('input', {
-                placeholder: 'Label',
-                value: item.label,
-                keydown: e => e.key==='Enter' && save(),
-            });
-            $('button.outline#Cancel', {click: () => editing.value = false});
-            $('button#Save', {click: save});
+            // Label <input>. Save using enter or button.
+            $('input placeholder=Label bind=', labelCopy, 'keydown=', e => e.key==='Enter' && save());
+            $('button.outline text=Cancel click=', () => editing.value = false);
+            $('button text=Save click=', save);
         } else {
             // Label as text. 
-            $('p#' + item.label);
+            $('p text=', item.label);
 
             // Edit icon, if not done.
             if (!item.done) {
-                $('a#Edit', {
-                    click: e => {
-                        editing.value = true;
-                        e.stopPropagation(); // We don't want to toggle as well.
-                    },
+                $('a text=Edit click=', e => {
+                    editing.value = true;
+                    e.stopPropagation(); // We don't want to toggle as well.
                 });
             }
             

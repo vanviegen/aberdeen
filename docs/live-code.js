@@ -367,7 +367,7 @@ addEventListener('DOMContentLoaded', () => {
             tabs[name] = {select, tabE};
         }
         
-        let hasLayout = !!js.match(/\$\(\s*['"`]|\bdump\(|\btext:/);
+        let hasLayout = !!js.match(/\$\(\s*['"`]|\b(dump|insertCss|insertGlobalCss)\(/);
         let hasInteraction = !!js.match(/\bbind[=:]|\bclick[=:]|\binput[=:]|\bsetInterval\b|\bsetTimeout\b/);
         tabs[hasLayout ? (hasInteraction ? 'Browser' : 'HTML') : 'Console'].select();
         
