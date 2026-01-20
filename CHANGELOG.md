@@ -1,5 +1,15 @@
 # Changelog
 
+### 1.5.0 (2026-01-20)
+
+**Breaking changes:**
+- CSS variable syntax `@name` now outputs native `var(--name)` instead of resolving values at render time. This improves compatibility with browser dev tools and enables true CSS-level reactivity.
+- Numeric CSS variable keys (e.g., `@3`) now map to `var(--m3)` with an 'm' prefix, since CSS custom property names cannot start with digits.
+
+**Enhancements:**
+- `cssVars` now uses Aberdeen's reactive `proxy({})` and automatically mounts a reactive `<style>` tag to `<head>` with `:root` declarations.
+- CSS variables are now truly reactive at the CSS level—changing `cssVars.myColor` updates the `:root` style tag, and all elements using `var(--myColor)` update automatically.
+
 ### 1.4.2 (2026-01-15)
 
 **Enhancements:**

@@ -299,14 +299,7 @@ const document = {
   createElement: (tag: string) => new Element(tag, 'http://www.w3.org/1999/xhtml'),
   createElementNS: (namespaceURI: string, tag: string) => new Element(tag, namespaceURI),
   createTextNode: (text: string) => new TextNode(text),
-  head: {
-    appendChild: function(el: Element) {
-      if (el.tagName !== 'style') {
-        throw new Error("only <style> inserts in head can be emulated");
-      }
-      insertedCss += el.textContent;
-    }
-  },
+  head: new Element('head', 'http://www.w3.org/1999/xhtml'),
   body: new Element('body', 'http://www.w3.org/1999/xhtml')
 };
 

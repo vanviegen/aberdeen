@@ -78,18 +78,23 @@ $('button', { click: handler, '.active': isActive });
 | `r` | borderRadius | | |
 
 ### CSS Variables (`@`)
-Values starting with `@` reference `cssVars`. Predefined spacing scale:
-| Var | Value | Var | Value |
-|-----|-------|-----|-------|
-| `@1` | 0.25rem | `@4` | 2rem |
-| `@2` | 0.5rem | `@5` | 4rem |
-| `@3` | 1rem | `@n` | 2^(n-3) rem |
+Values starting with `@` expand to native CSS custom properties via `var(--name)`. Numeric keys are prefixed with `m` (e.g., `@3` → `var(--m3)`).
+
+Predefined spacing scale:
+| Var | CSS Output | Value |
+|-----|------------|-------|
+| `@1` | `var(--m1)` | 0.25rem |
+| `@2` | `var(--m2)` | 0.5rem |
+| `@3` | `var(--m3)` | 1rem |
+| `@4` | `var(--m4)` | 2rem |
+| `@5` | `var(--m5)` | 4rem |
+| `@n` | `var(--mn)` | 2^(n-3) rem |
 
 **Best practice:** Use `@3` and `@4` for most margins/paddings. For new projects, define color variables:
 ```typescript
 cssVars.primary = '#3b82f6';
 cssVars.danger = '#ef4444';
-$('button bg:@primary fg:white#Save');
+$('button bg:@primary fg:white#Save'); // outputs: background: var(--primary); color: white;
 ```
 
 ## Reactive State: `proxy()`

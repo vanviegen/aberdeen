@@ -1704,23 +1704,33 @@ export const NO_COPY = Symbol("NO_COPY");
 (Promise.prototype as any)[NO_COPY] = true;
 
 /**
- * CSS variable lookup table for the `@` value prefix.
+ * CSS variables that are output as native CSS custom properties.
  * 
- * When a CSS value starts with `@`, the rest is used as a key to look up the actual value.
+ * When a CSS value starts with `@`, it becomes `var(--name)` (or `var(--mN)` for numeric keys).
  * Pre-initialized with keys '1'-'12' mapping to an exponential rem scale (e.g., @1=0.25rem, @3=1rem).
+ * 
+ * Changes to cssVars are automatically reflected in a `<style>` tag in `<head>`, making updates
+ * reactive across all elements using those variables.
  * 
  * @example
  * ```typescript
  * cssVars.primary = '#3b82f6';
  * cssVars[3] = '16px'; // Override @3 to be 16px instead of 1rem
- * $('p color:@primary'); // Sets color to #3b82f6
- * $('div mt:@3'); // Sets margin-top to 16px
+ * $('p color:@primary'); // Sets color to var(--primary)
+ * $('div mt:@3'); // Sets margin-top to var(--m3)
  * ```
  */
 export const cssVars: Record<string, string> = optProxy({});
 
 for (let i = 1; i <= 12; i++) {
 	cssVars[i] = 2 ** (i - 3) + "rem";
+}
+
+const DIGIT_FIRST = /^\d/;
+function cssVarRef(name: string): string {
+	// Prefix numeric keys with 'm' (CSS custom property names can't start with a digit)
+	const varName = DIGIT_FIRST.test(name) ? `m${name}` : name;
+	return `var(--${varName})`;
 }
 
 /**
@@ -2178,7 +2188,7 @@ function styleToCss(style: object, prefix: string): string {
 					);
 				}
 			} else {
-				const val = v == null || v === false ? "" : typeof v === 'string' ? (v[0] === '@' ? (cssVars as any)[v.substring(1)] || "" : v) : String(v);
+				const val = v == null || v === false ? "" : typeof v === 'string' ? (v[0] === '@' ? cssVarRef(v.substring(1)) : v) : String(v);
 				const expanded = CSS_SHORT[k] || k;
 				for (const prop of (Array.isArray(expanded) ? expanded : [expanded])) {
 					props += `${prop.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}:${val};`;
@@ -2207,7 +2217,7 @@ function applyArg(el: Element, key: string, value: any) {
 	} else if (key[0] === "$") {
 		// Style (with shortcuts)
 		key = key.substring(1);
-		const val = value == null || value === false ? "" : typeof value === 'string' ? (value[0] === '@' ? (cssVars as any)[value.substring(1)] || "" : value) : String(value);
+		const val = value == null || value === false ? "" : typeof value === 'string' ? (value[0] === '@' ? cssVarRef(value.substring(1)) : value) : String(value);
 		const expanded = CSS_SHORT[key] || key;
 		if (typeof expanded === "string") {
 			(el as any).style[expanded] = val;
@@ -2902,4 +2912,22 @@ export function withEmitHandler(
 	} finally {
 		emit = oldEmitHandler;
 	}
+}
+
+// Initialize the cssVars style tag in document.head
+// This runs at module load time, after all functions are defined
+if (typeof document !== "undefined") {
+	leakScope(() => {
+		mount(document.head, () => {
+			$('style', () => {
+				let css = ":root {\n";
+				for(const [key, value] of Object.entries(cssVars)) {
+					const varName = DIGIT_FIRST.test(String(key)) ? `m${key}` : key;
+					css += `  --${varName}: ${value};\n`;
+				}
+				css += "}";
+				$(`#${css}`);
+			})
+		});
+	});
 }

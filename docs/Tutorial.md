@@ -88,7 +88,7 @@ $('div mv:10px ph:20px bg:lightblue r:10% #Styled box');
 
 ### CSS variables
 
-Values starting with `@` look up the value from the {@link aberdeen.cssVars} observable.
+Values starting with `@` expand to native CSS custom properties via `var(--name)`. The {@link aberdeen.cssVars} object offers a convenient way of setting and updating CSS custom properties at the `:root` level. Its keys and values are automatically synced to a `<style>` tag injected in `<head>`.
 
 ```javascript
 import { $, cssVars } from 'aberdeen';
@@ -101,39 +101,25 @@ $('button bg:@primary fg:@textLight #Primary');
 $('button bg:@danger fg:@textLight #Danger');
 ```
 
-Since `cssVars` is observable, changes to it will reactively update any elements using those values.
+The above generates CSS like `background: var(--primary)` and injects a `:root` style defining the actual values. Since this uses native CSS custom properties, changes to `cssVars` automatically propagate to all elements using those values.
 
 #### Predefined spacing
-Aberdeen pre-initializes `cssVars` with keys `@1` through `@12` mapping to an exponential `rem` scale:
+Aberdeen pre-initializes `cssVars` with keys `1` through `12` mapping to an exponential `rem` scale. Since CSS custom property names can't start with a digit, numeric keys are prefixed with `m` (e.g., `@3` becomes `var(--m3)`):
 
-| Value | Result |
-|-------|--------|
-| `@1` | 0.25rem |
-| `@2` | 0.5rem |
-| `@3` | 1rem |
-| `@4` | 2rem |
-| `@5` | 4rem |
-| ... | 2^(n-3) rem |
+| Value | CSS Output | Result |
+|-------|------------|--------|
+| `@1` | `var(--m1)` | 0.25rem |
+| `@2` | `var(--m2)` | 0.5rem |
+| `@3` | `var(--m3)` | 1rem |
+| `@4` | `var(--m4)` | 2rem |
+| `@5` | `var(--m5)` | 4rem |
+| ... | ... | 2^(n-3) rem |
 
 ```javascript
 $('div mt:@3 ph:@4 #This text has 1rem top margin, 2rem left+right padding');
 ```
 
 If you want different spacing, you can of course (dynamically) modify these values.
-
-
-```javascript
-import { $, cssVars } from 'aberdeen';
-
-cssVars.primary = '#3b82f6';
-cssVars.danger = '#ef4444';
-cssVars.textLight = '#f8fafc';
-
-$('button bg:@primary fg:@textLight #Primary');
-$('button bg:@danger fg:@textLight #Danger');
-```
-
-Since `cssVars` is observable, changes to it will reactively update any elements using those values.
 
 These shortcuts and variables are also available when using {@link aberdeen.insertCss}.
 
