@@ -7,6 +7,7 @@
     "@biomejs/biome": "^1.9.4",
     "@types/bun": "latest",
     "typedoc": "^0.28.2",
+    "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "^5.8.3"
   },
   "exports": {
@@ -49,8 +50,10 @@
   },
   "license": "MIT",
   "scripts": {
-    "build": "bun run build:dist && typedoc && rm -rf dist-docs/assets/aberdeen && cp -r dist dist-docs/assets/aberdeen",
+    "build": "bun run build:dist && bun run build:docs && bun run build:skill",
     "build:dist": "rm -rf dist dist-min && bun build src/*.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/ && bun build src/*.ts --minify --sourcemap --target browser --external '*/aberdeen.js' --outdir dist-min/ && npx tsc --emitDeclarationOnly && cd dist-min && ln -s ../dist/*.d.ts .",
+    "build:docs": "typedoc && rm -rf dist-docs/assets/aberdeen && cp -r dist dist-docs/assets/aberdeen",
+    "build:skill": "typedoc --plugin typedoc-plugin-markdown --out skill --tsconfig tsconfig.json --entryPoints src/*.ts --excludeInternal --excludePrivate --hideGenerator --readme none --router module && rm -rf skill/assets skill/documents skill/README.md && cat SKILL.md > skill/SKILL.md && awk '/^-+$/ { count++; next } count >= 2' docs/Tutorial.md >> skill/SKILL.md",
     "test": "bun test --bail",
     "prepack": "bun test && bun run build"
   },

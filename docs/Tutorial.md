@@ -55,6 +55,8 @@ $('div.box input value=Marshmallow input=', el => console.log(el.target.value));
 
 Note that the example is interactive - try typing something!
 
+> **Note:** {@link aberdeen.$} also accepts object syntax as an alternative to strings (see the API reference), but the string syntax shown here is more concise and is recommended for most use cases.
+
 ## Inline styles
 
 To set inline CSS styles on elements, use the `property:value` or `property:`, value syntax:
@@ -495,6 +497,58 @@ $('div.row.wide height:250px', () => {
     })
 });
 ```
+
+## Advanced: Peeking without subscribing
+
+Sometimes you need to read reactive data inside an observer scope without creating a subscription to that data. The {@link aberdeen.peek} function allows you to do this:
+
+```javascript
+import { $, proxy, peek } from 'aberdeen';
+
+const data = proxy({ a: 1, b: 2 });
+
+$(() => {
+    // This scope only re-runs when data.a changes
+    // Changes to data.b won't trigger a re-render
+    const b = peek(data, 'b');
+    console.log(`A is ${data.a}, B was ${b} when A changed.`);
+});
+
+$('button text="Change B" click=', () => data.b++); // Won't log
+$('button text="Change A" click=', () => data.a++); // Will log
+```
+
+You can also pass a function to `peek()` to execute it without any subscriptions:
+
+```javascript
+const count = peek(() => data.a + data.b); // Reads both without subscribing
+```
+
+This can be useful to avoid rerenders (of even rerender loops) when you only need a point-in-time snapshot of some reactive data.
+
+## Debugging with dump()
+
+The {@link aberdeen.dump} function creates a live, interactive tree view of any data structure in the DOM. It's particularly useful for debugging reactive state:
+
+```javascript
+import { $, proxy, dump } from 'aberdeen';
+
+const state = proxy({
+    user: { name: 'Frank', kids: 1 },
+    items: ['a', 'b']
+});
+
+$('h2#Live State Dump');
+dump(state);
+
+// The dump updates automatically as state changes
+$('button text="Update state" click=', () => {
+    state.user.kids++;
+    state.items.push('new');
+});
+```
+
+The dump renders recursively using `<ul>` and `<li>` elements, showing all properties and their values. It updates reactively when any proxied data changes. It is intended for debugging, though with some CSS styling you may find it useful in some simple real-world scenarios as well.
 
 ## Derived values
 An observer scope doesn't *need* to create DOM elements. It may also perform other side effects, such as modifying other observable objects. For instance:

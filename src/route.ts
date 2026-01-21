@@ -170,9 +170,9 @@ export function go(target: RouteTarget, nav: NavType = "go"): void {
  * @param target Same as for {@link go}, but merged into the current route instead deleting all state.
  */
 export function push(target: RouteTarget): void {
-	let copy = clone(unproxy(current));
-	merge(copy, targetToPartial(target));
-	go(copy);
+	const c = clone(unproxy(current));
+	merge(c, targetToPartial(target));
+	go(c);
 }
 
 /**
