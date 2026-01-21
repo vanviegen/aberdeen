@@ -19,7 +19,7 @@ Aberdeen is a reactive UI library using fine-grained reactivity via JavaScript P
 
 The complete tutorial follows below. For detailed API reference open these files within the skill directory:
 
-- **[aberdeen](aberdeen.md)** - Core: `$`, `proxy`, `onEach`, `ref`, `derive`, `map`, `multiMap`, `partition`, `count`, `isEmpty`, `peek`, `dump`, `clean`, `insertCss`, `mount`, `runQueue`
+- **[aberdeen](aberdeen.md)** - Core: `$`, `proxy`, `onEach`, `ref`, `derive`, `map`, `multiMap`, `partition`, `count`, `isEmpty`, `peek`, `dump`, `clean`, `insertCss`, `insertGlobalCss`, `mount`, `runQueue`, `darkMode`
 - **[route](route.md)** - Routing: `current`, `go`, `push`, `back`, `up`, `persistScroll`
 - **[dispatcher](dispatcher.md)** - Path matching: `Dispatcher`, `matchRest`, `matchFailed`
 - **[transitions](transitions.md)** - Animations: `grow`, `shrink`

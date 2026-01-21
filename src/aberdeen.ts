@@ -1644,7 +1644,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 					const old = dst.get(k);
 					dst.delete(k);
 					if (flags & COPY_EMIT) {
-						emit(dst, k, undefined, old);
+						emit(dst, k, EMPTY, old);
 					}
 					changed = true;
 				}
@@ -1677,7 +1677,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 					const old = dst[k];
 					delete dst[k];
 					if (flags & COPY_EMIT && old !== undefined) {
-						emit(dst, k, undefined, old);
+						emit(dst, k, EMPTY, old);
 					}
 					changed = true;
 				}
@@ -1704,26 +1704,62 @@ export const NO_COPY = Symbol("NO_COPY");
 (Promise.prototype as any)[NO_COPY] = true;
 
 /**
- * CSS variables that are output as native CSS custom properties.
- * 
- * When a CSS value starts with `@`, it becomes `var(--name)` (or `var(--mN)` for numeric keys).
- * Pre-initialized with keys '1'-'12' mapping to an exponential rem scale (e.g., @1=0.25rem, @3=1rem).
- * 
- * Changes to cssVars are automatically reflected in a `<style>` tag in `<head>`, making updates
- * reactive across all elements using those variables.
- * 
+ * A reactive object containing CSS variable definitions.
+ *
+ * Any property you assign to `cssVars` becomes available as a CSS custom property throughout your application.
+ *
+ * Use {@link setSpacingCssVars} to optionally initialize `cssVars[1]` through `cssVars[12]` with an exponential spacing scale.
+ *
+ * When you reference a CSS variable in Aberdeen using the `$` prefix (e.g., `$primary`), it automatically resolves to `var(--primary)`.
+ * For numeric keys (which can't be used directly as CSS custom property names), Aberdeen prefixes them with `m` (e.g., `$3` becomes `var(--m3)`).
+ *
+ * When you add the first property to cssVars, Aberdeen automatically creates a reactive `<style>` tag in `<head>`
+ * containing the `:root` CSS custom property declarations. The style tag is automatically removed if cssVars becomes empty.
+ *
  * @example
- * ```typescript
+ * ```javascript
+ * import { cssVars, setSpacingCssVars, $ } from 'aberdeen';
+ *
+ * // Optionally initialize spacing scale
+ * setSpacingCssVars(); // Uses defaults: base=1, unit='rem'
+ *
+ * // Define custom colors - style tag is automatically created
  * cssVars.primary = '#3b82f6';
- * cssVars[3] = '16px'; // Override @3 to be 16px instead of 1rem
- * $('p color:@primary'); // Sets color to var(--primary)
- * $('div mt:@3'); // Sets margin-top to var(--m3)
+ * cssVars.danger = '#ef4444';
+ *
+ * // Use in elements with the $ prefix
+ * $('button bg:$primary fg:white');
+ *
+ * // Use spacing (if setSpacingCssVars() was called)
+ * $('div mt:$3'); // Sets margin-top to var(--m3)
  * ```
  */
 export const cssVars: Record<string, string> = optProxy({});
 
-for (let i = 1; i <= 12; i++) {
-	cssVars[i] = 2 ** (i - 3) + "rem";
+/**
+ * Initializes `cssVars[1]` through `cssVars[12]` with an exponential spacing scale.
+ *
+ * The scale is calculated as `2^(n-3) * base`, providing values from `0.25 * base` to `512 * base`.
+ *
+ * @param base - The base size for the spacing scale (default: 1). If unit is 'rem' or 'em', this is in that unit. If unit is 'px', this is the pixel value.
+ * @param unit - The CSS unit to use (default: 'rem'). Can be 'rem', 'em', 'px', or any other valid CSS unit.
+ *
+ * @example
+ * ```javascript
+ * // Use default scale (0.25rem to 512rem)
+ * setSpacingCssVars();
+ *
+ * // Use custom base size
+ * setSpacingCssVars(16, 'px'); // 4px to 8192px
+ *
+ * // Use em units
+ * setSpacingCssVars(1, 'em'); // 0.25em to 512em
+ * ```
+ */
+export function setSpacingCssVars(base = 1, unit = 'rem'): void {
+	for (let i = 1; i <= 12; i++) {
+		cssVars[i] = 2 ** (i - 3) * base + unit;
+	}
 }
 
 const DIGIT_FIRST = /^\d/;
@@ -1731,6 +1767,72 @@ function cssVarRef(name: string): string {
 	// Prefix numeric keys with 'm' (CSS custom property names can't start with a digit)
 	const varName = DIGIT_FIRST.test(name) ? `m${name}` : name;
 	return `var(--${varName})`;
+}
+
+// Automatically mount cssVars style tag to document.head when cssVars is not empty
+if (typeof document !== "undefined") {
+	leakScope(() => {
+		$(() => {
+			if (!isEmpty(cssVars)) {
+				mount(document.head, () => {
+					$('style', () => {
+						let css = ":root {\n";
+						for(const [key, value] of Object.entries(cssVars)) {
+							const varName = DIGIT_FIRST.test(String(key)) ? `m${key}` : key;
+							css += `  --${varName}: ${value};\n`;
+						}
+						css += "}";
+						$(`#${css}`);
+					});
+				});
+			}
+		});
+	});
+}
+
+/**
+ * Returns whether the user's browser prefers a dark color scheme.
+ *
+ * This function is reactive - scopes that call it will re-execute when the
+ * browser's color scheme preference changes (via the `prefers-color-scheme` media query).
+ *
+ * Use this in combination with {@link $} and {@link cssVars} to implement theme switching:
+ *
+ * @returns `true` if the browser prefers dark mode, `false` if it prefers light mode.
+ *
+ * @example
+ * ```javascript
+ * import { darkMode, cssVars, $, mount } from 'aberdeen';
+ *
+ * // Reactively set colors based on browser preference
+ * $(() => {
+ *   if (darkMode()) { // Optionally override this with user settings
+ *     cssVars.bg = '#1a1a1a';
+ *     cssVars.fg = '#e5e5e5';
+ *   } else {
+ *     cssVars.bg = '#ffffff';
+ *     cssVars.fg = '#000000';
+ *   }
+ * });
+ * ```
+ */
+export function darkMode(): boolean {
+	if (typeof window === 'undefined' || !window.matchMedia) return false;
+	
+	const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+	
+	// Read from proxy to establish reactivity
+	const changed = proxy(false);
+	changed.value; // Subscribe caller reactive scope
+	function onChange() {
+		changed.value = true;
+	}
+	mediaQuery.addEventListener('change', onChange);
+	clean(() => {
+		mediaQuery.removeEventListener('change', onChange);
+	})
+	
+	return mediaQuery.matches;
 }
 
 /**
@@ -2188,7 +2290,7 @@ function styleToCss(style: object, prefix: string): string {
 					);
 				}
 			} else {
-				const val = v == null || v === false ? "" : typeof v === 'string' ? (v[0] === '@' ? cssVarRef(v.substring(1)) : v) : String(v);
+				const val = v == null || v === false ? "" : typeof v === 'string' ? (v[0] === '$' ? cssVarRef(v.substring(1)) : v) : String(v);
 				const expanded = CSS_SHORT[k] || k;
 				for (const prop of (Array.isArray(expanded) ? expanded : [expanded])) {
 					props += `${prop.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}:${val};`;
@@ -2217,7 +2319,7 @@ function applyArg(el: Element, key: string, value: any) {
 	} else if (key[0] === "$") {
 		// Style (with shortcuts)
 		key = key.substring(1);
-		const val = value == null || value === false ? "" : typeof value === 'string' ? (value[0] === '@' ? cssVarRef(value.substring(1)) : value) : String(value);
+		const val = value == null || value === false ? "" : typeof value === 'string' ? (value[0] === '$' ? cssVarRef(value.substring(1)) : value) : String(value);
 		const expanded = CSS_SHORT[key] || key;
 		if (typeof expanded === "string") {
 			(el as any).style[expanded] = val;
@@ -2914,20 +3016,4 @@ export function withEmitHandler(
 	}
 }
 
-// Initialize the cssVars style tag in document.head
-// This runs at module load time, after all functions are defined
-if (typeof document !== "undefined") {
-	leakScope(() => {
-		mount(document.head, () => {
-			$('style', () => {
-				let css = ":root {\n";
-				for(const [key, value] of Object.entries(cssVars)) {
-					const varName = DIGIT_FIRST.test(String(key)) ? `m${key}` : key;
-					css += `  --${varName}: ${value};\n`;
-				}
-				css += "}";
-				$(`#${css}`);
-			})
-		});
-	});
-}
+

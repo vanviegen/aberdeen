@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "author": "Frank van Viegen",
   "main": "dist-min/aberdeen.js",
   "devDependencies": {

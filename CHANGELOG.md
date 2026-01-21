@@ -1,5 +1,18 @@
 # Changelog
 
+### 1.6.0 (2026-01-22)
+
+**Breaking changes:**
+- CSS variable syntax changed from `@name` to `$name` (e.g., `$('div bg:$primary')` instead of `bg:@primary`). The `$` prefix is clearer for variables and avoids potential conflicts with CSS @ rules.
+- We no longer automatically insert size variables into `cssVars`. Instead, you can now call `setSpacingCssVars()` to initialize `cssVars[0]` through `cssVars[12]` with a customizable exponential spacing scale.
+
+**New features:**
+- **`darkMode()`**: Reactive function that returns `true` when the browser prefers dark mode. Automatically re-executes scopes when the system preference changes, making it easy to implement theme switching.
+
+**Fixes:**
+- Fixed `copy()` not triggering `isEmpty()` reactivity when clearing objects/Maps. Previously, using `copy(obj, {})` would delete all keys but wouldn't notify observers that the object became empty.
+
+
 ### 1.5.1 (2026-01-21)
 **Enhancements:**
 - The (AI agent) 'skill/' directory is now auto-generated based on the Tutorial and API reference, to prevent docs duplication.

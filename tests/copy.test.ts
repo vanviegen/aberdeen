@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { $, proxy, copy, merge, clone } from "../src/aberdeen";
+import { $, proxy, copy, merge, clone, isEmpty } from "../src/aberdeen";
 import { passTime } from "./helpers";
 
 test('copy replaces object values', () => {
@@ -91,3 +91,26 @@ test('copy refuses to work between different types', () => {
     copy(obj, 'x', new Map());
     expect(obj.x).toBeInstanceOf(Map);
 });
+
+test('copy triggers isEmpty reactivity when clearing object', async () => {
+    let data = proxy({a: 1, b: 2, c: 3} as Record<string, number>);
+    let empty = false;
+    let cnt = 0;
+    
+    $(() => {
+        empty = isEmpty(data);
+        cnt++;
+    });
+    
+    expect(empty).toBe(false);
+    expect(cnt).toBe(1);
+    
+    // Clear the object using copy
+    copy(data, {});
+    await passTime();
+    
+    expect(empty).toBe(true);
+    expect(cnt).toBe(2);
+    expect(Object.keys(data).length).toBe(0);
+});
+

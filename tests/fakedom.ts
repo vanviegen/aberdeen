@@ -537,4 +537,59 @@ function getComputedStyle(el: Element): Record<string, string> {
   return el._style;
 }
 
+// MediaQueryList mock for testing
+class MediaQueryList {
+  matches: boolean;
+  media: string;
+  private listeners: Set<(event: any) => void> = new Set();
+
+  constructor(query: string) {
+    this.media = query;
+    // Check if there's a preset value, otherwise default to light mode
+    const preset = mediaQueryPresets.get(query);
+    this.matches = preset !== undefined ? preset : (query.includes('dark') ? false : true);
+  }
+
+  addEventListener(type: string, listener: (event: any) => void) {
+    if (type === 'change') {
+      this.listeners.add(listener);
+    }
+  }
+
+  removeEventListener(type: string, listener: (event: any) => void) {
+    if (type === 'change') {
+      this.listeners.delete(listener);
+    }
+  }
+
+  // Test helper to simulate media query changes
+  _trigger(matches: boolean) {
+    this.matches = matches;
+    const event = { matches, media: this.media };
+    for (const listener of this.listeners) {
+      listener(event);
+    }
+  }
+}
+
+const mediaQueries = new Map<string, MediaQueryList>();
+const mediaQueryPresets = new Map<string, boolean>();
+
+function matchMedia(query: string): MediaQueryList {
+  if (!mediaQueries.has(query)) {
+    mediaQueries.set(query, new MediaQueryList(query));
+  }
+  return mediaQueries.get(query)!;
+}
+
+// Set media query value and trigger change event if already initialized
+export function setMediaQuery(query: string, matches: boolean) {
+  mediaQueryPresets.set(query, matches);
+  // If already created, update it and trigger change
+  if (mediaQueries.has(query)) {
+    mediaQueries.get(query)!._trigger(matches);
+  }
+}
+
 Object.assign(global, {Node, Element, TextNode, document, window, setTimeout, getComputedStyle, location, history, URLSearchParams});
+Object.assign(window, { matchMedia });
