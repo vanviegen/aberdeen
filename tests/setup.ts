@@ -14,4 +14,4 @@ afterEach(async () => {
 	assertBody(``);
 	// Clear cssVars to prevent pollution between tests
 	copy(cssVars, {});
-})
+});

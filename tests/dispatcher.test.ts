@@ -1,12 +1,12 @@
 import { test, expect } from "bun:test";
-import { matchFailed, matchRest } from "../src/dispatcher";
+import { MATCH_FAILED, MATCH_REST } from "../src/dispatcher";
 import { Dispatcher } from "../src/dispatcher";
 
 // Helper matcher
 function parseFeedKey(segment: string) {
     if (segment === "x") return segment;
     if (segment.startsWith(":")) return parseInt(segment.slice(1));
-    return matchFailed;
+    return MATCH_FAILED;
 }
 
 test("Dispatcher: basic route matching", () => {
@@ -21,10 +21,10 @@ test("Dispatcher: basic route matching", () => {
     expect(called).toBe(true);
 });
 
-test("Dispatcher: matchRest and handler args", () => {
+test("Dispatcher: MATCH_REST and handler args", () => {
     const d = new Dispatcher();
     let result: any = null;
-    d.addRoute("example", matchRest, "x", Number, (rest: string[], x: number) => {
+    d.addRoute("example", MATCH_REST, "x", Number, (rest: string[], x: number) => {
         result = { rest, x };
     });
     d.dispatch(["example", "a", "b", "c", "x", "42"]);
@@ -32,7 +32,7 @@ test("Dispatcher: matchRest and handler args", () => {
     expect(result.x).toBe(42);
 });
 
-test("Dispatcher: matchFailed prevents handler call", () => {
+test("Dispatcher: MATCH_FAILED prevents handler call", () => {
     const d = new Dispatcher();
     let called = false;
     d.addRoute("fail", parseFeedKey, () => { called = true; });
@@ -40,13 +40,13 @@ test("Dispatcher: matchFailed prevents handler call", () => {
     expect(called).toBe(false);
 });
 
-test("Dispatcher: only one matchRest allowed", () => {
+test("Dispatcher: only one MATCH_REST allowed", () => {
     const d = new Dispatcher();
     let threw = false;
     try {
-        d.addRoute(matchRest, "x", matchRest, () => {});
+        d.addRoute(MATCH_REST, "x", MATCH_REST, () => {});
     } catch (e: any) {
-        threw = e.message.includes("Only one matchRest is allowed");
+        threw = e.message.includes("Only one MATCH_REST is allowed");
     }
     expect(threw).toBe(true);
 });
@@ -63,7 +63,7 @@ test("Dispatcher: type checking", () => {
     d.addRoute("users", Number, "feed", (userId: number, feedKey) => {});
     
     // @ts-expect-error - Handler expects string[], but declared as string
-    d.addRoute("example", matchRest, (rest: string) => {});
+    d.addRoute("example", MATCH_REST, (rest: string) => {});
     
     expect(() => {
         // @ts-expect-error - Handler is not a function

@@ -2,7 +2,7 @@ import { expect, test, beforeEach } from "bun:test";
 import { resetBrowserState } from "./fakedom";
 import { passTime } from "./helpers";
 import * as route from "../src/route";
-import { mount, getParentElement } from "../src/aberdeen";
+import { mount, $ } from "../src/aberdeen";
 
 beforeEach(async () => {
     resetBrowserState();
@@ -236,7 +236,7 @@ test('route.persistScroll() saves and restores scroll position', async () => {
         route.persistScroll();
     });
     
-    const parentEl = getParentElement() as any;
+    const parentEl = $() as any;
     
     // Set scroll position
     parentEl.scrollTop = 100;
@@ -271,7 +271,7 @@ test('route.persistScroll() with custom name', async () => {
         route.persistScroll('sidebar');
     });
     
-    const parentEl = getParentElement() as any;
+    const parentEl = $() as any;
     // route.reset any previous scroll position
     parentEl.scrollLeft = 0;
     parentEl.scrollTop = 200;
@@ -354,4 +354,118 @@ test('complex navigation sequence', async () => {
     await passTime(1);
     expect(route.current.depth).toEqual(4); // Should replace the history after users
     expect(lastLog[0]).toBe('go');
+});
+test('interceptLinks handles local link clicks', async () => {
+    let link: any;
+    mount(document.body, () => {
+        route.interceptLinks();
+        
+        // Create a link element using Aberdeen's $ function
+        link = $('a', {href: '/test/path?foo=bar#section'}, 'Test Link');
+    });
+    await passTime(1);
+    
+    // Simulate click using fakedom's event method
+    link.event('click');
+    await passTime(1);
+    
+    expect(route.current.path).toEqual('/test/path');
+    expect(route.current.search).toEqual({foo: 'bar'});
+    expect(route.current.hash).toEqual('#section');
+});
+
+test('interceptLinks ignores external links', async () => {
+    let link: any;
+    mount(document.body, () => {
+        route.interceptLinks();
+        
+        link = $('a', {href: 'https://example.com/path', host: 'example.com'});
+    });
+    await passTime(1);
+    
+    // Track navigation by checking the current path doesn't change
+    const beforePath = route.current.path;
+    link.event('click');
+    await passTime(1);
+    
+    expect(route.current.path).toEqual(beforePath);
+});
+
+test('interceptLinks ignores links with protocols', async () => {
+    const testCases = [
+        'mailto:test@example.com',
+        'tel:+1234567890',
+        'javascript:void(0)',
+        '//example.com/path',
+    ];
+    
+    const links: any[] = [];
+    mount(document.body, () => {
+        route.interceptLinks();
+        
+        for (const href of testCases) {
+            links.push($('a', {href}));
+        }
+    });
+    await passTime(1);
+    
+    const beforePath = route.current.path;
+    for (const link of links) {
+        link.event('click');
+    }
+    
+    await passTime(1);
+    expect(route.current.path).toEqual(beforePath);
+});
+
+test('interceptLinks ignores links with target attribute', async () => {
+    let link: any;
+    mount(document.body, () => {
+        route.interceptLinks();
+        
+        link = $('a', {href: '/test', target: '_blank'});
+    });
+    await passTime(1);
+    
+    const beforePath = route.current.path;
+    link.event('click');
+    await passTime(1);
+    
+    expect(route.current.path).toEqual(beforePath);
+});
+
+test('interceptLinks handles Enter key on links', async () => {
+    let link: any;
+    mount(document.body, () => {
+        route.interceptLinks();
+        
+        link = $('a', {href: '/test/keyboard'});
+    });
+    await passTime(1);
+    
+    // Simulate Enter key press using fakedom's event method
+    link.event({ type: 'keydown', key: 'Enter' });
+    await passTime(1);
+    
+    expect(route.current.path).toEqual('/test/keyboard');
+});
+
+test('interceptLinks ignores hash-only links', async () => {
+    route.go('/current-page');
+    await passTime(1);
+    
+    let link: any;
+    mount(document.body, () => {
+        route.interceptLinks();
+        
+        link = $('a', {href: '#section'});
+    });
+    await passTime(1);
+    
+    const initialPath = route.current.path;
+    link.event('click');
+    await passTime(1);
+    
+    // Path should not change for hash-only links
+    expect(route.current.path).toEqual(initialPath);
 });

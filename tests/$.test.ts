@@ -66,20 +66,30 @@ test('reacts to conditions', async () => {
 test('long-form string args', async () => {
 	const enabled = proxy(false);
 	$(() => {
-		$('div.cls text=Title .enabled=', enabled, '$color=red span .important $fontDecoration=underline #The rest is text');
+		$('div.cls text=Title .enabled=', enabled, '$color=red span .important $font-decoration=underline #The rest is text');
 	})
-	assertBody(`div.cls{color:red "Title" span.important{fontDecoration:underline "The rest is text"}}`);
+	assertBody(`div.cls{color:red "Title" span.important{font-decoration:underline "The rest is text"}}`);
 
 	enabled.value = true;
 	await passTime();
 
-	assertBody(`div.cls.enabled{color:red "Title" span.important{fontDecoration:underline "The rest is text"}}`);
+	assertBody(`div.cls.enabled{color:red "Title" span.important{font-decoration:underline "The rest is text"}}`);
 })
 
 test('long-form string arg escaping', async () => {
-	$('div text="My title" $margin="0 auto".cls');
+	$('div text="My title" margin: 0 auto;.cls');
 	assertBody(`div.cls{margin:"0 auto" "My title"}`);
 })
+
+test('style with space-colon-semicolon for multi-word values', async () => {
+	$(`div box-shadow: 2px 0 6px black; m:$3`);
+	assertBody('div{box-shadow:"2px 0 6px black" margin:var(--m3)}');
+});
+
+test('mixing short and long form CSS in $()', async () => {
+	$('div m:$3 border: 1px solid blue; bg:red');
+	assertBody('div{background:red border:"1px solid blue" margin:var(--m3)}');
+});
 
 test('reactive proxy text with # shorthand', async () => {
 	const text = proxy('Hello');

@@ -59,30 +59,26 @@ Note that the example is interactive - try typing something!
 
 ## Inline styles
 
-To set inline CSS styles on elements, use the `property:value` or `property:`, value syntax:
+To set inline CSS styles on elements, use the `property:value` (short form) or `property: value containing spaces;` (long form) syntax:
 
 ```javascript
-$('div.box color:red backgroundColor:yellow#Styled text');
+$('p color:red padding:8px background-color:#a882 border: 2px solid #a884; #Styled text');
 ```
-
-## CSS shortcuts
-
-Aberdeen provides shortcuts for commonly used CSS properties, making your code more concise.
 
 ### Property shortcuts
 
-Common property names are automatically expanded:
+Aberdeen provides shortcuts for commonly used CSS properties, making your code more concise.
 
 | Shortcut | Expands to |
 |----------|------------|
-| `m`, `mt`, `mb`, `ml`, `mr` | `margin`, `marginTop`, `marginBottom`, `marginLeft`, `marginRight` |
+| `m`, `mt`, `mb`, `ml`, `mr` | `margin`, `margin-top`, `margin-bottom`, `margin-left`, `margin-right` |
 | `mv`, `mh` | Vertical (top+bottom) or horizontal (left+right) margins |
-| `p`, `pt`, `pb`, `pl`, `pr` | `padding`, `paddingTop`, `paddingBottom`, `paddingLeft`, `paddingRight` |
+| `p`, `pt`, `pb`, `pl`, `pr` | `padding`, `padding-top`, `padding-bottom`, `padding-left`, `padding-right` |
 | `pv`, `ph` | Vertical or horizontal padding |
 | `w`, `h` | `width`, `height` |
 | `bg` | `background` |
 | `fg` | `color` |
-| `r` | `borderRadius` |
+| `r` | `border-radius` |
 
 ```javascript
 $('div mv:10px ph:20px bg:lightblue r:10% #Styled box');
@@ -107,7 +103,8 @@ $('button bg:$danger fg:$textLight #Danger');
 
 The above generates CSS like `background: var(--primary)` and automatically injects a `:root` style defining the actual values. Since this uses native CSS custom properties, changes to `cssVars` automatically propagate to all elements using those values.
 
-#### Predefined spacing
+### Spacing variables
+
 You can optionally initialize `cssVars` with keys `1` through `12` mapping to an exponential `rem` scale using {@link aberdeen.setSpacingCssVars}. Since CSS custom property names can't start with a digit, numeric keys are prefixed with `m` (e.g., `$3` becomes `var(--m3)`):
 
 ```javascript
@@ -344,7 +341,7 @@ const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0
 
 $('button text="Add item" click=', () => pairs[randomWord()] = randomWord());
 
-$('div.row.wide marginTop:1em', () => {
+$('div.row.wide margin-top:1em', () => {
     $('div.box#By key', () => {
         onEach(pairs, (value, key) => {
             $(`li#${key}: ${value}`)
@@ -396,22 +393,25 @@ $('div.box', () => {
 ## CSS
 Through the {@link aberdeen.insertCss} function, Aberdeen provides a way to create component-local CSS.
 
+For simple single-element styles, you can pass a string directly:
+
 ```javascript
-import { $, proxy, insertCss } from 'aberdeen';
+import { $, insertCss } from 'aberdeen';
+
+const simpleCard = insertCss("bg:#f0f0f0 p:$3 r:8px");
+$('div', simpleCard, '#Card content');
+```
+
+For more complex styles with nested selectors, pass an object where each key is a selector and each value is a style string using the same `property:value` syntax as inline styles:
+
+```javascript
+import { $, insertCss } from 'aberdeen';
 
 // Create a CSS class that can be applied to elements
 const myBoxStyle = insertCss({
-    borderColor: '#6936cd',
-    backgroundColor: '#1b0447',
-    button: {
-        backgroundColor: '#6936cd',
-        border: 0,
-        transition: 'box-shadow 0.3s',
-        boxShadow: '0 0 4px #ff6a0044',
-        '&:hover': {
-            boxShadow: '0 0 16px #ff6a0088',
-        }
-    }
+    "&": "border-color:#6936cd background-color:#1b0447",
+    "button": "background-color:#6936cd border:0 transition: box-shadow 0.3s; box-shadow: 0 0 4px #ff6a0044;",
+    "button:hover": "box-shadow: 0 0 16px #ff6a0088;"
 });
 
 // myBoxStyle is now something like ".AbdStl1", the name for a generated CSS class.
@@ -419,7 +419,9 @@ const myBoxStyle = insertCss({
 $('div.box', myBoxStyle, 'button#Click me');
 ```
 
-This allows you to create single-file components with advanced CSS rules. The {@link aberdeen.insertGlobalCss} function can be used to add CSS without a class prefix.
+The `"&"` selector refers to the element with the generated class itself. Child selectors like `"button"` are scoped to descendants of that element, while pseudo-selectors like `"&:hover"` apply to the element itself.
+
+This allows you to create single-file components with advanced CSS rules. The {@link aberdeen.insertGlobalCss} function can be used to add CSS without a class prefix - it accepts the same string or object syntax.
 
 Both functions support the same CSS shortcuts and variables as inline styles (see above). For example:
 
@@ -427,13 +429,8 @@ Both functions support the same CSS shortcuts and variables as inline styles (se
 import { cssVars, insertGlobalCss } from 'aberdeen';
 cssVars.boxBg = '#f0f0e0';
 insertGlobalCss({
-    body: {
-        m: 0, // Using shortcut for margin
-    },
-    form: {
-        bg: "$boxBg", // Using background shortcut and CSS variable
-        mv: "$3", // Set vertical margin to predefined spacing value $3 (1rem)
-    }
+    "body": "m:0", // Using shortcut for margin
+    "form": "bg:$boxBg mv:$3" // Using background shortcut, CSS variable, and spacing value
 });
 ```
 
@@ -444,27 +441,20 @@ Aberdeen allows you to easily apply transitions on element creation and element 
 
 ```javascript
 let titleStyle = insertCss({
-    transition: "all 1s ease-out",
-    transformOrigin: "top left",
-    "&.faded": {
-        opacity: 0,
-    },
-    "&.imploded": {
-        transform: "scale(0.1)",
-    },
-    "&.exploded": {
-        transform: "scale(5)",
-    },
+    "&": "transition: all 1s ease-out; transform-origin: left center;",
+    "&.faded": "opacity:0",
+    "&.imploded": "transform:scale(0.1)",
+    "&.exploded": "transform:scale(5)"
 });
 
 const show = proxy(true);
 $('label', () => {
-    $('input', {type: 'checkbox', bind: show});
+    $('input type=checkbox bind=', show);
     $('#Show title');
 });
 $(() => {
     if (!show.value) return;
-    $('h2#(Dis)appearing text', titleStyle, 'create=.faded.imploded destroy=.faded.exploded');
+    $('h2#(Dis)appearing text', titleStyle, 'create=faded.imploded destroy=faded.exploded');
 });
 ```
 
@@ -519,45 +509,24 @@ const data = proxy({ a: 1, b: 2 });
 $(() => {
     // This scope only re-runs when data.a changes
     // Changes to data.b won't trigger a re-render
-    const b = peek(data, 'b');
-    console.log(`A is ${data.a}, B was ${b} when A changed.`);
+    $(`h2#a == ${data.a} && b == ${peek(data, 'b')}`);
 });
 
-$('button text="Change B" click=', () => data.b++); // Won't log
-$('button text="Change A" click=', () => data.a++); // Will log
+$(`button text="a++ (will update)" click=`, () => data.a++);
+$(`button ml:1rem text="b++ (won't update)" click=`, () => data.b++);
 ```
 
 You can also pass a function to `peek()` to execute it without any subscriptions:
 
 ```javascript
-const count = peek(() => data.a + data.b); // Reads both without subscribing
+const a = proxy(42);
+const b = proxy(7);
+const sum = peek(() => a.value + b.value); // Reads both without subscribing
+$('#Sum is: '+sum);
+setInterval(() => a.value++, 1000); // Won't update
 ```
 
 This can be useful to avoid rerenders (of even rerender loops) when you only need a point-in-time snapshot of some reactive data.
-
-## Debugging with dump()
-
-The {@link aberdeen.dump} function creates a live, interactive tree view of any data structure in the DOM. It's particularly useful for debugging reactive state:
-
-```javascript
-import { $, proxy, dump } from 'aberdeen';
-
-const state = proxy({
-    user: { name: 'Frank', kids: 1 },
-    items: ['a', 'b']
-});
-
-$('h2#Live State Dump');
-dump(state);
-
-// The dump updates automatically as state changes
-$('button text="Update state" click=', () => {
-    state.user.kids++;
-    state.items.push('new');
-});
-```
-
-The dump renders recursively using `<ul>` and `<li>` elements, showing all properties and their values. It updates reactively when any proxied data changes. It is intended for debugging, though with some CSS styling you may find it useful in some simple real-world scenarios as well.
 
 ## Derived values
 An observer scope doesn't *need* to create DOM elements. It may also perform other side effects, such as modifying other observable objects. For instance:
@@ -622,6 +591,31 @@ $(() => {
 })
 ```
 
+## Debugging with dump()
+
+The {@link aberdeen.dump} function creates a live, interactive tree view of any data structure in the DOM. It's particularly useful for debugging reactive state:
+
+```javascript
+import { $, proxy, dump } from 'aberdeen';
+
+const state = proxy({
+    user: { name: 'Frank', kids: 1 },
+    items: ['a', 'b']
+});
+
+$('h2#Live State Dump');
+dump(state);
+
+// The dump updates automatically as state changes
+$('button text="Update state" click=', () => {
+    state.user.kids++;
+    state.items.push('new');
+});
+```
+
+The dump renders recursively using `<ul>` and `<li>` elements, showing all properties and their values. It updates reactively when any proxied data changes. It is intended for debugging, though with some CSS styling you may find it useful in some simple real-world scenarios as well.
+
+
 ## html-to-aberdeen
 
 Sometimes, you want to just paste a largish block of HTML into your application (and then maybe modify it to bind some actual data). Having to translate HTML to `$` calls manually is little fun, so there's a tool for that:
@@ -633,6 +627,222 @@ npx html-to-aberdeen
 It takes HTML on stdin (paste it and press `ctrl-d` for end-of-file), and outputs JavaScript on stdout.
 
 > Caveat: This tool has been vibe coded (thanks Claude!) with very little code review. As it doesn't use the filesystem nor the network, I'd say it's safe to use though! :-) Also, it happens to work pretty well.
+
+## Routing
+
+Aberdeen provides an optional built-in router via the {@link route} module. The router is reactive and integrates seamlessly with browser history.
+
+The {@link route.current} object is an observable that reflects the current URL:
+
+```javascript
+import { $ } from 'aberdeen';
+import * as route from 'aberdeen/route';
+
+$(() => {
+    $(`p#Path string: ${route.current.path}`); // eg "/example/123"
+    $(`p#Path segments: ${JSON.stringify(route.current.p)}`); // eg ["example", "123"]
+});
+```
+
+To navigate programmatically, use {@link route.go}:
+
+```javascript
+import { $ } from 'aberdeen';
+import * as route from 'aberdeen/route';
+console.log('pn', location.protocol, location.host, location.hostname, location.pathname);
+
+$('button#Go to settings', {
+    click: () => route.go('/settings')
+});
+
+// Or using path segments
+$('button ml:1rem #Go to user 123', {
+    click: () => route.go({p: ['users', 123]})
+});
+```
+
+For convenience, you can call {@link route.interceptLinks} once to automatically convert clicks on local `<a>` tags into Aberdeen routing, so you can use regular anchor tags without manual click handlers. Example: `$('a href=/settings text=Settings')`.
+
+```javascript
+import { $ } from 'aberdeen';
+import * as route from 'aberdeen/route';
+
+route.interceptLinks(); // Just once on startup:
+
+$('a role=button href=/settings #Go to settings')
+```
+
+The {@link route.push} function is useful for overlays that should be closeable with browser back:
+
+```javascript
+import { $ } from 'aberdeen';
+import * as route from 'aberdeen/route';
+
+$('button#Open modal', {
+    click: () => route.push({state: {modal: 'settings'}})
+});
+
+$(() => {
+    if (!route.current.state.modal) return;
+    $('div.modal-overlay', {
+        click: () => route.back({state: {modal: undefined}})
+    }, () => {
+        $('div.modal#Modal content here');
+    });
+});
+```
+
+Optionally, you can use the {@link dispatcher.Dispatcher} class for declarative routing. It allows you to register route patterns with associated handler functions, which are invoked when the current route matches the pattern. It can match typed parameters and rest parameters.
+
+## Prediction
+
+When building interactive applications with client-server communication, Aberdeen's prediction system allows for optimistic UI updates. The {@link prediction.applyPrediction} function records changes to any proxied objects made within its callback. These changes are treated as *predictions* that may later be confirmed or reverted based on server responses. When a server response arrives, the {@link prediction.applyCanon} function applies authoritative changes from the server, reverting any conflicting predictions while attempting to reapply non-conflicting ones.
+
+## Full Example: Multi-page App
+
+Here's a complete example (a contact manager) demonstrating routing, state management, CSS, dark mode, and dynamic content:
+
+```typescript
+import { $, proxy, onEach, cssVars, ref, darkMode, insertCss, insertGlobalCss, setSpacingCssVars, map } from 'aberdeen';
+import * as route from 'aberdeen/route';
+import { Dispatcher } from 'aberdeen/dispatcher';
+import { grow, shrink } from 'aberdeen/transitions';
+
+class Contact {
+    constructor(
+        public id: number,
+        public firstName: string,
+        public lastName: string,
+        public email: string,
+        public phone: string
+    ) {}
+}
+
+// Enable link interception for SPA navigation
+route.interceptLinks();
+
+// Initialize $1-$12 CSS variables for consistent spacing ($2=0.5rem, $3=1rem, $4=2rem, etc.)
+setSpacingCssVars();
+
+// Reactive theme based on system preference
+$(() => {
+    cssVars.primary = '#2563eb';
+    cssVars.bg = darkMode() ? '#0f172a' : '#ffffff';
+    cssVars.fg = darkMode() ? '#e2e8f0' : '#1e293b';
+    cssVars.cardBg = darkMode() ? '#1e293b' : '#f8fafc';
+    cssVars.border = darkMode() ? '#334155' : '#e2e8f0';
+});
+
+// Global styles for semantic HTML elements that apply everywhere
+insertGlobalCss({
+    "*": "m:0 p:0",
+    "body": "bg:$bg fg:$fg font-family: system-ui, sans-serif;",
+    "a": "color:$primary text-decoration:none",
+    "a:hover": "text-decoration:underline",
+    "a[role=button]": "bg:$primary fg:white r:8px p:$2",
+});
+
+// Application state
+const contacts = proxy([
+    new Contact(1, 'Emma', 'Wilson', 'emma.wilson@email.com', '555-0101'),
+    new Contact(2, 'James', 'Anderson', 'j.anderson@email.com', '555-0102'),
+    new Contact(3, 'Sofia', 'Martinez', 'sofia.m@email.com', '555-0103'),
+    new Contact(4, 'Liam', 'Brown', 'liam.brown@email.com', '555-0104')
+]);
+
+// Router setup
+const dispatcher = new Dispatcher();
+dispatcher.addRoute(drawHome);
+dispatcher.addRoute('contacts', drawContactList);
+dispatcher.addRoute('contacts', Number, drawContactDetail);
+
+// Main app
+$('div.app', () => {
+    $('nav display:flex gap:$3 p:$3 border-bottom: 1px solid $border;', () => {
+        $('a href=/ text=Home font-weight:', route.current.p.length === 0 ? 'bold' : 'normal');
+        $('a href=/contacts text=Contacts font-weight:', route.current.p[0] === 'contacts' ? 'bold' : 'normal');
+    });
+    $('main p:$3', () => dispatcher.dispatch(route.current.p));
+});
+
+function drawHome() {
+    $('h1#Contact Manager');
+    $('p#A modern contact list with search, sort, and dark mode support.');
+}
+
+// Contact card styles
+const cardStyle = insertCss({
+    "&": "bg:$cardBg border: 1px solid $border; r:8px p:$3 mv:$2 display:block transition: transform 0.2s;",
+    "&:hover": "transform:translateX(4px)",
+    "a&": "color:inherit;",
+});
+
+const filterStyle = insertCss({
+    "&": "display:flex gap:$3 mv:$3",
+    "> *": "p:$2 r:4px bg:$bg fg:$fg border: 1px solid $border;",
+});
+
+function drawContactList() {
+    $('h1#Contacts');
+    
+    // Search and sort controls
+    $('div', filterStyle, () => {
+        $('input flex:1 placeholder="Search contacts..." bind=', ref(route.current.search, 'q'));
+        $('select bind=', ref(route.current.search, 'sort'), () => {
+            $('option value=firstName #First Name');
+            $('option value=lastName #Last Name');
+            $('option value=email #Email');
+        });
+    });
+    
+    // Contact list
+    $('div', () => {
+        const sortBy = route.current.search.sort || 'firstName';
+
+        const filtered = map(contacts, contact => {
+            const query = route.current.search.q;
+            if (query) {
+                const info = `${contact.firstName} ${contact.lastName} ${contact.email}`;
+                if (!info.toLowerCase().includes(query.toLowerCase())) return; // Skip!
+            }
+            return contact;
+        });
+        
+        onEach(filtered, contact => {
+            $('a', cardStyle, 'create=', grow, 'destroy=', shrink, `href=/contacts/${contact.id}`, () => {
+                $('h2', () => {
+                    $('span font-weight:normal text=', contact.firstName+" ");
+                    $('span text=', contact.lastName);
+                });
+                $('div text=', contact.email);
+            });
+        }, contact => contact[sortBy].toLowerCase());
+
+        $(`a role=button mt:$3 text="Add new contact" href=/contacts/${contacts.length}`);
+    });
+}
+
+// Detail form styles
+const detailStyle = insertCss({
+    "&": "bg:$cardBg border: 1px solid $border; r:8px p:$4 max-width:600px",
+    "label": "display:block font-weight:600 mt:$3 mb:$2",
+    "input": "w:100% p:$2 r:4px border: 1px solid $border; bg:$bg fg:$fg"
+});
+
+function drawContactDetail(id: number) {
+    const contact = contacts[id] ||= {};
+    
+    $('a role=button href=/contacts #← Back');
+    
+    $('div mt:$3', detailStyle, () => {
+        $('h2 mb:$2 text=', ref(contact, 'firstName'), 'text=', ' ', 'text=', ref(contact, 'lastName'));
+        $('label text="First Name" input bind=', ref(contact, 'firstName'));
+        $('label text="Last Name" input bind=', ref(contact, 'lastName'));
+        $('label text="Email" input type=email bind=', ref(contact, 'email'));     
+        $('label text="Phone" input type=tel bind=', ref(contact, 'phone'));
+    });
+}
+```
 
 ## Further reading
 

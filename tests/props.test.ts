@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, getParentElement, mount, merge } from "../src/aberdeen";
+import { $, proxy, mount, merge } from "../src/aberdeen";
 
 test('Sets and unsets classes', async () => {
     let cnt1 = 0, cnt2 = 0, cnt3 = 0;
@@ -37,7 +37,7 @@ test('Defines and removes event listeners', async () => {
     
     mount(document.body, () => {
         $('div', () => {
-            el = getParentElement();
+            el = $();
             if (data.value) $({click: myFunc});
         });
     });
@@ -61,17 +61,17 @@ test('Styles elements', async () => {
             $padding: null, // ignore
             $border: false, // ignore as well
             $height: undefined, // again, ignore
-            $backgroundColor: 'red',
+            '$background-color': 'red',
             $color: colorData
         });
     });
     
     await passTime();
-    assertBody(`div{backgroundColor:red color:blue margin:10px}`);
+    assertBody(`div{background-color:red color:blue margin:10px}`);
     
     colorData.value = 'orange';
     await passTime();
-    assertBody(`div{backgroundColor:red color:orange margin:10px}`);
+    assertBody(`div{background-color:red color:orange margin:10px}`);
     
     expect(count).toEqual(1);
 });

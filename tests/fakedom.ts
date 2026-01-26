@@ -234,9 +234,10 @@ class Element extends Node {
 
   toString(): string {
     let arr: string[] = [];
-    for(let [symbol, items] of [['=', this.attrs], ['->', this], [':', this.style]] as [string, Record<string, any>][]) {
+    for(let [symbol, items, toKebab] of [['=', this.attrs, false], ['->', this, false], [':', this.style, true]] as [string, Record<string, any>, boolean][]) {
       for(let key of Object.keys(items).sort()) {
-        const prefix = key + symbol;
+        const outputKey = toKebab ? key.replace(/[A-Z]/g, l => `-${l.toLowerCase()}`) : key;
+        const prefix = outputKey + symbol;
         if (key[0] === '_' || IGNORE_OUTPUT.has(prefix)) continue;
         let value = '' + items[key];
         if (value.indexOf(" ") >= 0 || value.indexOf("}") >= 0 || !value.length) value = JSON.stringify(value);
@@ -451,6 +452,13 @@ class FakeWindow {
       }
     }
   }
+
+  matchMedia(query: string): MediaQueryList {
+    if (!mediaQueries.has(query)) {
+      mediaQueries.set(query, new MediaQueryList(query));
+    }
+    return mediaQueries.get(query)!;
+  }
   
   // Test helper
   _reset(): void {
@@ -575,13 +583,6 @@ class MediaQueryList {
 const mediaQueries = new Map<string, MediaQueryList>();
 const mediaQueryPresets = new Map<string, boolean>();
 
-function matchMedia(query: string): MediaQueryList {
-  if (!mediaQueries.has(query)) {
-    mediaQueries.set(query, new MediaQueryList(query));
-  }
-  return mediaQueries.get(query)!;
-}
-
 // Set media query value and trigger change event if already initialized
 export function setMediaQuery(query: string, matches: boolean) {
   mediaQueryPresets.set(query, matches);
@@ -591,5 +592,6 @@ export function setMediaQuery(query: string, matches: boolean) {
   }
 }
 
-Object.assign(global, {Node, Element, TextNode, document, window, setTimeout, getComputedStyle, location, history, URLSearchParams});
-Object.assign(window, { matchMedia });
+const globals = {Node, Element, TextNode, document, window, setTimeout, getComputedStyle, location, history, URLSearchParams};
+Object.assign(global, globals);
+Object.assign(window, globals);

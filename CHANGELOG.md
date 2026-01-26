@@ -1,5 +1,25 @@
 # Changelog
 
+### 1.7.0 (2026-01-23)
+
+**Breaking changes:**
+- String syntax for `insertCss()` and `insertGlobalCss()`: Both functions now accept concise style strings using the same `property:value` syntax as inline CSS (e.g., `insertCss("bg:#f0f0f0 p:$3 r:8px")`).
+- CSS property names now use kebab-case instead of camelCase (e.g., `background-color` instead of `backgroundColor`) for both `$` and `insertCss`.
+- Removed quote syntax for styles: `margin:"0 auto"` is no longer supported and should be `margin: 0 auto;` or `margin:0`. The space after the colon indicates long-form syntax, meaning the value continues until a semicolon. Again, for both `$` and `insertCss`.
+- `getParentElement()` removed: Use `$()` without arguments instead to get the current element reference.
+- Renamed router constants to upper case.
+
+**New features:**
+- `route.interceptLinks()`: New function to automatically intercept clicks and Enter key presses on local `<a>` tags and use Aberdeen routing instead of browser navigation. Properly handles external links, modifier keys, and special attributes.
+- More flexible quote support: String arguments in `$()` now support single quotes (`'`), double quotes (`"`), and backticks (`` ` ``) for attribute values.
+
+**Enhancements:**
+- Debounce proxied variables: Scopes no longer trigger when an observable variable is changed and then immediately changed back to its previous value before the scope gets a chance to run. This makes some patterns a lot easier/faster.
+- Enhanced CSS variable expansion: `$varName` can now be anywhere in a CSS value (e.g., `border: 1px solid $border;`), and variables are safely preserved inside parentheses or quotes.
+- Faster `darkMode()` implementation.
+- Significantly improved JSDoc documentation for the `$()` function and CSS related functions.
+- The in-documentation runner can now handle Aberdeen router code, simulating an URL bar and back/forward navigation.
+
 ### 1.6.0 (2026-01-22)
 
 **Breaking changes:**
@@ -7,7 +27,7 @@
 - We no longer automatically insert size variables into `cssVars`. Instead, you can now call `setSpacingCssVars()` to initialize `cssVars[0]` through `cssVars[12]` with a customizable exponential spacing scale.
 
 **New features:**
-- **`darkMode()`**: Reactive function that returns `true` when the browser prefers dark mode. Automatically re-executes scopes when the system preference changes, making it easy to implement theme switching.
+- `darkMode()`: Reactive function that returns `true` when the browser prefers dark mode. Automatically re-executes scopes when the system preference changes, making it easy to implement theme switching.
 
 **Fixes:**
 - Fixed `copy()` not triggering `isEmpty()` reactivity when clearing objects/Maps. Previously, using `copy(obj, {})` would delete all keys but wouldn't notify observers that the object became empty.

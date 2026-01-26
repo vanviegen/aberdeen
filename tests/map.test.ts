@@ -208,6 +208,62 @@ test('isEmpty works on objects', async () => {
     assertBody(`"not empty2"`);
 })
 
+test('isEmpty does not fire events when array state is changed back immediately', async () => {
+    let data = proxy([] as number[]);
+    let cnt = 0;
+    $(() => {
+        cnt++;
+        $(isEmpty(data,) ? "#empty" : "#not empty");
+    })
+    assertBody(`"empty"`);
+    expect(cnt).toBe(1);
+    
+    data.push(3);
+    data.pop();
+    await passTime();
+    assertBody(`"empty"`);
+    expect(cnt).toBe(1);
+
+    data.push(4);
+    await passTime();
+    assertBody(`"not empty"`);
+    expect(cnt).toBe(2);
+
+    data.pop();
+    data.push(5); // different value
+    await passTime();
+    assertBody(`"not empty"`);
+    expect(cnt).toBe(2); // not triggered
+});
+
+test('isEmpty does not fire events when object state is changed back immediately', async () => {
+    let data = proxy({} as Record<string,number|undefined>);
+    let cnt = 0;
+    $(() => {
+        cnt++;
+        $(isEmpty(data) ? "#empty" : "#not empty");
+    })
+    assertBody(`"empty"`);
+    expect(cnt).toBe(1);
+    
+    data.x = 3;
+    delete data.x;
+    await passTime();
+    assertBody(`"empty"`);
+    expect(cnt).toBe(1);
+
+    data.y = 4;
+    await passTime();
+    assertBody(`"not empty"`);
+    expect(cnt).toBe(2);
+
+    delete data.y;
+    data.y = 5; // different value
+    await passTime();
+    assertBody(`"not empty"`);
+    expect(cnt).toBe(2); // not triggered
+});
+
 test('count works on array', async() => {
     const data = proxy([2, 4]);
     const cnt = count(data);

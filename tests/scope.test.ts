@@ -125,6 +125,38 @@ test('insert at right position with an empty parent scope', () => {
   assertBody(`a b`);
 });
 
+test('does not trigger when a value changes back to the same value', async () => {
+  let data = proxy('a') as {value?: string};
+  let cnt = 0;
+  
+  $(() => {
+    cnt++;
+    $(data.value || 'none');
+  });
+  
+  assertBody(`a`);
+  expect(cnt).toEqual(1);
+  
+  data.value = 'b';
+  data.value = 'a';
+  await passTime();
+  assertBody(`a`);
+  expect(cnt).toEqual(1);
+  
+  delete data.value;
+  data.value = 'a';
+  await passTime();
+  assertBody(`a`);
+  expect(cnt).toEqual(1);
+
+  // Make sure it can still trigger on real changes
+  delete data.value;
+  data.value = 'b';
+  await passTime();
+  assertBody(`b`);
+  expect(cnt).toEqual(2);
+});
+
 test('refrains from rerendering dead scopes', async () => {
   let cnts = [0, 0, 0, 0];
   let data = proxy('a');

@@ -109,14 +109,8 @@ function markSquare(history, position) {
 // Of course, you can use any other styling solution instead, if you prefer.
 
 const boardStyle = insertCss({
-    display: 'grid',
-    gap: '0.5em',
-    gridTemplateColumns: '1fr 1fr 1fr',
-    '> *': {
-        width: '2em',
-        height: '2em',
-        padding: 0,
-    },
+    '&': 'display:grid gap:0.5em gridTemplateColumns:"1fr 1fr 1fr"',
+    '> *': 'width:2em height:2em padding:0',
 });
 
 // Fire it up! Mounts on document.body by default..

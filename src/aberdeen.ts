@@ -53,7 +53,7 @@ function queue(runner: QueueRunner) {
  * ```typescript
  * const data = proxy("before");
  *
- * $('#'+data);
+ * $('#', data);
  * console.log(1, document.body.innerHTML); // before
  *
  * // Make an update that should cause the DOM to change.
@@ -166,9 +166,7 @@ abstract class Scope implements QueueRunner {
 
 	[ptr: ReverseSortedSetPointer]: this;
 
-	onChange(index: any): void {
-		queue(this);
-	}
+	abstract onChange(target: TargetType, index: any, newData: any, oldData: any): void;
 	abstract queueRun(): void;
 
 	abstract getLastNode(): Node | undefined;
@@ -213,6 +211,7 @@ abstract class ContentScope extends Scope {
 
 	abstract svg: boolean;
 	abstract el: Element;
+	private changes: undefined | Map<TargetType, Map<any, any>>; // target => (index => oldData)
 
 	constructor(
 		cleaners: Array<{ delete: (scope: Scope) => void } | (() => void)> = [],
@@ -246,7 +245,42 @@ abstract class ContentScope extends Scope {
 		this.lastChild = undefined;
 	}
 
+	onChange(target: TargetType, index: any, newData: any, oldData: any): void {
+		if (!this.changes) {
+			this.changes = new Map();
+			queue(this);
+		}
+
+		let targetDelta = this.changes.get(target);
+		if (!targetDelta) {
+			targetDelta = new Map();
+			this.changes.set(target, targetDelta);
+		}
+
+		if (targetDelta.has(index)) {
+			// Already changed before, keep original oldData
+			// Unless it changed back to original value
+			if (targetDelta.get(index) === newData) targetDelta.delete(index);
+		} else {
+			targetDelta.set(index, oldData);
+		}
+	}
+
+	fetchHasChanges(): boolean {
+		if (!this.changes) return false;
+		for(const targetDelta of this.changes.values()) {
+			if (targetDelta.size > 0) {
+				delete this.changes;
+				return true;
+			}
+		}
+		delete this.changes;
+		return false;
+	}
+		
+
 	queueRun() {
+		if (!this.fetchHasChanges()) return;
 		this.remove();
 
 		topRedrawScope = this;
@@ -256,10 +290,6 @@ abstract class ContentScope extends Scope {
 
 	getInsertAfterNode() {
 		return this.getLastNode() || this.getPrecedingNode();
-	}
-
-	onChange() {
-		queue(this);
 	}
 
 	getChildPrevSibling() {
@@ -479,11 +509,10 @@ class OnEachScope extends Scope {
 	byIndex: Map<any, OnEachItemScope> = new Map();
 
 	/** The reverse-ordered list of item scopes, not including those for which makeSortKey returned undefined. */
-	sortedSet: ReverseSortedSet<OnEachItemScope, "sortKey"> =
-		new ReverseSortedSet("sortKey");
+	sortedSet: ReverseSortedSet<OnEachItemScope, "sortKey"> = new ReverseSortedSet("sortKey");
 
 	/** Indexes that have been created/removed and need to be handled in the next `queueRun`. */
-	changedIndexes: Set<any> = new Set();
+	changedIndexes: Map<any, any> = new Map(); // index => old value
 
 	constructor(
 		proxy: TargetType,
@@ -493,8 +522,7 @@ class OnEachScope extends Scope {
 		public makeSortKey?: (value: any, key: any) => SortKeyType,
 	) {
 		super();
-		const target: TargetType = (this.target =
-			(proxy as any)[TARGET_SYMBOL] || proxy);
+		const target: TargetType = (this.target = (proxy as any)[TARGET_SYMBOL] || proxy);
 
 		subscribe(target, ANY_SYMBOL, this);
 		this.prevSibling = currentScope.getChildPrevSibling();
@@ -518,16 +546,27 @@ class OnEachScope extends Scope {
 		return findLastNodeInPrevSiblings(this.prevSibling);
 	}
 
-	onChange(index: any) {
-		if (!(this.target instanceof Array) || typeof index === "number")
-			this.changedIndexes.add(index);
-		queue(this);
+	onChange(target: TargetType, index: any, newData: any, oldData: any) {
+		// target === this.target
+		if (!(target instanceof Array) || typeof index === "number") {
+			if (this.changedIndexes.has(index)) {
+				if (this.changedIndexes.get(index) === newData) {
+					// Data changed back to original value, so ignore it
+					this.changedIndexes.delete(index);
+				}
+				// Else, data changed a second time
+			} else {
+				// Initial data change
+				this.changedIndexes.set(index, oldData);
+				queue(this);
+			}
+		}
 	}
 
 	queueRun() {
 		const indexes = this.changedIndexes;
-		this.changedIndexes = new Set();
-		for (const index of indexes) {
+		this.changedIndexes = new Map();
+		for (const index of indexes.keys()) {
 			const oldScope = this.byIndex.get(index);
 			if (oldScope) oldScope.remove();
 
@@ -632,6 +671,8 @@ class OnEachItemScope extends ContentScope {
 	queueRun() {
 		/* c8 ignore next */
 		if (currentScope !== ROOT_SCOPE) internalError(4);
+
+		if (!this.fetchHasChanges()) return;
 
 		// We're not calling `remove` here, as we don't want to remove ourselves from
 		// the sorted set. `redraw` will take care of that, if needed.
@@ -959,23 +1000,27 @@ export function isEmpty(proxied: TargetType): boolean {
 
 	if (target instanceof Array) {
 		subscribe(target, "length", (index: any, newData: any, oldData: any) => {
-			if (!newData !== !oldData) queue(scope);
+			if (!newData !== !oldData) scope.onChange(target, EMPTY, !newData, !oldData);
 		});
 		return !target.length;
 	}
 	
 	if (target instanceof Map) {
 		subscribe(target, MAP_SIZE_SYMBOL, (index: any, newData: any, oldData: any) => {
-			if (!newData !== !oldData) queue(scope);
+			if (!newData !== !oldData) scope.onChange(target, EMPTY, !newData, !oldData);
 		});
 		return !target.size;
 	}
 	
-	const result = isObjEmpty(target);
+	let oldEmpty = isObjEmpty(target);
 	subscribe(target, ANY_SYMBOL, (index: any, newData: any, oldData: any) => {
-		if (result ? oldData === EMPTY : newData === EMPTY) queue(scope);
+		if ((newData === EMPTY) !== (oldData === EMPTY)) {
+			const newEmpty = isObjEmpty(target);
+			scope.onChange(target, EMPTY, newEmpty, oldEmpty);
+			oldEmpty = newEmpty;
+		}
 	});
-	return result;
+	return oldEmpty;
 }
 
 /** @private */
@@ -1050,7 +1095,7 @@ export function defaultEmitHandler(
 		if (byIndex) {
 			for (const observer of byIndex) {
 				if (typeof observer === "function") observer(index, newData, oldData);
-				else observer.onChange(index);
+				else observer.onChange(target, index, newData, oldData);
 			}
 		}
 	}
@@ -1516,8 +1561,6 @@ function copySet(dst: any, dstKey: any, src: any, flags: number): boolean {
  * Like {@link copy}, but uses merge semantics. Properties in `dst` not present in `src` are kept.
  * `null`/`undefined` in `src` delete properties in `dst`.
  * 
- * When the destination is an object and the source is an array, its keys are used as (sparse) array indices.
- * 
  * @example Basic merge
  * ```typescript
  * const source = { b: { c: 99 }, d: undefined }; // d: undefined will delete
@@ -1526,14 +1569,6 @@ function copySet(dst: any, dstKey: any, src: any, flags: number): boolean {
  * merge(dest, 'b', { y: 6 }); // merge into dest.b
  * merge(dest, 'c', { z: 7 }); // merge.c doesn't exist yet, so it will just be assigned
  * console.log(dest); // proxy({ a: 1, b: { c: 99, x: 5, y: 6 }, c: { z: 7 } })
- * ```
- *
- * @example Partial Array Merge
- * ```typescript
- * const messages = proxy(['msg1', 'msg2', 'msg3']);
- * const update = { 1: 'updated msg2' }; // Update using object key as index
- * merge(messages, update);
- * console.log(messages); // proxy(['msg1', 'updated msg2', 'msg3'])
  * ```
  *
  */
@@ -1737,15 +1772,16 @@ export const NO_COPY = Symbol("NO_COPY");
 export const cssVars: Record<string, string> = optProxy({});
 
 /**
- * Initializes `cssVars[1]` through `cssVars[12]` with an exponential spacing scale.
+ * Initializes `cssVars[0]` through `cssVars[12]` with an exponential spacing scale.
  *
  * The scale is calculated as `2^(n-3) * base`, providing values from `0.25 * base` to `512 * base`.
  *
- * @param base - The base size for the spacing scale (default: 1). If unit is 'rem' or 'em', this is in that unit. If unit is 'px', this is the pixel value.
- * @param unit - The CSS unit to use (default: 'rem'). Can be 'rem', 'em', 'px', or any other valid CSS unit.
+ * @param base - The base size for the spacing scale that will apply to `cssVars[3]`. Every step up the scale will double this, while every step down will halve it. Defaults to 1.
+ * @param unit - The CSS unit to use, like 'rem', 'em', or 'px'. Defaults to 'rem'.
  *
  * @example
  * ```javascript
+ * import { setSpacingCssVars, cssVars, onEach, $} from 'aberdeen';
  * // Use default scale (0.25rem to 512rem)
  * setSpacingCssVars();
  *
@@ -1754,19 +1790,36 @@ export const cssVars: Record<string, string> = optProxy({});
  *
  * // Use em units
  * setSpacingCssVars(1, 'em'); // 0.25em to 512em
+ * 
+ * // Show the last generated spacing values
+ * onEach(cssVars, (value, key) => {
+ * 	$(`div #${key} → ${value}`)
+ * }, (value, key) => parseInt(key)); // Numeric sort
  * ```
  */
 export function setSpacingCssVars(base = 1, unit = 'rem'): void {
-	for (let i = 1; i <= 12; i++) {
+	for (let i = 0; i <= 12; i++) {
 		cssVars[i] = 2 ** (i - 3) * base + unit;
 	}
 }
 
+// Matches: (1) parenthesized content, (2) quoted content, (3) $varName at start or after space
+const CSS_VAR_PATTERN = /(\([^)]*\))|("[^"]*")|(^| )\$(\w+)/g;
 const DIGIT_FIRST = /^\d/;
-function cssVarRef(name: string): string {
-	// Prefix numeric keys with 'm' (CSS custom property names can't start with a digit)
-	const varName = DIGIT_FIRST.test(name) ? `m${name}` : name;
-	return `var(--${varName})`;
+
+/**
+ * Expands all `$varName` patterns in a CSS value to `var(--varName)`.
+ * Only matches `$` at the start of the value or after a space.
+ * Content inside parentheses or quotes is preserved as-is.
+ * Numeric names get an 'm' prefix (e.g., `$3` → `var(--m3)`).
+ */
+function cssVarRef(value: string): string {
+	if (value.indexOf('$') < 0) return value;
+	return value.replace(CSS_VAR_PATTERN, (match, parens, quoted, prefix, name) => {
+		if (parens || quoted) return match;
+		const varName = DIGIT_FIRST.test(name) ? `m${name}` : name;
+		return `${prefix}var(--${varName})`;
+	});
 }
 
 // Automatically mount cssVars style tag to document.head when cssVars is not empty
@@ -1790,6 +1843,9 @@ if (typeof document !== "undefined") {
 	});
 }
 
+
+let darkModeState: {value: boolean} | undefined;
+
 /**
  * Returns whether the user's browser prefers a dark color scheme.
  *
@@ -1806,33 +1862,25 @@ if (typeof document !== "undefined") {
  *
  * // Reactively set colors based on browser preference
  * $(() => {
- *   if (darkMode()) { // Optionally override this with user settings
- *     cssVars.bg = '#1a1a1a';
- *     cssVars.fg = '#e5e5e5';
- *   } else {
- *     cssVars.bg = '#ffffff';
- *     cssVars.fg = '#000000';
- *   }
+ *   cssVars.bg = darkMode() ? '#1a1a1a' : '#ffffff';
+ *   cssVars.fg = darkMode() ? '#e5e5e5' : '#000000';
  * });
+ * 
+ * $('div bg:$bg fg:$fg p:1rem #Colors change based on system dark mode preference');
  * ```
  */
 export function darkMode(): boolean {
-	if (typeof window === 'undefined' || !window.matchMedia) return false;
-	
-	const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-	
-	// Read from proxy to establish reactivity
-	const changed = proxy(false);
-	changed.value; // Subscribe caller reactive scope
-	function onChange() {
-		changed.value = true;
+	if (!darkModeState) {
+		// Initialize on first use
+
+		if (typeof window === 'undefined' || !window.matchMedia) return false;
+		const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+		
+		darkModeState = proxy({ value: mediaQuery.matches });
+		mediaQuery.addEventListener('change', () => darkModeState!.value = mediaQuery.matches);
 	}
-	mediaQuery.addEventListener('change', onChange);
-	clean(() => {
-		mediaQuery.removeEventListener('change', onChange);
-	})
-	
-	return mediaQuery.matches;
+
+	return darkModeState.value;
 }
 
 /**
@@ -1935,12 +1983,9 @@ function applyBind(el: HTMLInputElement, target: any) {
 		};
 	} else {
 		onInputChange = () => {
-			target.value =
-				type === "number" || type === "range"
-					? el.value === ""
-						? null
-						: +el.value
-					: el.value;
+			target.value = type === "number" || type === "range"
+				? el.value === "" ? null : +el.value
+				: el.value;
 		};
 		if (value === undefined) onInputChange();
 		onProxyChange = () => {
@@ -1996,38 +2041,62 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
  *
  * @param {...(string | function | object | false | undefined | null)} args - Any number of arguments can be given. How they're interpreted depends on their types:
  *
- * - `string`: Strings can be used to create and insert new elements, set classnames for the *current* element, and add text to the current element.
- *   The format of a string is: (**tag** | `.` **class** | **key**=**val** | **key**="**long val**")* ('#' **text** | **key**=)?
- *   So there can be:
- *   - Any number of **tag** element, like `h1` or `div`. These elements are created, added to the *current* element, and become the new *current* element for the rest of this `$` function execution.
- *   - Any number of CSS classes prefixed by `.` characters. These classes will be added to the *current* element. Optionally, CSS classes can be appended to a **tag** without a space. So both `div.myclass` and `div .myclass` are valid and do the same thing.
- *   - Any number of key/value pairs with string values, like `placeholder="Your name"` or `data-id=123`. These will be handled according to the rules specified for `object`, below, but with the caveat that values can only be strings. The quotes around string values are optional, unless the value contains spaces. It's not possible to escape quotes within the value. If you want to do that, or if you have user-provided values, use the `object` syntax (see below) or end your string with `key=` followed by the data as a separate argument (see below).
- *   - The string may end in a '#' followed by text, which will be added as a TextNode to the *current* element. The text ranges til the end of the string, and may contain any characters, including spaces and quotes.
- *   - Alternatively, the string may end in a key followed by an '=' character, in which case the value is expected as a separate argument. The key/value pair is set according to the rules specified for `object` below. This is useful when the value is not a string or contains spaces or user data. Example: `$('button text="Click me" click=', () => alert('Clicked!'))` or `$('input.value=', someUserData, "placeholder=", "Type your stuff")`.
- * - `function`: When a function (without argument nor a return value) is passed in, it will be reactively executed in its own observer scope, preserving the *current element*. So any `$()` invocations within this function will create DOM elements with our *current* element as parent. If the function reads observable data, and that data is changed later on, the function we re-execute (after side effects, such as DOM modifications through `$`, have been cleaned - see also {@link clean}).
- * - `object`: When an object is passed in, its key-value pairs are used to modify the *current* element in the following ways...
- *   - `{<attrName>: any}`: The common case is setting the value as an HTML attribute named key. So `{placeholder: "Your name"}` would add `placeholder="Your name"` to the current HTML element.
- *   - `{<propName>: boolean}` or `{value: any}` or `{selectedIndex: number}`: If the value is a boolean, or if the key is `value` or `selectedIndex`, it is set on the `current` element as a DOM property instead of an HTML attribute. For example `{checked: true}` would do `el.checked = true` for the *current* element.
- *   - `{".class": boolean}`: If the key starts with a `.` character, its either added to or removed from the *current* element as a CSS class, based on the truthiness of the value. So `{".hidden": hide}` would toggle the `hidden` CSS class.
- *   - `{<eventName>: function}`: If the value is a `function` it is set as an event listener for the event with the name given by the key. For example: `{click: myClickHandler}`.
- *   - `{$<styleProp>: value}`: If the key starts with a `$` character, set a CSS style property with the name of the rest of the key to the given value. Example: `{$backgroundColor: 'red'}`.
- *   - `{create: string}`: Add the value string as a CSS class to the *current* element, *after* the browser has finished doing a layout pass. This behavior only triggers when the scope setting the `create` is the top-level scope being (re-)run. This allows for creation transitions, without triggering the transitions for deeply nested elements being drawn as part of a larger component. The string may also contain multiple dot-separated CSS classes, such as `.fade.grow`.
- *   - `{destroy: string}`: When the *current* element is a top-level element to be removed (due to reactivity cleanup), actual removal from the DOM is delayed by 2 seconds, and in the mean time the value string is added as a CSS class to the element, allowing for a deletion transition. The string may also contain multiple dot-separated CSS classes, such as `.fade.shrink`.
- *   - `{create: function}` and `{destroy: function}`: The function is invoked when the *current* element is the top-level element being created/destroyed. It can be used for more involved creation/deletion animations. In case of `destroy`, the function is responsible for actually removing the element from the DOM (eventually). See `transitions.ts` in the Aberdeen source code for some examples.
- *   - `{bind: <obsValue>}`: Create a two-way binding element between the `value` property of the given observable (proxy) variable, and the *current* input element (`<input>`, `<select>` or `<textarea>`). This is often used together with {@link ref}, in order to use properties other than `.value`.
- *   - `{<any>: <obsvalue>}`: Create a new observer scope and read the `value` property of the given observable (proxy) variable from within it, and apply the contained value using any of the other rules in this list. Example:
- *      ```typescript
- *      const myColor = proxy('red');
- *      $('p#Test', {$color: myColor, click: () => myColor.value = 'yellow'})
- *      // Clicking the text will cause it to change color without recreating the <p> itself
- *      ```
- *      This is often used together with {@link ref}, in order to use properties other than `.value`.
- *   - `{text: string|number}`: Add the value as a `TextNode` to the *current* element.
- *   - `{html: string}`: Add the value as HTML to the *current* element. This should only be used in exceptional situations. And of course, beware of XSS.
-   - `Node`: If a DOM Node (Element or TextNode) is passed in, it is added as a child to the *current* element. If the Node is an Element, it becomes the new *current* element for the rest of this `$` function execution.
- *
- * @returns The most inner DOM element that was created (not counting text nodes nor elements created by content functions),
- *          or undefined if no elements were created.
+ * ### String arguments
+ * Strings can be used to create and insert new elements, set classnames for the *current* element, and add text to the current element.
+ * The format of a string is: (**tag** | `.` **class** | **key**[=:]**val** | **key**[=:]"**val containing spaces**")* ('#' **text** | **key**[=:])?
+ * 
+ * So a string may consist of any number of...
+ * - **tag** elements, like `h1` or `div`. These elements are created, added to the *current* element, and become the new *current* element for the rest of this `$` function execution.
+ * - CSS classes prefixed by `.` characters. These classes will be added to the *current* element. Optionally, CSS classes can be appended to a **tag** without a space. So both `div.myclass` and `div .myclass` are valid and do the same thing.
+ * - Property key/value pairs, like `type=password`, `placeholder="Your name"` or `data-id=123`. When the value contains spaces, it needs to be quoted with either "double quotes", 'single quotes' or \`backticks\`. Quotes within quoted values cannot be escaped (see the next rule for a solution). Key/value pairs will be handled according to *Property rules* below, but with the caveat that values can only be strings.
+ * - CSS key/value pairs using two syntaxes:
+ *   - **Short form** `key:value` (no space after colon): The value ends at the next whitespace. Example: `m:$3 bg:red r:8px`
+ *   - **Long form** `key: value;` (space after colon): The value continues until a semicolon. Example: `box-shadow: 2px 0 6px black; transition: all 0.3s ease;`
+ * 
+ *   Both forms support CSS shortcuts (see below). You can mix them: `m:$3 box-shadow: 0 2px 4px rgba(0,0,0,0.2); bg:$cardBg`
+ * The elements must be separated by spaces, except before a `.cssClass` if it is preceded by either **tag** or another CSS class.
+ * 
+ * And a string may end in...
+ * - A '#' followed by text, which will be added as a `TextNode` to the *current* element. The text ranges til the end of the string, and may contain any characters, including spaces and quotes.
+ * - A key followed by an '=' character, in which case the value is expected as a separate argument. The key/value pair is set according to the *Property rules* below. This is useful when the value is not a string or contains spaces or user data. Example: `$('button text="Click me" click=', () => alert('Clicked!'))` or `$('input.value=', someUserData, "placeholder=", "Type your stuff")`. In case the value is a proxied object, its `.value` property will be applied reactively without needing to rerender the parent scope.
+ * - A key followed by a ':' character (with no value), in which case the value is expected as a separate argument. The value is treated as a CSS value to be set inline on the *current* element. Example: `$('div margin-top:', someValueInPx)`. In case the value is a proxied object, its `.value` property will be applied reactively without needing to rerender the parent scope.
+ * 
+ * ### Function arguments
+ * When a function (without arguments nor a return value) is passed in, it will be reactively executed in its own observer scope, preserving the *current* element. So any `$()` invocations within this function will add child elements to or set properties on that element. If the function reads observable data, and that data is changed later on, the function we re-execute (after side effects, such as DOM modifications through `$`, have been cleaned - see also {@link clean}).
+ * 
+ * ### Object arguments
+ * When an object is passed in, its key-value pairs are used to modify the *current* element according to the *Property rules* below, *unless* the key starts with a `$` character, in which case that character is stripped of and the key/value pair is treated as a CSS property, subject to the *CSS shortcuts* below. In case a value is a proxied object, its `.value` property will be applied reactively without needing to rerender the parent scope. In most cases, the string notation (`key=` and `key:`) is preferred over this object notation, for readability.
+ * 
+ * ### DOM node arguments
+ * When a DOM Node (Element or TextNode) is passed in, it is added as a child to the *current* element. If the Node is an Element, it becomes the new *current* element for the rest of this `$` function execution.
+ * 
+ * ### Property rules
+ * - **Attribute:** The common case is setting the value as an HTML attribute named key. For example `$('input placeholder=Name')` results in `<input placeholder="Name">`.
+ * - **Event listener:** If the value is a `function` it is set as an event listener for the event with the name given by the key. For example: $('button text=Press! click=', () => alert('Clicked!'))`. The event listener will be removed when the current scope is destroyed.
+ * - **DOM property:** When the value is a boolean, or the key is `"value"` or `"selectedIndex"`, it is set on the `current` element as a DOM property instead of an HTML attribute. For example `$('checked=', true)` would do `el.checked = true` for the *current* element.
+ * - **Conditional CSS class:** If the key starts with a `.` character, its either added to or removed from the *current* element as a CSS class, based on the truthiness of the value. So `$('.hidden=', isHidden)` would toggle the `hidden` CSS class. This only works if the `=` is the last character of the string, and the next argument is the value. Its common for the value to be a proxied object, in which case its `.value` is reactively applied without needing to rerender the parent scope.
+ * - **Create transition:** When the key is `"create"`, the value will be added as a CSS class to the *current* element immediately, and then removed right after the browser has finished doing a layout pass. This behavior only triggers when the scope setting the `create` is the top-level scope being (re-)run. This allows for creation transitions, without triggering the transitions for deeply nested elements being drawn as part of a larger component. The string may also contain multiple dot-separated CSS classes, such as `.fade.grow`. The initial dot is optional. Alternatively, to allow for more complex transitions, the value may be a function that receives the `HTMLElement` being created as its only argument. It is *only* called if this is the top-level element being created in this scope run. See `transitions.ts` in the Aberdeen source code for some examples.
+ * - **Destroy transition:** When the key is `"destroy"` the value will be used to apply a CSS transition if the *current* element is later on removed from the DOM and is the top-level element to be removed. This happens as follows: actual removal from the DOM is delayed by 2 seconds, and in the mean-time the value string is added as a CSS class to the element, allowing for a deletion transition. The string may also contain multiple dot-separated CSS classes, such as `.fade.shrink`. The initial dot is optional. Alternatively, to allow for more complex transitions, the value may be a function that receives the `HTMLElement` to be removed from the DOM as its only argument. This function may perform any transitions and is then itself responsible for eventually removing the element from the DOM. See `transitions.ts` in the Aberdeen source code for some examples.
+ * - **Two-way data binding:** When the key is `"bind"` a two-way binding between the `.value` property of the given proxied object, and the *current* input element (`<input>`, `<select>` or `<textarea>`) is created. This is often used together with {@link ref}, in order to use properties other than `.value`.
+ * - **Text:**: If the key is `"text"`, the value will be appended as a `TextNode` to the *current* element. The same can also be done with the `#` syntax in string arguments, though `text=` allows additional properties to come after in the same string: `$('button text=Hello click=', alert)`.
+ * - **Unsafe HTML:** When the key is `"html"`, the value will be added as HTML to the *current* element. This should only be used in exceptional situations. Beware of XSS! Never use this with untrusted user data.
+ * 
+ * ### CSS shortcuts
+ * For conciseness, Aberdeen supports some CSS shortcuts when setting CSS properties.
+ * | Shortcut | Expands to |
+ * |----------|------------|
+ * | `m`, `mt`, `mb`, `ml`, `mr` | `margin`, `margin-top`, `margin-bottom`, `margin-left`, `margin-right` |
+ * | `mv`, `mh` | Vertical (top+bottom) or horizontal (left+right) margins |
+ * | `p`, `pt`, `pb`, `pl`, `pr` | `padding`, `padding-top`, `padding-bottom`, `padding-left`, `padding-right` |
+ * | `pv`, `ph` | Vertical or horizontal padding |
+ * | `w`, `h` | `width`, `height` |
+ * | `bg` | `background` |
+ * | `fg` | `color` |
+ * | `r` | `border-radius` |
+ * 
+ * Also, when the value is a string starting with `$`, it is treated as a reference to a CSS variable, expanding to `var(--variableName)`. For numeric variable names (which can't be used directly as CSS custom property names), Aberdeen prefixes them with `m`, so `$3` expands to `var(--m3)`. This is primarily intended for use with {@link setSpacingCssVars}, which initializes spacing variables named `0` through `12` with an exponential spacing scale.
+ * 
+ * @returns The most inner DOM element that was created (not counting text nodes nor elements created by content functions), or the current element if no new element was created. You should normally not need to use the return value - use this function's DOM manipulation abilities instead. One valid use case is when integrating with non-Aberdeen code that requires a reference to a DOM element.
  *
  * @example Create Element
  * ```typescript
@@ -2074,6 +2143,14 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
  *   }
  * });
  * ```
+ * 
+ * @example Proxied objects as values
+ * ```typescript
+ * const myColor = proxy('red');
+ * $('p text="The color is " text=', myColor, 'click=', () => myColor.value = 'yellow')
+ * // Clicking the text will cause it to change color without recreating the <p> itself
+ * ```
+ * This is often used together with {@link ref}, in order to use properties other than `.value`.
  */
 
 export function $(...args: any[]): undefined | Element {
@@ -2092,16 +2169,37 @@ export function $(...args: any[]): undefined | Element {
 				nextPos = findFirst(arg, " .=:#", pos);
 				const next = arg[nextPos];
 
-				if (next === ":" || next === "=") {
-					let key = arg.substring(pos, nextPos);
-					if (next === ':') key = '$' + key; // Style prefix
+				if (next === ":") {
+					// Style property: key:value or key: value;
+					const key = '$' + arg.substring(pos, nextPos);
 					if (nextPos + 1 >= argLen) {
 						applyArg(el, key, args[++argIndex]);
 						break;
 					}
-					if (arg[nextPos+1] === '"') {
-						const endIndex = findFirst(arg, '"', nextPos + 2);
-						const value = arg.substring(nextPos+2, endIndex);
+					if (arg[nextPos + 1] === ' ') {
+						// Long form: "key: value;" - read until semicolon
+						const endIndex = findFirst(arg, ";", nextPos + 2);
+						const value = arg.substring(nextPos + 2, endIndex).trim();
+						applyArg(el, key, value);
+						nextPos = endIndex;
+					} else {
+						// Short form: "key:value" - read until whitespace
+						const endIndex = findFirst(arg, " ", nextPos + 1);
+						const value = arg.substring(nextPos + 1, endIndex);
+						applyArg(el, key, value);
+						nextPos = endIndex;
+					}
+				} else if (next === "=") {
+					// Attribute: key=value or key="quoted value"
+					const key = arg.substring(pos, nextPos);
+					if (nextPos + 1 >= argLen) {
+						applyArg(el, key, args[++argIndex]);
+						break;
+					}
+					const afterEquals = arg[nextPos + 1];
+					if (afterEquals === '"' || afterEquals === "'" || afterEquals === "`") {
+						const endIndex = findFirst(arg, afterEquals, nextPos + 2);
+						const value = arg.substring(nextPos + 2, endIndex);
 						applyArg(el, key, value);
 						nextPos = endIndex;
 					} else {
@@ -2133,6 +2231,7 @@ export function $(...args: any[]): undefined | Element {
 							applyArg(el, arg.substring(nextPos, classEnd), args[++argIndex]);
 							nextPos = classEnd;
 						} else {
+							// An unconditional class name
 							let className: any = arg.substring(nextPos + 1, classEnd);
 							el.classList.add(className || args[++argIndex]);
 							nextPos = classEnd - 1;
@@ -2182,125 +2281,221 @@ let cssCount = 0;
 /**
  * Inserts CSS rules into the document, scoping them with a unique class name.
  *
- * Takes a JavaScript object representation of CSS rules. camelCased property keys are
- * converted to kebab-case (e.g., `fontSize` becomes `font-size`).
+ * The `style` parameter can be either:
+ * - A **concise style string** (for rules applying to the root class).
+ * - An **object** where keys are selectors (with `&` representing the root class) 
+ *   and values are concise style strings or nested objects. When the key does not contain `&`,
+ *   it is treated as a descendant selector. So `{p: "color:red"}` becomes `".AbdStlX p { color: red; }"` with `AbdStlX` being the generated class name.
  *
- * @param style - An object where keys are CSS selectors (or camelCased properties) and values are
- *   CSS properties or nested rule objects.
- *   - Selectors are usually combined as a descendant-relationship (meaning just a space character) with their parent selector.
- *   - In case a selector contains a `&`, that character will be replaced by the parent selector.
- *   - Selectors will be split on `,` characters, each combining with the parent selector with *or* semantics.
- *   - Selector starting with `'@'` define at-rules like media queries. They may be nested within regular selectors.
- * @param global - Deprecated! Use {@link insertGlobalCss} instead.
- * @returns The unique class name prefix used for scoping (e.g., `.AbdStl1`). Use this 
- *          prefix with {@link $} to apply the styles.
+ * ### Concise Style Strings
+ * 
+ * Concise style strings use two syntaxes (same as inline CSS in {@link $}):
+ * - **Short form** `key:value` (no space after colon): The value ends at the next whitespace.
+ *   Example: `'m:$3 bg:red r:8px'`
+ * - **Long form** `key: value;` (space after colon): The value continues until a semicolon.
+ *   Example: `'box-shadow: 2px 0 6px black; transition: all 0.3s ease;'`
+ * 
+ * Both forms can be mixed: `'m:$3 box-shadow: 0 2px 4px rgba(0,0,0,0.2); bg:$cardBg'`
+ * 
+ * Supports the same CSS shortcuts as {@link $} and CSS variable references with `$` (e.g., `$primary`, `$3`).
  *
- * @example Scoped Styles
+ * @param style - A concise style string or a style object.
+ * @returns The unique class name prefix used for scoping (e.g., `.AbdStl1`). 
+ *          Use this prefix with {@link $} to apply the styles.
+ *
+ * @example Basic Usage with Shortcuts and CSS Variables
  * ```typescript
- * const scopeClass = insertCss({
- *   color: 'red',
- *   padding: '10px',
- *   '&:hover': { // Use '&' for the root scoped selector
- *     backgroundColor: '#535'
- *   },
- *   '.child-element': { // Nested selector
- *     fontWeight: 'bold'
- *   },
- *   '@media (max-width: 600px)': {
- *     padding: '5px'
- *   }
+ * const cardClass = insertCss({
+ *   '&': 'bg:white p:$4 r:8px transition: background-color 0.3s;',
+ *   '&:hover': 'bg:#f5f5f5',
  * });
- * // scopeClass might be ".AbdStl1"
  *
- * // Apply the styles
- * $(scopeClass, () => { // Add class to the div
- *   $(`#Scoped content`);
- *   $('div.child-element#Child'); // .AbdStl1 .child-element rule applies
+ * $('section', cardClass, () => { 
+ *   $('p#Card content'); 
  * });
  * ```
+ *
+ * @example Nested Selectors and Media Queries
+ * ```typescript
+ * const formClass = insertCss({
+ *   '&': 'bg:#0004 p:$3 r:$2',
+ *   button: {
+ *     '&': 'bg:$primary fg:white p:$2 r:4px cursor:pointer',
+ *     '&:hover': 'bg:$primaryHover',
+ *     '&:disabled': 'bg:#ccc cursor:not-allowed',
+ *     '.icon': 'display:inline-block mr:$1',
+ *     '@media (max-width: 600px)': 'p:$1 font-size:14px'
+ *   }
+ * });
+ *
+ * $('form', formClass, () => {
+ *   $('button', () => {
+ *     $('span.icon text=🔥');
+ *     $('#Click Me');
+ *   });
+ * });
+ * ```
+ *
+ * @example Complex CSS Values
+ * ```typescript
+ * const badge = insertCss({
+ *   '&::before': 'content: "★"; color:gold mr:$1',
+ *   '&': 'position:relative box-shadow: 0 2px 8px rgba(0,0,0,0.15);'
+ * });
+ *
+ * $(badge + ' span#Product Name');
+ * ```
  */
-export function insertCss(style: object, global = false): string {
-	const prefix = global ? "" : `.AbdStl${++cssCount}`;
-	const css = styleToCss(style, prefix);
+export function insertCss(style: string | object): string {
+	const prefix = `.AbdStl${++cssCount}`;
+	const css = typeof style === 'string' ? styleStringToCss(style, prefix) : objectToCss(style, prefix);
 	if (css) $(`style#${css}`);
 	return prefix;
 }
 
+function objectToCss(style: object, prefix: string): string {
+	let css = "";
+	
+	for (const [key, val] of Object.entries(style)) {
+		if (val && typeof val === 'object') {
+			// Nested object for media queries or compound selectors
+			if (key.startsWith("@")) {
+				// Media query or @ rule - nest the content
+				css += `${key}{\n${objectToCss(val, prefix)}}\n`;
+			} else {
+				// Regular nested selector
+				const sel = key === '&' ? prefix : 
+				            key.includes("&") ? key.replace(/&/g, prefix) : 
+				            `${prefix} ${key}`.trim();
+				css += objectToCss(val, sel);
+			}
+		} else if (typeof val === 'string') {			
+			if (key.startsWith("@")) {
+				// Media query with string value - wrap it
+				css += `${key}{\n${styleStringToCss(val, prefix)}}\n`;
+			} else {
+				// String value - parse as style string
+				const sel = key.includes("&") ? key.replace(/&/g, prefix) : `${prefix} ${key}`.trim();
+				css += styleStringToCss(val, sel);
+			}
+		}
+	}
+	
+	return css;
+}
+
+
+const KEBAB_SEGMENT = /-([a-z])/g;
+function toCamel(p: string) {
+	return p.replace(KEBAB_SEGMENT, (_, l) => l.toUpperCase());
+} 
+
+function styleStringToCss(styleStr: string, selector: string): string {
+	let props = "";
+	
+	for (let pos = 0, len = styleStr.length; pos < len;) {
+		while (styleStr[pos] === ' ') pos++; // Skip whitespace
+		if (pos >= len) break;
+		
+		const colon = styleStr.indexOf(':', pos);
+		if (colon === -1) break;
+		const key = styleStr.substring(pos, colon);
+		pos = colon + 1;
+		
+		// Parse value based on whether there's a space after the colon
+		let val: string;
+		if (styleStr[pos] === ' ') {
+			// Long form: space after colon means value ends at semicolon
+			pos++; // skip the space
+			const semi = styleStr.indexOf(';', pos);
+			val = styleStr.substring(pos, semi === -1 ? len : semi).trim();
+			pos = semi === -1 ? len : semi + 1;
+		} else {
+			// Short form: no space means value ends at whitespace
+			const space = styleStr.indexOf(' ', pos);
+			val = styleStr.substring(pos, space === -1 ? len : space);
+			pos = space === -1 ? len : space;
+		}
+		
+		// Expand shortcuts and add to props
+		const v = cssVarRef(val);
+		const exp = CSS_SHORT[key] || key;
+		props += typeof exp === 'string' ? `${exp}:${v};` : exp.map(p => `${p}:${v};`).join('');
+	}
+	
+	return props ? `${selector}{${props}}\n` : "";
+}
+
 /**
- * Inserts CSS rules globally.
+ * Inserts CSS rules globally (unscoped).
  * 
  * Works exactly like {@link insertCss}, but without prefixing selectors with a unique class name.
+ * This is useful for global resets, base styles, or styles that need to apply to the entire document.
  * 
- * @example Global Styles
+ * Accepts the same concise style string syntax and CSS shortcuts as {@link insertCss}.
+ * See {@link insertCss} for detailed documentation on syntax and shortcuts.
+ * 
+ * @param style - Object with selectors as keys and concise CSS strings as values.
+ * 
+ * @example Global Reset and Base Styles
  * ```typescript
+ * // Set up global styles using CSS shortcuts
  * insertGlobalCss({
- *   '*': {
- *     fontFamily: 'monospace',
- *     m: 0, // Using shortcut for margin
- *   },
- *   'a': {
- *     textDecoration: 'none',
- *     fg: "@primary", // Using foreground shortcut and CSS variable
- *   }
+ *   "*": "m:0 p:0 box-sizing:border-box",
+ *   "body": "font-family: system-ui, sans-serif; m:0 p:$3 bg:#434 fg:#d0dafa",
+ *   "a": "text-decoration:none fg:#57f",
+ *   "a:hover": "text-decoration:underline",
+ *   "code": "font-family:monospace bg:#222 fg:#afc p:4px r:3px"
  * });
  *
- * $('a#Styled link');
+ * $('h2#Title without margins');
+ * $('a#This is a link');
+ * $('code#const x = 42;');
+ * ```
+ *
+ * @example Responsive Global Styles
+ * ```typescript
+ * insertGlobalCss({
+ *   "html": "font-size:16px",
+ *   "body": "line-height:1.6",
+ *   "h1, h2, h3": "font-weight:600 mt:$4 mb:$2",
+ *   "@media (max-width: 768px)": {
+ *     "html": "font-size:14px",
+ *     "body": "p:$2"
+ *   },
+ *   "@media (prefers-color-scheme: dark)": {
+ *     "body": "bg:#1a1a1a fg:#e5e5e5",
+ *     "code": "bg:#2a2a2a"
+ *   }
+ * });
  * ```
  */
-export function insertGlobalCss(style: object): string {
-	return insertCss(style, true);
+export function insertGlobalCss(style: object) {
+	const css = objectToCss(style, "");
+	if (css) $(`style#${css}`);
 }
 
 const CSS_SHORT: Record<string, string | string[]> = {
 	m: "margin",
-	mt: "marginTop",
-	mb: "marginBottom",
-	ml: "marginLeft",
-	mr: "marginRight",
-	mh: ["marginLeft", "marginRight"],
-	mv: ["marginTop", "marginBottom"],
+	mt: "margin-top",
+	mb: "margin-bottom",
+	ml: "margin-left",
+	mr: "margin-right",
+	mh: ["margin-left", "margin-right"],
+	mv: ["margin-top", "margin-bottom"],
 	p: "padding",
-	pt: "paddingTop",
-	pb: "paddingBottom",
-	pl: "paddingLeft",
-	pr: "paddingRight",
-	ph: ["paddingLeft", "paddingRight"],
-	pv: ["paddingTop", "paddingBottom"],
+	pt: "padding-top",
+	pb: "padding-bottom",
+	pl: "padding-left",
+	pr: "padding-right",
+	ph: ["padding-left", "padding-right"],
+	pv: ["padding-top", "padding-bottom"],
 	w: "width",
 	h: "height",
 	bg: "background",
 	fg: "color",
-	r: "borderRadius",
+	r: "border-radius",
 };
-
-function styleToCss(style: object, prefix: string): string {
-	let props = "";
-	let rules = "";
-	for (const kOr of Object.keys(style)) {
-		const v = (style as any)[kOr];
-		for (const k of kOr.split(/, ?/g)) {
-			if (v && typeof v === "object") {
-				if (k.startsWith("@")) {
-					// media queries
-					rules += `${k}{\n${styleToCss(v, prefix)}}\n`;
-				} else {
-					rules += styleToCss(
-						v,
-						k.includes("&") ? k.replace(/&/g, prefix) : `${prefix} ${k}`,
-					);
-				}
-			} else {
-				const val = v == null || v === false ? "" : typeof v === 'string' ? (v[0] === '$' ? cssVarRef(v.substring(1)) : v) : String(v);
-				const expanded = CSS_SHORT[k] || k;
-				for (const prop of (Array.isArray(expanded) ? expanded : [expanded])) {
-					props += `${prop.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}:${val};`;
-				}
-			}
-		}
-	}
-	if (props) rules = `${prefix.trimStart() || "*"}{${props}}\n${rules}`;
-	return rules;
-}
 
 function applyArg(el: Element, key: string, value: any) {
 	if (typeof value === "object" && value !== null && value[TARGET_SYMBOL]) {
@@ -2319,12 +2514,12 @@ function applyArg(el: Element, key: string, value: any) {
 	} else if (key[0] === "$") {
 		// Style (with shortcuts)
 		key = key.substring(1);
-		const val = value == null || value === false ? "" : typeof value === 'string' ? (value[0] === '$' ? cssVarRef(value.substring(1)) : value) : String(value);
+		const val = value == null || value === false ? "" : typeof value === 'string' ? cssVarRef(value) : String(value);
 		const expanded = CSS_SHORT[key] || key;
 		if (typeof expanded === "string") {
-			(el as any).style[expanded] = val;
+			(el as any).style[toCamel(expanded)] = val;
 		} else {
-			for (const prop of expanded) (el as any).style[prop] = val;
+			for (const prop of expanded) (el as any).style[toCamel(prop)] = val;
 		}
 	} else if (value == null) {
 		// Value left empty
@@ -2380,7 +2575,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
  *
  *   try {
  *     // Attempt to show a custom message in the UI
- *     $('div.error-message#Oops, something went wrong!');
+ *     $('div#Oops, something went wrong!', errorClass);
  *   } catch (e) {
  *     // Ignore errors during error handling itself
  *   }
@@ -2389,15 +2584,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
  * });
  *
  * // Styling for our custom error message
- * insertCss({
- *   '.error-message': {
- *     backgroundColor: '#e31f00',
- *     display: 'inline-block',
- *     color: 'white',
- *     borderRadius: '3px',
- *     padding: '2px 4px',
- *   }
- * }, true); // global style
+ * const errorClass = insertCss('background-color:#e31f00 display:inline-block color:white r:3px padding: 2px 4px;');
  *
  * // Cause an error within a render scope.
  * $('div.box', () => {
@@ -2410,34 +2597,6 @@ export function setErrorHandler(
 	handler?: (error: Error) => boolean | undefined,
 ) {
 	onError = handler || defaultOnError;
-}
-
-/**
- * Gets the parent DOM `Element` where nodes created by {@link $} would currently be inserted.
- *
- * This is context-dependent based on the current reactive scope (e.g., inside a {@link mount}
- * call or a {@link $} element's render function).
- *
- * **Note:** While this provides access to the DOM element, directly manipulating it outside
- * of Aberdeen's control is generally discouraged. Prefer reactive updates using {@link $}.
- *
- * @returns The current parent `Element` for DOM insertion.
- *
- * @example Get parent for attaching a third-party library
- * ```typescript
- * function thirdPartyLibInit(parentElement) {
- *   parentElement.innerHTML = "This element is managed by a <em>third party</em> lib."
- * }
- *
- * $('div.box', () => {
- *   // Get the div.box element just created
- *   const containerElement = getParentElement();
- *   thirdPartyLibInit(containerElement);
- * });
- * ```
- */
-export function getParentElement(): Element {
-	return currentScope.el;
 }
 
 /**
@@ -2585,7 +2744,8 @@ export function mount(parentElement: Element, func: () => void) {
  * Removes all Aberdeen-managed DOM nodes and stops all active reactive scopes
  * (created by {@link mount}, {@link derive}, {@link $} with functions, etc.).
  *
- * This effectively cleans up the entire Aberdeen application state.
+ * This effectively cleans up the entire Aberdeen application state. Aside from in
+ * automated tests, there should probably be little reason to call this function.
  */
 export function unmountAll() {
 	ROOT_SCOPE.remove();
@@ -2706,7 +2866,7 @@ export function map(
 	} else {
 		out = optProxy({});
 	}
-	
+
 	onEach(source, (item: any, key: symbol | string | number) => {
 		const value = func(item, key);
 		if (value !== undefined) {

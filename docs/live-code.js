@@ -59,6 +59,30 @@ iframe {
     border: 0;
     margin: 0;
 }
+
+
+.url-bar::before {
+    content: '🔗 ';
+}
+.url-bar {
+    gap: 8px;
+    align-items: center;
+    padding: 4px 8px;
+    background-color: var(--color-background-secondary);
+    border: 1px solid #9096a2;
+    border-bottom: 0;
+    font-weight: bold;
+    display: none;
+}
+.url-bar > div {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.url-bar > button {
+    flex: none;
+}
 `;
 document.head.appendChild(styleE);
 
@@ -164,12 +188,29 @@ let iframeCount = 0;
 
 function iframeCode(iframeId) {
     function update() {
-        const height = document.documentElement.offsetHeight;
-        window.parent.postMessage({ height, iframeId, html: getHtml(document.body) }, '*');
+        setTimeout(() => {
+            const height = document.documentElement.offsetHeight;
+            window.parent.postMessage({
+                height,
+                iframeId,
+                html: getHtml(document.body),
+                url: histUsed && histStack[histPos].url.href,
+                back: histPos === 0,
+                forward: histPos === histStack.length - 1,
+            }, '*');
+        }, 0);
     }
 
     // Request by parent for an update (when the iframe becomes visible)
-    addEventListener('message', update);
+    addEventListener('message', function(e) {
+        if (e.data === "getUpdate") {
+            update();
+        } else if (e.data === "back") {
+            window.ABERDEEN_FAKE_WINDOW.history.go(-1);
+        } else if (e.data === "forward") {
+            window.ABERDEEN_FAKE_WINDOW.history.go(1);
+        }
+    });
     
     function toLogString(val, maxDepth = 4, indent = "", seen = new WeakSet()) {
         if (val === null) return "null";
@@ -193,7 +234,7 @@ function iframeCode(iframeId) {
                 return `[\n${items}${indent}]`;
             }
             
-            let name = val.constructor.name || '';
+            let name = val.constructor?.name || '';
             if (name === 'Object') name = '';
             if (!maxDepth) return `${name}{...}`;
             const props = Object.entries(val).map(([key, val]) => `${newIndent}${key}: ${toLogString(val, maxDepth - 1, newIndent, seen)}\n`).join('');
@@ -229,7 +270,48 @@ function iframeCode(iframeId) {
     window.onunhandledrejection = (event) => {
         console.error('Unhandled Promise rejection:', event.reason);
     };
-    
+
+    const histStack = [{state: {}, url: new URL("https://example.com")}];
+    let histPos = 0;
+    let histListeners = [];
+    let histUsed = false;
+
+    window.ABERDEEN_FAKE_WINDOW = {
+        history: {
+            state: {},
+            replaceState(state, title, url) {
+                histStack[histPos] = {state, url: new URL(url, histStack[histPos].url.href)};
+                histUsed = true;
+                update();
+            },
+            pushState(state, title, url) {
+                histPos++;
+                histStack[histPos] = {state, url: new URL(url, histStack[histPos-1].url.href)};
+                histStack.length = histPos + 1;
+                histUsed = true;
+                update();
+            },
+            go(delta) {
+                setTimeout(() => {
+                    histPos = Math.max(0, Math.min(histStack.length - 1, histPos + delta));
+                    histUsed = true;
+                    update();
+                    for (const listener of histListeners) {
+                        listener();
+                    }
+                });
+            }
+        },
+        get location() {
+            return histStack[histPos].url;
+        },
+        addEventListener: (type, listener) => {
+            if (type === 'popstate') {
+                histListeners.push(listener);
+            }
+        },
+    };
+
     document.addEventListener('DOMContentLoaded', () => {
         new MutationObserver(update).observe(document.body, { 
             childList: true, 
@@ -272,12 +354,12 @@ addEventListener('DOMContentLoaded', () => {
         
         // Check for Aberdeen imports
         const orgJs = js;
-        js = js.replace(/from\s+['"]aberdeen(\/[^'"]+)?['"]/g, 
-            (match, subpath) => `from "${absBase}assets/aberdeen${subpath || '/aberdeen'}.js"`
-        );
+        js = js.replace(/from\s+['"]aberdeen(\/[^'"]+)?['"]/g, function(_match, subpath) {
+            return `from "${absBase}assets/aberdeen${subpath || '/aberdeen'}.js"`
+        });
         if (js === orgJs) {
             // No imports have been done, do our default input
-            js = `import {$,clean,clone,copy,count,dump,getParentElement,insertCss,invertString,isEmpty,map,merge,mount,multiMap,onEach,partition,peek,proxy,ref,runQueue,setErrorHandler,unmountAll,unproxy} from "${absBase}assets/aberdeen/aberdeen.js";\n\n` + js;
+            js = `import {$,clean,clone,copy,count,derive,dump,insertCss,insertGlobalCss,invertString,isEmpty,map,merge,mount,multiMap,onEach,partition,peek,proxy,ref,runQueue,setErrorHandler,unmountAll,unproxy} from "${absBase}assets/aberdeen/aberdeen.js";\n\n` + js;
         }
         
         // Create edit button
@@ -296,7 +378,27 @@ addEventListener('DOMContentLoaded', () => {
         });
         preE.appendChild(editButtonE);
         
-        
+        let urlBarE, urlE, backE, forwardE;
+
+        urlBarE = document.createElement('div');
+        urlBarE.className = 'url-bar';
+        urlE = document.createElement('div');
+        urlBarE.appendChild(urlE);
+
+        backE = document.createElement('button');
+        backE.textContent = '⇦';
+        backE.addEventListener('click', () => {
+            iframeE.contentWindow.postMessage("back", '*')
+        });
+        urlBarE.appendChild(backE);
+
+        forwardE = document.createElement('button');
+        forwardE.textContent = '⇨';
+        forwardE.addEventListener('click', () => {
+            iframeE.contentWindow.postMessage("forward", '*')
+        });
+        urlBarE.appendChild(forwardE);
+            
         const tabContent = document.createElement('div');
         tabContent.className = 'tab-content';
         
@@ -324,6 +426,12 @@ addEventListener('DOMContentLoaded', () => {
                         tabs.Console.select();
                         autoBackMode = oldMode;
                     }
+                }
+                if (e.data.url) {
+                    urlBarE.style.display = 'flex';
+                    urlE.textContent = e.data.url;
+                    backE.disabled = e.data.back;
+                    forwardE.disabled = e.data.forward;
                 }
             }
         };
@@ -359,7 +467,7 @@ addEventListener('DOMContentLoaded', () => {
                     t.classList.remove('active');
                 }
                 tabE.classList.add('active');
-                if (contentE === iframeE && iframeE.contentWindow) iframeE.contentWindow.postMessage({}, '*'); // Request a height update
+                if (contentE === iframeE && iframeE.contentWindow) iframeE.contentWindow.postMessage("getUpdate", '*'); // Request a height update
             };
             tabE.addEventListener('click', select);
             
@@ -383,6 +491,7 @@ addEventListener('DOMContentLoaded', () => {
         tabsE.appendChild(restartTabE);
         
         preE.after(tabContent);
+        preE.after(urlBarE);
         preE.after(tabsE)
         
         function reloadIframe() {

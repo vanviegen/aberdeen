@@ -245,10 +245,6 @@ const CSS_PROPERTY_TO_SHORTCUT = {
   'border-radius': 'r',
 };
 
-function kebabToCamel(str) {
-  return str.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
-}
-
 function convertStyleToAberdeen(styleString) {
   const rules = styleString.split(';').map(s => s.trim()).filter(Boolean);
   const resultParts = [];
@@ -263,8 +259,9 @@ function convertStyleToAberdeen(styleString) {
   }
 
   const addPart = (key, value) => {
+    value = value.replace(/\bvar\(--([a-zA-Z_][a-zA-Z_0-9]*)\)/g, (_all, p1) => '$'+p1);
     if (value.includes(' ')) {
-      resultParts.push(`${key}:"${value}"`);
+      resultParts.push(`${key}: ${value};`);
     } else {
       resultParts.push(`${key}:${value}`);
     }
@@ -284,7 +281,7 @@ function convertStyleToAberdeen(styleString) {
   handleGroup('padding-left', 'padding-right', 'ph');
 
   for (const [key, value] of Object.entries(props)) {
-    const shortcut = CSS_PROPERTY_TO_SHORTCUT[key] || kebabToCamel(key);
+    const shortcut = CSS_PROPERTY_TO_SHORTCUT[key] || key;
     addPart(shortcut, value);
   }
 

@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, ref, getParentElement } from "../src/aberdeen";
+import { $, proxy, ref } from "../src/aberdeen";
 
 test('binds input values', async () => {
   let data = proxy('test');
   let inputElement;
   $(() => {
     $('input', {bind: data}, () => {
-      inputElement = getParentElement();
+      inputElement = $();
       $({".correct": data.value.length >= 5});
     });
   });
@@ -28,7 +28,7 @@ test('binds checkboxes', async () => {
   let inputElement;
   $(() => {
     $('input', {type: 'checkbox', bind: data}, () => {
-      inputElement = getParentElement();
+      inputElement = $();
     });
   });
   assertBody(`input{type=checkbox checked->true}`);
@@ -43,10 +43,10 @@ test('binds radio buttons', async () => {
   let inputElement1, inputElement2;
   $(() => {
     $('input', {type: 'radio', name: 'gender', value: 'man', bind: data}, () => {
-      inputElement1 = getParentElement();
+      inputElement1 = $();
     });
     $('input', {type: 'radio', name: 'gender', value: 'woman', bind: data}, () => {
-      inputElement2 = getParentElement();
+      inputElement2 = $();
     });
   });
   assertBody(`input{name=gender type=radio checked->false value->man} input{name=gender type=radio checked->true value->woman}`);
@@ -89,7 +89,7 @@ test('returns numbers for number/range typed inputs', async () => {
   let inputElement;
   $(() => {
     $('input', {type: 'number', bind: data}, () => {
-      inputElement = getParentElement();
+      inputElement = $();
     });
   });
   assertBody(`input{type=number value->""}`);

@@ -20,17 +20,17 @@ test('margin shortcuts', () => {
 
 test('margin vertical/horizontal shortcuts', () => {
 	$('div mv:10px mh:20px');
-	assertBody(`div{marginBottom:10px marginLeft:20px marginRight:20px marginTop:10px}`);
+	assertBody(`div{margin-bottom:10px margin-left:20px margin-right:20px margin-top:10px}`);
 });
 
 test('padding shortcuts', () => {
 	$('div p:10px pv:5px ph:15px');
-	assertBody(`div{padding:10px paddingBottom:5px paddingLeft:15px paddingRight:15px paddingTop:5px}`);
+	assertBody(`div{padding:10px padding-bottom:5px padding-left:15px padding-right:15px padding-top:5px}`);
 });
 
 test('other shortcuts (w, h, bg, fg, r)', () => {
 	$('div w:100px h:50px bg:red fg:blue r:5px');
-	assertBody(`div{background:red borderRadius:5px color:blue height:50px width:100px}`);
+	assertBody(`div{background:red border-radius:5px color:blue height:50px width:100px}`);
 });
 
 // CSS variables with $ prefix
@@ -41,12 +41,42 @@ test('$ prefix outputs var(--name)', () => {
 
 test('numeric $vars get m prefix (e.g. $3 -> var(--m3))', () => {
 	$('div mt:$3 ph:$4');
-	assertBody(`div{marginTop:var(--m3) paddingLeft:var(--m4) paddingRight:var(--m4)}`);
+	assertBody(`div{margin-top:var(--m3) padding-left:var(--m4) padding-right:var(--m4)}`);
+});
+
+test('$var expansion in middle of value', () => {
+	$('div', 'border: 1px solid $border;');
+	assertBody(`div{border:"1px solid var(--border)"}`);
+});
+
+test('multiple $vars in one value', () => {
+	$('div', 'border: $width solid $color;');
+	assertBody(`div{border:"var(--width) solid var(--color)"}`);
+});
+
+test('numeric $var after space (e.g. 2px $2)', () => {
+	$('div', 'm: 2px $2;');
+	assertBody(`div{margin:"2px var(--m2)"}`);
+});
+
+test('$var not expanded inside parentheses', () => {
+	$('div', 'background: url($path);');
+	assertBody(`div{background:url($path)}`);
+});
+
+test('$var not expanded inside quotes', () => {
+	$('div', 'content: "$text";');
+	assertBody(`div{content:"$text"}`);
+});
+
+test('multiple $vars with one at start', () => {
+	$('div', 'm: $1 $2;');
+	assertBody(`div{margin:"var(--m1) var(--m2)"}`);
 });
 
 test('numeric values without $ are not converted', () => {
 	$('div mt:3');
-	assertBody(`div{marginTop:3}`);
+	assertBody(`div{margin-top:3}`);
 });
 
 // cssVars reactivity via :root style tag
@@ -91,9 +121,8 @@ test('false value clears style', () => {
 
 test('insertCss() supports shortcuts and cssVars', () => {
 	const cls = insertCss({
-		mv: "$3",
-		fg: "$primary",
-		"&:hover": { bg: "blue" }
+		"&": "mv:$3 fg:$primary",
+		"&:hover": "bg:blue"
 	});
 	assertCss(
 		`${cls}{margin-top:var(--m3);margin-bottom:var(--m3);color:var(--primary);}`,

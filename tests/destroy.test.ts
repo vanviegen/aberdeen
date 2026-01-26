@@ -208,15 +208,15 @@ test('performs a shrink animation', async () => {
 test('performs a horizontal shrink animation', async () => {
   let data = proxy(true);
   $(() => {
-    $('div', {$display: 'flex', $flexDirection: 'row-reverse'}, () => {
+    $('div', {$display: 'flex', '$flex-direction': 'row-reverse'}, () => {
       if (data.value) $('a', {destroy: shrink});
     });
   });
-  assertBody(`div{display:flex flexDirection:row-reverse a}`);
+  assertBody(`div{display:flex flex-direction:row-reverse a}`);
   
   data.value = false;
   await passTime(1);
   expect(getBody().indexOf('scaleX') >= 0 && getBody().indexOf('scaleY') < 0).toBe(true);
   await passTime(2000);
-  assertBody(`div{display:flex flexDirection:row-reverse}`);
+  assertBody(`div{display:flex flex-direction:row-reverse}`);
 });

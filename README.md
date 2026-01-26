@@ -38,7 +38,7 @@ $('h3', () => {
 $('input placeholder=Question bind=', ref(state, 'question'))
 
 // Allow state.answer to be modified using both an <input> and buttons
-$('div.row marginTop:1em', () => {
+$('div.row margin-top:1em', () => {
     $('button text=- click=', () => state.answer--);
     $('input type=number bind=', ref(state, 'answer'))
     $('button text=+ click=', () => state.answer++);
@@ -133,16 +133,10 @@ function drawItem(item) {
 
 // Insert some component-local CSS, specific for this demo.
 const todoItemStyle = insertCss({
-    marginBottom: "0.5rem",
-    ".checkmark": {
-        opacity: 0.2,
-    },
-    "&.done": {
-        textDecoration: "line-through",
-        ".checkmark": {
-            opacity: 1,
-        },
-    },
+    "&": "mb:0.5rem",
+    ".checkmark": "opacity:0.2",
+    "&.done": "text-decoration:line-through",
+    "&.done .checkmark": "opacity:1"
 });
 
 // Go!

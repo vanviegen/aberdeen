@@ -1,20 +1,20 @@
 /**
  * Symbol to return when a custom {@link Dispatcher.addRoute} matcher cannot match a segment.
  */
-export const matchFailed: unique symbol = Symbol("matchFailed");
+export const MATCH_FAILED: unique symbol = Symbol("MATCH_FAILED");
 
 /**
  * Special {@link Dispatcher.addRoute} matcher that matches the rest of the segments as an array of strings.
  */
-export const matchRest: unique symbol = Symbol("matchRest");
+export const MATCH_REST: unique symbol = Symbol("MATCH_REST");
 
-type Matcher = string | ((segment: string) => any) | typeof matchRest;
+type Matcher = string | ((segment: string) => any) | typeof MATCH_REST;
 
 type ExtractParamType<M> =  M extends string
 ? never : (
     M extends ((segment: string) => infer R)
-    ? Exclude<R, typeof matchFailed>
-    : (M extends typeof matchRest ? string[] : never)
+    ? Exclude<R, typeof MATCH_FAILED>
+    : (M extends typeof MATCH_REST ? string[] : never)
 );
 
 type ParamsFromMatchers<T extends Matcher[]> = T extends [infer M1, ...infer Rest]
@@ -38,6 +38,9 @@ interface DispatcherRoute {
  * Example usage:
  * 
  * ```ts
+ * import * as route from 'aberdeen/route';
+ * import { Dispatcher, MATCH_REST } from 'aberdeen/dispatcher';
+ * 
  * const dispatcher = new Dispatcher();
  * 
  * dispatcher.addRoute("user", Number, "stream", String, (id, stream) => {
@@ -47,7 +50,7 @@ interface DispatcherRoute {
  * dispatcher.dispatch(["user", "42", "stream", "music"]);
  * // Logs: User 42, stream music
  * 
- * dispatcher.addRoute("search", matchRest, (terms: string[]) => {
+ * dispatcher.addRoute("search", MATCH_REST, (terms: string[]) => {
  *     console.log("Search terms:", terms);
  * });
  * 
@@ -62,8 +65,8 @@ export class Dispatcher {
      * Add a route with matchers and a handler function.
      * @param args An array of matchers followed by a handler function. Each matcher can be:
      * - A string: matches exactly that string.
-     * - A function: takes a string segment and returns a value (of any type) if it matches, or {@link matchFailed} if it doesn't match. The return value (if not `matchFailed` and not `NaN`) is passed as a parameter to the handler function. The built-in functions `Number` and `String` can be used to match numeric and string segments respectively.
-     * - The special {@link matchRest} symbol: matches the rest of the segments as an array of strings. Only one `matchRest` is allowed, and it must be the last matcher.
+     * - A function: takes a string segment and returns a value (of any type) if it matches, or {@link MATCH_FAILED} if it doesn't match. The return value (if not `MATCH_FAILED` and not `NaN`) is passed as a parameter to the handler function. The standard JavaScript functions `Number` and `String` can be used to match numeric and string segments respectively.
+     * - The special {@link MATCH_REST} symbol: matches the rest of the segments as an array of strings. Only one `MATCH_REST` is allowed.
      * @template T - Array of matcher types.
      * @template H - Handler function type, inferred from the matchers.
      */
@@ -75,9 +78,9 @@ export class Dispatcher {
             throw new Error("Last argument should be a handler function");
         }
         
-        const restCount = matchers.filter(m => m === matchRest).length;
+        const restCount = matchers.filter(m => m === MATCH_REST).length;
         if (restCount > 1) {
-            throw new Error("Only one matchRest is allowed");
+            throw new Error("Only one MATCH_REST is allowed");
         }
 
         this.routes.push({ matchers, handler });
@@ -105,7 +108,7 @@ function matchRoute(route: DispatcherRoute, segments: string[]): any[] | undefin
     let segmentIndex = 0;
 
     for (const matcher of route.matchers) {
-        if (matcher === matchRest) {
+        if (matcher === MATCH_REST) {
             const len = segments.length - (route.matchers.length - 1);
             if (len < 0) return;
             args.push(segments.slice(segmentIndex, segmentIndex + len));
@@ -120,11 +123,11 @@ function matchRoute(route: DispatcherRoute, segments: string[]): any[] | undefin
             if (segment !== matcher) return;
         } else if (typeof matcher === "function") {
             const result = matcher(segment);
-            if (result === matchFailed || (typeof result === 'number' && isNaN(result))) return;
+            if (result === MATCH_FAILED || (typeof result === 'number' && isNaN(result))) return;
             args.push(result);
         }
         
         segmentIndex++;
     }
-    return args; // success!
+    if (segmentIndex === segments.length) return args; // success!
 }

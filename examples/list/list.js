@@ -34,31 +34,17 @@ $('label', () => {
 });
 
 const gameStyle = insertCss({
-	display: 'grid',
-	gridTemplateColumns: 'repeat(6, 1fr)',
+	'&': 'display:grid gridTemplateColumns:repeat(6, 1fr)',
 	".row": {
-		display: "contents",
-		"> *": {
-			transition: 'height 1s, opacity 0.5s 1s',
-			height: "20px",
-			overflow: "hidden",
-		},
-		'&.hidden > *': {
-			display: "none",
-		},
-		"&.header": {
-			fontWeight: "bold",
-		},
+		'&': 'display:contents',
+		"> *": 'transition:"height 1s, opacity 0.5s 1s" height:20px overflow:hidden',
+		'&.hidden > *': 'display:none',
+		"&.header": 'fontWeight:bold',
 	}
 })
 
 const animateStyle = insertCss({
-	'.row.hidden > *': {
-		display: "initial",
-		height: 0,
-		opacity: 0.4,
-		transition: 'opacity 0.5s, height 1s 0.5s',
-	},
+	'.row.hidden > *': 'display:initial height:0 opacity:0.4 transition:"opacity 0.5s, height 1s 0.5s"',
 });
 
 

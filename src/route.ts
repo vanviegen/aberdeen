@@ -1,4 +1,4 @@
-import {clean, getParentElement, $, proxy, runQueue, unproxy, copy, merge, clone, leakScope} from "./aberdeen.js";
+import {clean, $, proxy, runQueue, unproxy, copy, merge, clone, leakScope} from "./aberdeen.js";
 
 type NavType = "load" | "back" | "forward" | "go" | "push";
 
@@ -44,13 +44,18 @@ export function setLog(value: boolean | ((...args: any[]) => void)) {
 	}
 }
 
+declare const ABERDEEN_FAKE_WINDOW: Window | undefined;
+const windowE = typeof ABERDEEN_FAKE_WINDOW !== 'undefined'? ABERDEEN_FAKE_WINDOW : window;
+const locationE = windowE.location;
+const historyE = windowE.history;
+
 function getRouteFromBrowser(): Route {
 	return toCanonRoute({
-		path: location.pathname,
-		hash: location.hash,
-		search: Object.fromEntries(new URLSearchParams(location.search)),
-		state: history.state?.state || {},
-	}, "load", (history.state?.stack?.length || 0) + 1);
+		path: locationE.pathname,
+		hash: locationE.hash,
+		search: Object.fromEntries(new URLSearchParams(locationE.search)),
+		state: 	historyE.state?.state || {},
+	}, "load", (historyE.state?.stack?.length || 0) + 1);
 }
 
 /**
@@ -149,7 +154,7 @@ function targetToPartial(target: RouteTarget) {
 * ```
 */
 export function go(target: RouteTarget, nav: NavType = "go"): void {
-	const stack: string[] = history.state?.stack || [];
+	const stack: string[] = historyE.state?.stack || [];
 
 	prevStack = stack.concat(JSON.stringify(unproxy(current)));
 	
@@ -157,7 +162,7 @@ export function go(target: RouteTarget, nav: NavType = "go"): void {
 	copy(current, newRoute);
 	
 	log(nav, newRoute);
-	history.pushState({state: newRoute.state, stack: prevStack}, "", getUrl(newRoute));
+	historyE.pushState({state: newRoute.state, stack: prevStack}, "", getUrl(newRoute));
 	
 	runQueue();
 }
@@ -184,13 +189,13 @@ export function push(target: RouteTarget): void {
  */
 export function back(target: RouteTarget = {}): void {
 	const partial = targetToPartial(target);
-	const stack: string[] = history.state?.stack || [];
+	const stack: string[] = historyE.state?.stack || [];
 	for(let i = stack.length - 1; i >= 0; i--) {
 		const histRoute: Route = JSON.parse(stack[i]);
 		if (equal(histRoute, partial, true)) {
 			const pages = i - stack.length;
 			log(`back`, pages, histRoute);
-			history.go(pages);
+			historyE.go(pages);
 			return;
 		}
 	}
@@ -209,13 +214,13 @@ export function back(target: RouteTarget = {}): void {
 */
 export function up(stripCount: number = 1): void {
 	const currentP = unproxy(current).p;
-	const stack: string[] = history.state?.stack || [];
+	const stack: string[] = historyE.state?.stack || [];
 	for(let i = stack.length - 1; i >= 0; i--) {
 		const histRoute: Route = JSON.parse(stack[i]);
 		if (histRoute.p.length < currentP.length && equal(histRoute.p, currentP.slice(0, histRoute.p.length), false)) {
 			// This route is shorter and matches the start of the current path
 			log(`up to ${i+1} / ${stack.length}`, histRoute);
-			history.go(i - stack.length);
+			historyE.go(i - stack.length);
 			return;
 		}
 	}
@@ -235,7 +240,7 @@ export function up(stripCount: number = 1): void {
 * The scroll position will be persisted in `route.aux.scroll.<name>`.
 */
 export function persistScroll(name = "main") {
-	const el = getParentElement();
+	const el = $()!;
 	el.addEventListener("scroll", onScroll);
 	clean(() => el.removeEventListener("scroll", onScroll));
 	
@@ -253,6 +258,72 @@ export function persistScroll(name = "main") {
 	}
 }
 
+/**
+ * Intercept clicks and Enter key presses on links (`<a>` tags) and use Aberdeen routing
+ * instead of browser navigation for local paths (paths without a protocol or host).
+ * 
+ * This allows you to use regular HTML anchor tags for navigation without needing to
+ * manually attach click handlers to each link.
+ * 
+ * @example
+ * ```js
+ * // In your root component:
+ * route.interceptLinks();
+ * 
+ * // Now you can use regular anchor tags:
+ * $('a text=About href=/corporate/about');
+ * ```
+ */
+export function interceptLinks() {
+	$({
+		click: handleEvent,
+		keydown: handleKeyEvent,
+	});
+	
+	function handleKeyEvent(e: KeyboardEvent) {
+		if (e.key === "Enter") {
+			handleEvent(e);
+		}
+	}
+	
+	function handleEvent(e: Event) {
+		// Find the closest <a> tag
+		let target = e.target as HTMLElement | null;
+		while (target && target.tagName?.toUpperCase() !== "A") {
+			target = target.parentElement;
+		}
+		
+		if (!target) return;
+		
+		const anchor = target as HTMLAnchorElement;
+		const href = anchor.getAttribute("href");
+		
+		if (!href) return;
+		
+		// Skip hash-only links
+		if (href.startsWith("#")) return;
+		
+		// Skip if it has a protocol or is protocol-relative (// or contains : before any / ? #)
+		if (href.startsWith("//") || /^[^/?#]+:/.test(href)) return;
+		
+		// Skip if the link has target or download attribute
+		if (anchor.getAttribute("target") || anchor.getAttribute("download")) return;
+		
+		// Skip if modifier keys are pressed (Ctrl/Cmd click to open in new tab)
+		if (typeof MouseEvent !== 'undefined' && e instanceof MouseEvent && (e.ctrlKey || e.metaKey || e.shiftKey)) return;
+		
+		e.preventDefault();
+		
+		// Parse using URL to handle both absolute and relative paths correctly
+		const url = new URL(href, locationE.href);
+		go({
+			path: url.pathname,
+			search: Object.fromEntries(url.searchParams),
+			hash: url.hash,
+		});
+	}
+}
+
 let prevStack: string[];
 
 /**
@@ -265,7 +336,7 @@ export const current: Route = proxy({}) as Route;
  * @internal
  * */
 export function reset() {
-	prevStack = history.state?.stack || [];
+	prevStack = historyE.state?.stack || [];
 	const initRoute = getRouteFromBrowser();
 	log('initial', initRoute);
 	copy(unproxy(current), initRoute);
@@ -273,12 +344,12 @@ export function reset() {
 reset();
 
 // Handle browser history back and forward
-window.addEventListener("popstate", function(event: PopStateEvent) {
+windowE.addEventListener("popstate", function(event: PopStateEvent) {
 	const newRoute = getRouteFromBrowser();
 	
 	// If the stack length changes, and at least the top-most shared entry is the same,
 	// we'll interpret this as a "back" or "forward" navigation.
-	const stack: string[] = history.state?.stack || [];
+	const stack: string[] = historyE.state?.stack || [];
 	if (stack.length !== prevStack.length) {
 		const maxIndex = Math.min(prevStack.length, stack.length) - 1;
 		if (maxIndex < 0 || stack[maxIndex] === prevStack[maxIndex]) {
@@ -306,16 +377,16 @@ leakScope(() => {
 	$(() => {
 
 		// First normalize `route`
-		const stack = history.state?.stack || [];
+		const stack = historyE.state?.stack || [];
 		const newRoute = toCanonRoute(current, unproxy(current).nav, stack.length + 1);
 		copy(current, newRoute);
 		
 		// Then replace the current browser state if something actually changed
 		const state = {state: newRoute.state, stack};
 		const url = getUrl(newRoute);
-		if (url !== location.pathname + location.search + location.hash || !equal(history.state, state, false)) {
+		if (url !== locationE.pathname + locationE.search + locationE.hash || !equal(historyE.state, state, false)) {
 			log('replaceState', newRoute, state, url);
-			history.replaceState(state, "", url);
+			historyE.replaceState(state, "", url);
 		}
 	});
 });
