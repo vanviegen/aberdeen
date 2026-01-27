@@ -137,3 +137,16 @@ test('Grid template areas with multiple quoted strings', async () => {
     `${cls}{grid-template-areas:"header header" "sidebar content" "footer footer";}`,
   );
 });
+
+test('Handles unions combined with further nested selectors', async () => {
+  let cls = insertCss({
+    'button, a.link': {
+      '&': 'color:blue',
+      '&:hover, &.active': 'color:darkblue'
+    },
+  });
+  assertCss(
+    `${cls} button,${cls} a.link{color:blue;}`,
+    `${cls} button:hover,${cls} button.active,${cls} a.link:hover,${cls} a.link.active{color:darkblue;}`,
+  );
+});

@@ -2353,6 +2353,16 @@ export function insertCss(style: string | object): string {
 	return prefix;
 }
 
+function combinePrefixSelector(prefix: string, key: string): string {
+	const sel = [];
+	for(const p of prefix.split(',')) {
+		for(const k of key.split(',')) {
+			sel.push(k.includes("&") ? k.trim().replace(/&/g, p) : `${p} ${k.trim()}`.trim());
+		}
+	}
+	return sel.join(',');
+}
+
 function objectToCss(style: object, prefix: string): string {
 	let css = "";
 	
@@ -2364,10 +2374,7 @@ function objectToCss(style: object, prefix: string): string {
 				css += `${key}{\n${objectToCss(val, prefix)}}\n`;
 			} else {
 				// Regular nested selector
-				const sel = key === '&' ? prefix : 
-				            key.includes("&") ? key.replace(/&/g, prefix) : 
-				            `${prefix} ${key}`.trim();
-				css += objectToCss(val, sel);
+				css += objectToCss(val, combinePrefixSelector(prefix, key));
 			}
 		} else if (typeof val === 'string') {			
 			if (key.startsWith("@")) {
@@ -2375,8 +2382,7 @@ function objectToCss(style: object, prefix: string): string {
 				css += `${key}{\n${styleStringToCss(val, prefix)}}\n`;
 			} else {
 				// String value - parse as style string
-				const sel = key.includes("&") ? key.replace(/&/g, prefix) : `${prefix} ${key}`.trim();
-				css += styleStringToCss(val, sel);
+				css += styleStringToCss(val, combinePrefixSelector(prefix, key));
 			}
 		}
 	}

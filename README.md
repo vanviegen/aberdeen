@@ -1,23 +1,29 @@
 # [Aberdeen](https://aberdeenjs.org/) [![](https://img.shields.io/badge/license-ISC-blue.svg)](https://github.com/vanviegen/aberdeen/blob/master/LICENSE.txt) [![](https://badge.fury.io/js/aberdeen.svg)](https://badge.fury.io/js/aberdeen) ![](https://img.shields.io/bundlejs/size/aberdeen) [![](https://img.shields.io/github/last-commit/vanviegen/aberdeen)](https://github.com/vanviegen/aberdeen)
 
-Build fast reactive UIs in pure TypeScript/JavaScript without a virtual DOM.
+Reactive UIs in plain TypeScript. Simple to learn, fast to ship.
 
-Aberdeen's approach is refreshingly simple:
-
-> Use many small anonymous functions for emitting DOM elements, and automatically rerun them when their underlying data changes. JavaScript `Proxy` is used to track reads and updates to this data, which can consist of anything, from simple values to complex, typed, and deeply nested data structures. 
+Aberdeen wraps your state in ES6 `Proxy` objects for fine-grained property access tracking, then automatically re-executes only the DOM-building closures that depend on changed data. So we get precise DOM updates with neither virtual DOM diffing nor compiler magic.
 
 ## Why use Aberdeen?
 
-- 🎩 **Simple:** Express UIs naturally in JavaScript/TypeScript, without build steps or JSX, and with a minimal amount of concepts you need to learn.
-- ⏩ **Fast:** No virtual DOM. Aberdeen intelligently updates only the minimal, necessary parts of your UI when proxied data changes.
-- 👥 **Awesome lists**: It's very easy and performant to reactively display data sorted by whatever you like.
-- 🔬 **Tiny:** Around 6KB (minimized and gzipped) for the core system. Zero runtime dependencies.
-- 🔋 **Batteries included**: Comes with browser history management, routing, revertible patches for optimistic user-interface updates, component-local CSS, SVG support, helper functions for transforming reactive data (mapping, partitioning, filtering, etc) and hide/unhide transition effects. No bikeshedding required!
+- **Simple:** Express UIs naturally in JavaScript/TypeScript, without requiring build steps or JSX, and with a minimal amount of concepts you need to learn.
+- **Type-safe:** Your reactive state can be regular TypeScript objects and arrays, with full type safety and autocompletion.
+- **Fast:** No virtual DOM. Aberdeen intelligently updates only the minimal, necessary parts of your UI when proxied data changes.
+- **Awesome lists**: It's very easy and performant to reactively display data sorted by whatever you like.
+- **Tiny:** Around 7KB (minimized and gzipped) for the core system. Zero runtime dependencies.
+- **Batteries included**: Comes with...
+  - Browser history management
+  - Routing
+  - Revertible patches for optimistic user-interface updates
+  - Component-local CSS with Tailwind-like shorthands
+  - SVG support
+  - Helper functions for transforming reactive data (mapping, partitioning, filtering, etc)
+  - Hide/unhide transition effects
 
 ## Why *not* use Aberdeen?
 
-- 🤷 **Lack of community:** There are not many of us -Aberdeen developers- yet, so don't expect terribly helpful Stack Overflow/AI answers.
-- 📚 **Lack of ecosystem:** You'd have to code things yourself, instead of duct-taping together a gazillion React ecosystem libraries.
+- **Lack of community:** There are not many of us -Aberdeen developers- yet, so don't expect terribly helpful Stack Overflow/AI answers.
+- **Lack of ecosystem:** You'd have to code things yourself, instead of duct-taping together a gazillion React ecosystem libraries.
 
 ## Examples
 

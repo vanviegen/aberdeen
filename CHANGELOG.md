@@ -1,6 +1,11 @@
 # Changelog
 
-### 1.7.0 (2026-01-23)
+### 1.7.1 (2026-01-27)
+
+**Fixes:**
+- `insertCss` now properly handles combining nested union selectors (`{"a, .link": {"svg, .icon": "color:red"}}`).
+
+### 1.7.0 (2026-01-26)
 
 **Breaking changes:**
 - String syntax for `insertCss()` and `insertGlobalCss()`: Both functions now accept concise style strings using the same `property:value` syntax as inline CSS (e.g., `insertCss("bg:#f0f0f0 p:$3 r:8px")`).
