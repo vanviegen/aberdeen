@@ -38,19 +38,19 @@ export function assertBody(expected: string): void {
 	if (actual !== expected) throw new Error(`assertBody failed\nActual:   ${actual}\nExpected: ${expected}`)
 }
 
-export function assertCss(...expected: string[]) {
-	const found: string[] = [];
-	for (const root of [document.head, document.body]) {
-		(root as any).visit((el: Element) => {
-			if (el.tagName === 'style') {
-				for(let style of el.textContent.trim().split("\n")) {
-					if (style) {
-						found.push(style);
-					}
-				}
-			}
-		});
+/** Get the full CSS content from the :root style tag in head */
+export function getCss(): string {
+	let css = '';
+	for(const el of document.head.childNodes) {
+		if (el instanceof Element && el.tagName === 'style') {
+			css += el.textContent + "\n";
+		}
 	}
+	return css;
+}
+
+export function assertCss(...expected: string[]) {
+	const found = getCss().split("\n").map(s => s.trim()).filter(s => s);
 	expect(found).toEqual(expected);
 }
 

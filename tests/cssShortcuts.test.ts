@@ -1,17 +1,6 @@
 import { test, expect } from "bun:test";
-import { assertBody, assertCss, passTime } from "./helpers";
+import { assertBody, getCss, assertCss, passTime } from "./helpers";
 import { $, cssVars, setSpacingCssVars, insertCss } from "../src/aberdeen";
-
-/** Get the full CSS content from the :root style tag in head */
-function getHeadCss(): string {
-	let css = '';
-	(document.head as any).visit((el: Element) => {
-		if (el.tagName === 'style') {
-			css += el.textContent;
-		}
-	});
-	return css;
-}
 
 // Property shortcuts
 test('margin shortcuts', () => {
@@ -85,27 +74,26 @@ test('cssVars automatically creates :root style tag when not empty', async () =>
 	await passTime();
 	
 	// Check that the spacing vars are in :root (auto-mounted because cssVars is not empty)
-	const css = getHeadCss();
-	expect(css).toContain('--m3: 1rem;');
-	expect(css).toContain('--m4: 2rem;');
+	const css = getCss();
+	expect(css).toContain('--m3:1rem;');
+	expect(css).toContain('--m4:2rem;');
 });
 
 test('cssVars changes update :root style tag', async () => {
 	cssVars.changing = 'red';
-	await passTime();
 	
 	// Verify initial value
-	let css = getHeadCss();
-	expect(css).toContain('--changing: red');
+	await passTime();
+	assertCss(
+		`:root{--changing:red;}`
+	);
 	
 	// Change value
 	cssVars.changing = 'blue';
 	await passTime();
-	
-	// Verify updated value AND old value is gone
-	css = getHeadCss();
-	expect(css).toContain('--changing: blue');
-	expect(css).not.toContain('--changing: red');
+	assertCss(
+		`:root{--changing:blue;}`
+	);
 });
 
 // Edge cases
@@ -119,11 +107,12 @@ test('false value clears style', () => {
 	assertBody(`div`);
 });
 
-test('insertCss() supports shortcuts and cssVars', () => {
+test('insertCss() supports shortcuts and cssVars', async () => {
 	const cls = insertCss({
 		"&": "mv:$3 fg:$primary",
 		"&:hover": "bg:blue"
 	});
+	await passTime();
 	assertCss(
 		`${cls}{margin-top:var(--m3);margin-bottom:var(--m3);color:var(--primary);}`,
 		`${cls}:hover{background:blue;}`

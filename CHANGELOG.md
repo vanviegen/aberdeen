@@ -1,5 +1,11 @@
 # Changelog
 
+### 1.7.2 (2026-01-28)
+
+**Fixes:**
+- `insertCss` and `insertGlobalCss` no longer litter the DOM with style-tags, instead maintaining just a single tag for all inserted CSS.
+- The `$` CSS variable shorthand now works within parenthesis, e.g. `width: calc(100% - $sidebarWidth);`, but not within `url( ... )`.
+
 ### 1.7.1 (2026-01-27)
 
 **Fixes:**

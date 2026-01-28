@@ -1803,8 +1803,8 @@ export function setSpacingCssVars(base = 1, unit = 'rem'): void {
 	}
 }
 
-// Matches: (1) parenthesized content, (2) quoted content, (3) $varName at start or after space
-const CSS_VAR_PATTERN = /(\([^)]*\))|("[^"]*")|(^| )\$(\w+)/g;
+// Matches: (1) url() content, (2) quoted content, (3) $varName at start or after space
+const CSS_VAR_PATTERN = /(\burl\([^)]*\))|("[^"]*")|(^| )\$(\w+)/g;
 const DIGIT_FIRST = /^\d/;
 
 /**
@@ -1821,28 +1821,6 @@ function cssVarRef(value: string): string {
 		return `${prefix}var(--${varName})`;
 	});
 }
-
-// Automatically mount cssVars style tag to document.head when cssVars is not empty
-if (typeof document !== "undefined") {
-	leakScope(() => {
-		$(() => {
-			if (!isEmpty(cssVars)) {
-				mount(document.head, () => {
-					$('style', () => {
-						let css = ":root {\n";
-						for(const [key, value] of Object.entries(cssVars)) {
-							const varName = DIGIT_FIRST.test(String(key)) ? `m${key}` : key;
-							css += `  --${varName}: ${value};\n`;
-						}
-						css += "}";
-						$(`#${css}`);
-					});
-				});
-			}
-		});
-	});
-}
-
 
 let darkModeState: {value: boolean} | undefined;
 
@@ -2349,9 +2327,15 @@ let cssCount = 0;
 export function insertCss(style: string | object): string {
 	const prefix = `.AbdStl${++cssCount}`;
 	const css = typeof style === 'string' ? styleStringToCss(style, prefix) : objectToCss(style, prefix);
-	if (css) $(`style#${css}`);
+	if (css) {
+		let cnt = cssSnippetCount++;
+		cssSnippets[cnt] = css;
+		clean(() => delete cssSnippets[cnt]);
+	}
 	return prefix;
 }
+let cssSnippets = proxy({} as Record<number, string>);
+let cssSnippetCount = 0;
 
 function combinePrefixSelector(prefix: string, key: string): string {
 	const sel = [];
@@ -2478,7 +2462,11 @@ function styleStringToCss(styleStr: string, selector: string): string {
  */
 export function insertGlobalCss(style: object) {
 	const css = objectToCss(style, "");
-	if (css) $(`style#${css}`);
+	if (css) {
+		let cnt = cssSnippetCount++;
+		cssSnippets[cnt] = css;
+		clean(() => delete cssSnippets[cnt]);
+	}
 }
 
 const CSS_SHORT: Record<string, string | string[]> = {
@@ -3183,3 +3171,28 @@ export function withEmitHandler(
 }
 
 
+// Automatically add cssVars and cssSnippets (from insertCss) into a <head> style tag
+if (typeof document !== "undefined") {
+	leakScope(() => {
+		$(() => {
+			if (isEmpty(cssSnippets) && isEmpty(cssVars)) return;
+			mount(document.head, () => {
+				$('style.abd', () => {
+					onEach(cssSnippets, (value) => {
+						$('#', value);
+					});
+					$(() => {
+						if (isEmpty(cssVars)) return;
+						let css = ":root{";
+						for(const [key, value] of Object.entries(cssVars)) {
+							const varName = DIGIT_FIRST.test(String(key)) ? `m${key}` : key;
+							css += `--${varName}:${value};`;
+						}
+						css += "}\n";
+						$('#', css);
+					})
+				});
+			});
+		});
+	});
+}

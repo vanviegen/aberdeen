@@ -25,13 +25,6 @@ class Node {
     if (idx < 0) throw new Error("not part of siblings!?");
     return siblings[idx + delta];
   }
-
-  visit(visitor: (el: Node) => void) {
-    visitor(this);
-    for(let c of this.childNodes) {
-      c.visit(visitor);
-    }
-  }
 }
 
 class Element extends Node {
