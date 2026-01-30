@@ -114,3 +114,26 @@ test('copy triggers isEmpty reactivity when clearing object', async () => {
     expect(Object.keys(data).length).toBe(0);
 });
 
+test('clone subscribes to all deeply nested values', async () => {
+    // This tests the bug where clone() didn't subscribe to nested values
+    // when the nested object didn't exist in the destination (e.g., during initial cloning)
+    let data = proxy({a: {b: {c: {d: 1}}}}) as any;
+    let result: any;
+    let cnt = 0;
+    
+    $(() => {
+        result = clone(data);
+        cnt++;
+    });
+    
+    expect(result).toEqual({a: {b: {c: {d: 1}}}});
+    expect(cnt).toBe(1);
+    
+    // Modify the deeply nested value
+    data.a.b.c.d = 2;
+    await passTime();
+    
+    expect(result).toEqual({a: {b: {c: {d: 2}}}});
+    expect(cnt).toBe(2); // Should have re-run because we subscribed to the nested value
+});
+

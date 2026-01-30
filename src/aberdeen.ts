@@ -1627,7 +1627,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 						changed = copyRecursive(dstValue, srcValue, flags) || changed;
 						continue;
 					}
-					srcValue = clone(srcValue);
+					srcValue = cloneRecursive(srcValue, flags & COPY_SUBSCRIBE);
 				}
 				dst[index] = srcValue;
 
@@ -1663,7 +1663,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 						changed = copyRecursive(dstValue, srcValue, flags) || changed;
 						continue;
 					}
-					srcValue = clone(srcValue);
+					srcValue = cloneRecursive(srcValue, flags & COPY_SUBSCRIBE);
 				}
 
 				dst.set(key, srcValue);
@@ -1687,16 +1687,15 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 		}
 	} else if (src.constructor === dst.constructor) {
 		for (const key of Object.keys(src) as (keyof typeof src)[]) {
-			// changed = copyValue(dst, k, src[k as keyof typeof src], flags) || changed;
 			let srcValue = src[key];
 			const dstValue = dst.hasOwnProperty(key) ? dst[key] : EMPTY;
 			if (dstValue !== srcValue) {
 				if (srcValue && typeof srcValue === "object") {
-					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
+					if (dstValue && typeof dstValue === "object" && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
 						changed = copyRecursive(dstValue as typeof srcValue, srcValue, flags) || changed;
 						continue;
 					}
-					srcValue = clone(srcValue);
+					srcValue = cloneRecursive(srcValue, flags & COPY_SUBSCRIBE);
 				}
 
 				dst[key] = srcValue;
@@ -1861,6 +1860,28 @@ export function darkMode(): boolean {
 	return darkModeState.value;
 }
 
+// Simple recursive clone - no destination checking needed
+function cloneRecursive<T extends object>(src: T, flags: number): T {
+	if (NO_COPY in src) return src;
+	if (flags & COPY_SUBSCRIBE) subscribe(src, ANY_SYMBOL);
+	
+	if (src instanceof Array) {
+		return src.map(v => cloneValue(v, flags)) as T;
+	}
+	if (src instanceof Map) {
+		const dst = new Map();
+		for (const [k, v] of src) dst.set(k, cloneValue(v, flags));
+		return dst as T;
+	}
+	const dst = Object.create(Object.getPrototypeOf(src));
+	for (const k of Object.keys(src)) dst[k] = cloneValue((src as any)[k], flags);
+	return dst;
+}
+
+function cloneValue(v: any, flags: number): any {
+	return v && typeof v === "object" ? cloneRecursive(v, flags) : v;
+}
+
 /**
  * Clone an (optionally proxied) object or array.
  *
@@ -1869,13 +1890,13 @@ export function darkMode(): boolean {
  * @returns A new unproxied array or object (of the same type as `src`), containing a deep copy of `src`.
  */
 export function clone<T extends object>(src: T): T {
-	if (NO_COPY in src) return src;
-	// Create an empty object of the same type
-	const copied = Array.isArray(src) ? [] : src instanceof Map ? new Map() : Object.create(Object.getPrototypeOf(src));
-	// Copy all properties to it. This doesn't need to emit anything, and because
-	// the destination is an empty object, we can just MERGE, which is a bit faster.
-	copyImpl(copied, src, MERGE);
-	return copied;
+	let flags = 0;
+	const unproxied = (src as any)[TARGET_SYMBOL];
+	if (unproxied) {
+		src = unproxied;
+		if (currentScope !== ROOT_SCOPE && !peeking) flags = COPY_SUBSCRIBE;
+	}
+	return cloneRecursive(src, flags);
 }
 
 interface RefTarget {
