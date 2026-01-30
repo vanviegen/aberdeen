@@ -2034,6 +2034,19 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
 };
 
 /**
+ * Make the `create` and `destroy` special properties no-ops.
+ *
+ * This is useful from within automated testing environments, where the transitioning
+ * new and lingering old elements may make writing reliable selectors difficult.
+ * 
+ * As this is only intended for testing, there's no way to re-enable the special properties
+ * once disabled.
+ */
+export function disableCreateDestroy() {
+	SPECIAL_PROPS.create = SPECIAL_PROPS.destroy = () => {};
+}
+
+/**
  * The core function for building reactive user interfaces in Aberdeen. It creates and inserts new DOM elements
  * and sets attributes/properties/event listeners on DOM elements. It does so in a reactive way, meaning that
  * changes will be (mostly) undone when the current *scope* is destroyed or will be re-execute.

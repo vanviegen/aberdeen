@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.7.4 (2026-01-30)
+
+**New features:**
+- Added `disableCreateDestroy()` to disable transitions (in particular: lingering of old elements) for automated tests.
+
 ### 1.7.3 (2026-01-30)
 
 **Fixes:**
