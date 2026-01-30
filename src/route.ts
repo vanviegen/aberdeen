@@ -1,4 +1,4 @@
-import {clean, $, proxy, runQueue, unproxy, copy, merge, clone, leakScope} from "./aberdeen.js";
+import {$, proxy, runQueue, unproxy, copy, merge, clone, leakScope, peek} from "./aberdeen.js";
 
 type NavType = "load" | "back" | "forward" | "go" | "push";
 
@@ -173,11 +173,13 @@ export function go(target: RouteTarget, nav: NavType = "go"): void {
  * This is useful for things like opening modals or side panels, where you want a browser back action to return to the previous state.
  * 
  * @param target Same as for {@link go}, but merged into the current route instead deleting all state.
+ * @param nav The navigation type to use. Defaults to `undefined`, meaning the navigation type is unchanged from the current route,
+ *  preventing unwanted page transition animations.
  */
-export function push(target: RouteTarget): void {
+export function push(target: RouteTarget, nav?: NavType): void {
 	const c = clone(unproxy(current));
 	merge(c, targetToPartial(target));
-	go(c);
+	go(c, nav || c.nav);
 }
 
 /**
@@ -230,6 +232,74 @@ export function up(stripCount: number = 1): void {
 	copy(current, newRoute);
 }
 
+
+let prevStack: string[];
+
+/**
+* The global {@link Route} object reflecting the current URL and browser history state. Changes you make to this affect the current browser history item (modifying the URL if needed).
+*/
+export const current: Route = proxy({}) as Route;
+
+/**
+ * Reset the router to its initial state, based on the current browser state. Intended for testing purposes only.
+ * @internal
+ * */
+export function reset() {
+	prevStack = historyE.state?.stack || [];
+	const initRoute = getRouteFromBrowser();
+	log('initial', initRoute);
+	copy(unproxy(current), initRoute);
+}
+reset();
+
+// Handle browser history back and forward
+windowE.addEventListener("popstate", function(event: PopStateEvent) {
+	const newRoute = getRouteFromBrowser();
+	
+	// If the stack length changes, and at least the top-most shared entry is the same,
+	// we'll interpret this as a "back" or "forward" navigation.
+	const stack: string[] = historyE.state?.stack || [];
+	if (stack.length !== prevStack.length) {
+		const maxIndex = Math.min(prevStack.length, stack.length) - 1;
+		if (maxIndex < 0 || stack[maxIndex] === prevStack[maxIndex]) {
+			newRoute.nav = stack.length < prevStack.length ? "back" : "forward";
+		}
+	}
+	// else nav will be "load"
+	
+	prevStack = stack;
+	log('popstate', newRoute);
+	copy(current, newRoute);
+	
+	runQueue();
+});
+
+// Make sure these observers are never cleaned up, not even by `unmountAll`.
+leakScope(() => {
+	// Sync `p` to `path`. We need to do this in a separate, higher-priority observer,
+	// so that setting `route.p` will not be immediately overruled by the pre-existing `route.path`.
+	$(() => {
+		current.path = "/" + Array.from(current.p).join("/");
+	});
+
+	// Do a replaceState based on changes to proxy
+	$(() => {
+		// First normalize `route`
+		const stack = historyE.state?.stack || [];
+		const newRoute = toCanonRoute(current, unproxy(current).nav, stack.length + 1);
+		copy(current, newRoute);
+		
+		// Then replace the current browser state if something actually changed
+		const state = {state: newRoute.state, stack};
+		const url = getUrl(newRoute);
+		if (url !== locationE.pathname + locationE.search + locationE.hash || !equal(historyE.state, state, false)) {
+			log('replaceState', newRoute, state, url);
+			historyE.replaceState(state, "", url);
+		}
+	});
+});
+
+
 /**
 * Restore and store the vertical and horizontal scroll position for
 * the parent element to the page state.
@@ -241,8 +311,7 @@ export function up(stripCount: number = 1): void {
 */
 export function persistScroll(name = "main") {
 	const el = $()!;
-	el.addEventListener("scroll", onScroll);
-	clean(() => el.removeEventListener("scroll", onScroll));
+	$('scroll=', onScroll);
 	
 	const restore = unproxy(current).state.scroll?.[name];
 	if (restore) {
@@ -323,70 +392,3 @@ export function interceptLinks() {
 		});
 	}
 }
-
-let prevStack: string[];
-
-/**
-* The global {@link Route} object reflecting the current URL and browser history state. Changes you make to this affect the current browser history item (modifying the URL if needed).
-*/
-export const current: Route = proxy({}) as Route;
-
-/**
- * Reset the router to its initial state, based on the current browser state. Intended for testing purposes only.
- * @internal
- * */
-export function reset() {
-	prevStack = historyE.state?.stack || [];
-	const initRoute = getRouteFromBrowser();
-	log('initial', initRoute);
-	copy(unproxy(current), initRoute);
-}
-reset();
-
-// Handle browser history back and forward
-windowE.addEventListener("popstate", function(event: PopStateEvent) {
-	const newRoute = getRouteFromBrowser();
-	
-	// If the stack length changes, and at least the top-most shared entry is the same,
-	// we'll interpret this as a "back" or "forward" navigation.
-	const stack: string[] = historyE.state?.stack || [];
-	if (stack.length !== prevStack.length) {
-		const maxIndex = Math.min(prevStack.length, stack.length) - 1;
-		if (maxIndex < 0 || stack[maxIndex] === prevStack[maxIndex]) {
-			newRoute.nav = stack.length < prevStack.length ? "back" : "forward";
-		}
-	}
-	// else nav will be "load"
-	
-	prevStack = stack;
-	log('popstate', newRoute);
-	copy(current, newRoute);
-	
-	runQueue();
-});
-
-// Make sure these observers are never cleaned up, not even by `unmountAll`.
-leakScope(() => {
-	// Sync `p` to `path`. We need to do this in a separate, higher-priority observer,
-	// so that setting `route.p` will not be immediately overruled by the pre-existing `route.path`.
-	$(() => {
-		current.path = "/" + Array.from(current.p).join("/");
-	});
-
-	// Do a replaceState based on changes to proxy
-	$(() => {
-
-		// First normalize `route`
-		const stack = historyE.state?.stack || [];
-		const newRoute = toCanonRoute(current, unproxy(current).nav, stack.length + 1);
-		copy(current, newRoute);
-		
-		// Then replace the current browser state if something actually changed
-		const state = {state: newRoute.state, stack};
-		const url = getUrl(newRoute);
-		if (url !== locationE.pathname + locationE.search + locationE.hash || !equal(historyE.state, state, false)) {
-			log('replaceState', newRoute, state, url);
-			historyE.replaceState(state, "", url);
-		}
-	});
-});

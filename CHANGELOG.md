@@ -1,5 +1,13 @@
 # Changelog
 
+### 1.7.3 (2026-01-30)
+
+**Fixes:**
+- Fix for `clone()` and `copy()` neglecting to subscribe to nested objects in some cases.
+
+**Enhancements:**
+- `route.push()` now defaults to not-changing `route.current.nav` instead of setting it to `go`, which makes more sense for the common case of handling page transitions, but has gained a new `nav` argument to explicitly set it.
+
 ### 1.7.2 (2026-01-28)
 
 **Fixes:**
