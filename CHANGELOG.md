@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.8.0 (2026-02-02)
+
+**New features:**
+- Added `rich=` property for simple inline markdown-like formatting: `*italic*`, `**bold**`, `` `code` ``, and `[link](url)`. Safe for user data (text is escaped).
+
 ### 1.7.5 (2026-02-02)
 
 **Fixes:**

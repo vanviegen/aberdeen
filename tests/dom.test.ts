@@ -172,6 +172,38 @@ test('adds html', async () => {
   assertBody(`main{hr fake-emulated-html{"123"} img}`);
 });
 
+test('renders rich text with markdown-like syntax', async () => {
+  mount(document.body, () => {
+    $('p rich="This is *italic* and **bold** and `some code` here."');
+  });
+  assertBody(`p{"This is " em{"italic"} " and " strong{"bold"} " and " code{"some code"} " here."}`);
+});
+
+test('renders rich text with links', async () => {
+  mount(document.body, () => {
+    $('p rich="Click [here](/path) for more."');
+  });
+  assertBody(`p{"Click " a{href->/path "here"} " for more."}`);
+});
+
+test('renders rich text reactively', async () => {
+  let data = proxy('plain text');
+  mount(document.body, () => {
+    $('p rich=', data);
+  });
+  assertBody(`p{"plain text"}`);
+  data.value = 'now with *emphasis*';
+  await passTime();
+  assertBody(`p{"now with " em{"emphasis"}}`);
+});
+
+test('renders rich text with plain text only', async () => {
+  mount(document.body, () => {
+    $('p rich="No special formatting here"');
+  });
+  assertBody(`p{"No special formatting here"}`);
+});
+
 test('only unlinks the top parent of the tree being removed', async () => {
   let data = proxy(true);
   mount(document.body, () => {

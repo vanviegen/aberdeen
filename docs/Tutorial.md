@@ -24,6 +24,12 @@ When a string is passed:
 
 Instead of the `#` prefix for text content, you can also use the `text=` property, like this: `$('h3 text="Hello world"')`. The double quotes are needed here only because our text contains a space.
 
+For simple formatting, use `rich=` which supports `*italic*`, `**bold**`, `` `code` ``, and `[links](url)`:
+
+```javascript
+$('p rich="This is *italic*, **bold**, and `code` with a [link](/path)."');
+```
+
 `$()` can accept multiple strings, so the following lines are equivalent:
 
 ```javascript

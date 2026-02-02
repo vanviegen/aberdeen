@@ -2006,6 +2006,8 @@ function applyBind(el: HTMLInputElement, target: any) {
 	});
 }
 
+const RICH_PATTERN = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\)/g;
+
 const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
 	create: (el: Element, value: any) => {
 		if (currentScope !== topRedrawScope) return;
@@ -2033,6 +2035,39 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
 	},
 	text: (el: Element, value: any) => {
 		addNode(el, document.createTextNode(value));
+	},
+	rich: (el: Element, value: any) => {
+		// Parse simple markdown: *italic*, **bold**, `code`, [text](url)
+		let lastIndex = 0;
+		let match: RegExpExecArray | null;
+		const str = String(value);
+		RICH_PATTERN.lastIndex = 0;
+		while ((match = RICH_PATTERN.exec(str)) !== null) {
+			if (match.index > lastIndex) {
+				addNode(el, document.createTextNode(str.slice(lastIndex, match.index)));
+			}
+			let node: Node;
+			if (match[1] !== undefined) {
+				node = document.createElement("strong");
+				node.textContent = match[1];
+			} else if (match[2] !== undefined) {
+				node = document.createElement("em");
+				node.textContent = match[2];
+			} else if (match[3] !== undefined) {
+				node = document.createElement("code");
+				node.textContent = match[3];
+			} else {
+				const a = document.createElement("a");
+				a.textContent = match[4];
+				a.href = match[5];
+				node = a;
+			}
+			addNode(el, node);
+			lastIndex = RICH_PATTERN.lastIndex;
+		}
+		if (lastIndex < str.length) {
+			addNode(el, document.createTextNode(str.slice(lastIndex)));
+		}
 	},
 };
 
@@ -2095,6 +2130,7 @@ export function disableCreateDestroy() {
  * - **Two-way data binding:** When the key is `"bind"` a two-way binding between the `.value` property of the given proxied object, and the *current* input element (`<input>`, `<select>` or `<textarea>`) is created. This is often used together with {@link ref}, in order to use properties other than `.value`.
  * - **Text:**: If the key is `"text"`, the value will be appended as a `TextNode` to the *current* element. The same can also be done with the `#` syntax in string arguments, though `text=` allows additional properties to come after in the same string: `$('button text=Hello click=', alert)`.
  * - **Unsafe HTML:** When the key is `"html"`, the value will be added as HTML to the *current* element. This should only be used in exceptional situations. Beware of XSS! Never use this with untrusted user data.
+ * - **Rich text:** When the key is `"rich"`, the value is parsed as simple markdown-like syntax and rendered as inline elements. Supports `*italic*`, `**bold**`, `` `code` ``, and `[link text](/path)`. All text content is safely escaped, making it suitable for user data (though links should be validated if untrusted). Example: `$('p rich="Click *here* for **more** info")`.
  * 
  * ### CSS shortcuts
  * For conciseness, Aberdeen supports some CSS shortcuts when setting CSS properties.
