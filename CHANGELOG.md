@@ -1,5 +1,11 @@
 # Changelog
 
+### 1.7.5 (2026-02-02)
+
+**Fixes:**
+- The prediction API now correctly handles `Map`s and `delete` operations.
+- More robust test error containment (preventing cascading errors).
+
 ### 1.7.4 (2026-01-30)
 
 **New features:**

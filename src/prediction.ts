@@ -1,4 +1,9 @@
-import { defaultEmitHandler, withEmitHandler } from "./aberdeen.js";
+import {
+	defaultEmitHandler,
+	withEmitHandler,
+	EMPTY,
+	MAP_SIZE_SYMBOL,
+} from "./aberdeen.js";
 import type { TargetType } from "./aberdeen.js";
 
 /**
@@ -59,12 +64,21 @@ function mergePatch(target: Patch, source: Patch, reverse = false) {
 function silentlyApplyPatch(patch: Patch, force = false): boolean {
 	for (const [collection, collectionMap] of patch) {
 		for (const [index, [newData, oldData]] of collectionMap) {
-			const actualData = (collection as any)[index];
+			// MAP_SIZE_SYMBOL is synthetic - size is derived from add/delete operations
+			if (index === MAP_SIZE_SYMBOL) continue;
+			const actualData =
+				collection instanceof Map
+					? collection.has(index)
+						? collection.get(index)
+						: EMPTY
+					: index in (collection as any)
+						? (collection as any)[index]
+						: EMPTY;
 			if (actualData !== oldData) {
 				if (force)
 					setTimeout(() => {
 						throw new Error(
-							`Applying invalid patch: data ${actualData} is unequal to expected old data ${oldData} for index ${index}`,
+							`Applying invalid patch: data ${String(actualData)} is unequal to expected old data ${String(oldData)} for index ${String(index)}`,
 						);
 					}, 0);
 				else return false;
@@ -73,7 +87,14 @@ function silentlyApplyPatch(patch: Patch, force = false): boolean {
 	}
 	for (const [collection, collectionMap] of patch) {
 		for (const [index, [newData, oldData]] of collectionMap) {
-			(collection as any)[index] = newData;
+			if (index === MAP_SIZE_SYMBOL) continue;
+			if (collection instanceof Map) {
+				if (newData === EMPTY) collection.delete(index);
+				else collection.set(index, newData);
+			} else {
+				if (newData === EMPTY) delete (collection as any)[index];
+				else (collection as any)[index] = newData;
+			}
 		}
 	}
 	return true;

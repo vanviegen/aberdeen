@@ -818,8 +818,10 @@ const TARGET_SYMBOL = Symbol("target");
 
 /**
  * Symbol used internally to track Map size without clashing with actual Map keys named "size".
+ * 
+ * @internal
  */
-const MAP_SIZE_SYMBOL = Symbol("mapSize");
+export const MAP_SIZE_SYMBOL = Symbol("mapSize");
 
 const subscribers = new WeakMap<
 	TargetType,
@@ -960,7 +962,8 @@ function isObjEmpty(obj: object): boolean {
 	return true;
 }
 
-const EMPTY = Symbol("empty");
+/** @private */
+export const EMPTY = Symbol("empty");
 
 /**
  * Reactively checks if an observable array or object is empty.

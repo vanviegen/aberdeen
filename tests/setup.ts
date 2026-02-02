@@ -9,9 +9,13 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-	unmountAll();
-	await fakedom.passTime(2001); // wait for deletion transitions
-	assertBody(``);
-	// Clear cssVars to prevent pollution between tests
 	copy(cssVars, {});
+	unmountAll();
+	try {
+		await fakedom.passTime(2001); // wait for deletion transitions
+		assertBody(``);
+	} finally {
+		// Force-clear DOM and state even if errors occurred
+		fakedom.clearBody();
+	}
 });

@@ -5,6 +5,9 @@ export const resetCounts = function(): void { newCount = changeCount = 0; };
 export const getCounts = function(): { new: number, changed: number } { 
   return { new: newCount, changed: changeCount }; 
 };
+export const clearBody = function(): void {
+  document.body.childNodes.length = 0;
+};
 
 class Node {
   parentNode: Element | null = null;

@@ -96,3 +96,63 @@ test('Prediction does not cause redraw when it comes true', async () => {
     assertBody(`b`);
     expect(draws).toEqual(2);
 });
+
+test('Prediction handles property deletion', async () => {
+    let data = proxy({a: 1, b: 2} as Record<string, number | undefined>);
+    $(() => {
+        $(''+data.a);
+        $(' ');
+        $(''+data.b);
+    });
+    assertBody(`1 2`);
+    
+    // Predict deleting property 'b'  
+    let prediction = applyPrediction(() => delete data.b);
+    await passTime();
+    assertBody(`1 undefined`);
+    
+    // Revert the prediction
+    applyCanon(undefined, [prediction]);
+    await passTime();
+    assertBody(`1 2`);
+});
+
+test('Prediction works with Map collections', async () => {
+    let data = proxy(new Map([['a', 1], ['b', 2]]));
+    $(() => {
+        $(''+data.get('a'));
+        $(' ');
+        $(''+data.get('b'));
+    });
+    assertBody(`1 2`);
+    
+    // Predict changing a value
+    let prediction = applyPrediction(() => data.set('b', 99));
+    await passTime();
+    assertBody(`1 99`);
+    
+    // Revert the prediction
+    applyCanon(undefined, [prediction]);
+    await passTime();
+    assertBody(`1 2`);
+});
+
+test('Prediction handles Map key deletion', async () => {
+    let data = proxy(new Map([['a', 1], ['b', 2]]));
+    $(() => {
+        $(''+data.get('a'));
+        $(' ');
+        $(''+data.get('b'));
+    });
+    assertBody(`1 2`);
+    
+    // Predict deleting key 'b'
+    let prediction = applyPrediction(() => data.delete('b'));
+    await passTime();
+    assertBody(`1 undefined`);
+    
+    // Revert the prediction
+    applyCanon(undefined, [prediction]);
+    await passTime();
+    assertBody(`1 2`);
+});
