@@ -25,7 +25,7 @@ export type TargetType = any[] | { [key: string | symbol]: any } | Map<any, any>
 function queue(runner: QueueRunner) {
 	if (!sortedQueue) {
 		sortedQueue = new ReverseSortedSet<QueueRunner, "prio">("prio");
-		setTimeout(runQueue, 0);
+		queueMicrotask(runQueue);
 	} else if (!(runQueueDepth & 1)) {
 		runQueueDepth++; // Make it uneven
 		if (runQueueDepth > 98) {

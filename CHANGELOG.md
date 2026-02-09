@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.9.0 (2026-02-09)
+
+**Enhancements:**
+- Use `queueMicrotask` instead of `setTimeout` for scheduling reactive updates, eliminating potential flashes of stale content before updates are applied.
+
 ### 1.8.0 (2026-02-02)
 
 **New features:**

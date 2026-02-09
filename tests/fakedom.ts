@@ -487,6 +487,10 @@ const setTimeout = function(func: () => void, time: number): void {
   timeouts.push({func, time: time + currentTime});
 };
 
+const queueMicrotask = function(func: () => void): void {
+  timeouts.push({func, time: 0});
+};
+
 export const passTime = async function(ms?: number): Promise<number> {
   let count = 0;
   let targetTime = ms == null ? undefined : currentTime + ms;
@@ -509,7 +513,7 @@ export const passTime = async function(ms?: number): Promise<number> {
     
     // Timeout is due! Remove it from the list, update the currentTime, and fire the callback!
     timeouts.splice(smallestIdx, 1);
-    currentTime = timeout.time;
+    if (timeout.time > currentTime) currentTime = timeout.time;
     timeout.func();
     count++;
   }
@@ -588,6 +592,6 @@ export function setMediaQuery(query: string, matches: boolean) {
   }
 }
 
-const globals = {Node, Element, TextNode, document, window, setTimeout, getComputedStyle, location, history, URLSearchParams};
+const globals = {Node, Element, TextNode, document, window, setTimeout, queueMicrotask, getComputedStyle, location, history, URLSearchParams};
 Object.assign(global, globals);
 Object.assign(window, globals);
