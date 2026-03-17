@@ -1,5 +1,3 @@
-let insertedCss: string = '';
-
 let newCount: number = 0, changeCount: number = 0;
 export const resetCounts = function(): void { newCount = changeCount = 0; };
 export const getCounts = function(): { new: number, changed: number } { 

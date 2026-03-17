@@ -2027,11 +2027,16 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
 		onDestroyMap.set(el, value);
 	},
 	html: (el: Element, value: any) => {
-		const tmpParent = document.createElement(
-			currentScope.el.tagName,
-		);
-		tmpParent.innerHTML = `${value}`;
-		while (tmpParent.firstChild) addNode(el, tmpParent.firstChild);
+		if (el === currentScope.el && !el.firstChild) {
+			// Fast path: when el does not need reactivity and is empty
+			el.innerHTML = `${value}`;
+		}
+		else {
+			// Slow path: create elements on tmp parent, and then move them into place
+			const tmpParent = document.createElement(currentScope.el.tagName);
+			tmpParent.innerHTML = `${value}`;
+			while (tmpParent.firstChild) addNode(el, tmpParent.firstChild);
+		}
 	},
 	text: (el: Element, value: any) => {
 		addNode(el, document.createTextNode(value));
