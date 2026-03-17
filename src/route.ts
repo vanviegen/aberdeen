@@ -1,4 +1,4 @@
-import {$, proxy, runQueue, unproxy, copy, merge, clone, leakScope, peek} from "./aberdeen.js";
+import A, {leakScope} from "./aberdeen.js";
 
 type NavType = "load" | "back" | "forward" | "go" | "push";
 
@@ -99,8 +99,8 @@ function toCanonRoute(target: Partial<Route>, nav: NavType, depth: number): Rout
 		hash: target.hash && target.hash !=="#" ? (target.hash.startsWith("#") ? target.hash : "#" + target.hash) : "",
 		p: path.length > 1 ? path.slice(1).replace(/\/+$/, "").split("/") : [],
 		nav,
-		search: typeof target.search === 'object' && target.search ? clone(target.search) : {},
-		state: typeof target.state === 'object' && target.state ? clone(target.state) : {},
+		search: typeof target.search === 'object' && target.search ? A.clone(target.search) : {},
+		state: typeof target.state === 'object' && target.state ? A.clone(target.state) : {},
 		depth,
 	};
 }
@@ -156,19 +156,19 @@ function targetToPartial(target: RouteTarget) {
 export function go(target: RouteTarget, nav: NavType = "go"): void {
 	const stack: string[] = historyE.state?.stack || [];
 
-	prevStack = stack.concat(JSON.stringify(unproxy(current)));
+	prevStack = stack.concat(JSON.stringify(A.unproxy(current)));
 	
 	const newRoute: Route = toCanonRoute(targetToPartial(target), nav, prevStack.length + 1);
-	copy(current, newRoute);
+	A.copy(current, newRoute);
 	
 	log(nav, newRoute);
 	historyE.pushState({state: newRoute.state, stack: prevStack}, "", getUrl(newRoute));
 	
-	runQueue();
+	A.runQueue();
 }
 
 /**
- * Modify the current route by merging `target` into it (using {@link merge}), pushing a new history entry.
+ * Modify the current route by merging `target` into it (using {@link aberdeen.merge | A.merge}), pushing a new history entry.
  * 
  * This is useful for things like opening modals or side panels, where you want a browser back action to return to the previous state.
  * 
@@ -177,8 +177,8 @@ export function go(target: RouteTarget, nav: NavType = "go"): void {
  *  preventing unwanted page transition animations.
  */
 export function push(target: RouteTarget, nav?: NavType): void {
-	const c = clone(unproxy(current));
-	merge(c, targetToPartial(target));
+	const c = A.clone(A.unproxy(current));
+	A.merge(c, targetToPartial(target));
 	go(c, nav || c.nav);
 }
 
@@ -204,7 +204,7 @@ export function back(target: RouteTarget = {}): void {
 
 	const newRoute = toCanonRoute(partial, "back", stack.length + 1);
 	log(`back not found, replacing`, partial);
-	copy(current, newRoute);
+	A.copy(current, newRoute);
 }
 
 /**
@@ -215,7 +215,7 @@ export function back(target: RouteTarget = {}): void {
 * Note that going back in browser history happens asynchronously, so `route` will not be updated immediately.
 */
 export function up(stripCount: number = 1): void {
-	const currentP = unproxy(current).p;
+	const currentP = A.unproxy(current).p;
 	const stack: string[] = historyE.state?.stack || [];
 	for(let i = stack.length - 1; i >= 0; i--) {
 		const histRoute: Route = JSON.parse(stack[i]);
@@ -229,7 +229,7 @@ export function up(stripCount: number = 1): void {
 	// Replace current route with /
 	const newRoute = toCanonRoute({p: currentP.slice(0, currentP.length - stripCount)}, "back", stack.length + 1);
 	log(`up not found, replacing`, newRoute);
-	copy(current, newRoute);
+	A.copy(current, newRoute);
 }
 
 
@@ -238,7 +238,7 @@ let prevStack: string[];
 /**
 * The global {@link Route} object reflecting the current URL and browser history state. Changes you make to this affect the current browser history item (modifying the URL if needed).
 */
-export const current: Route = proxy({}) as Route;
+export const current: Route = A.proxy({}) as Route;
 
 /**
  * Reset the router to its initial state, based on the current browser state. Intended for testing purposes only.
@@ -248,7 +248,7 @@ export function reset() {
 	prevStack = historyE.state?.stack || [];
 	const initRoute = getRouteFromBrowser();
 	log('initial', initRoute);
-	copy(unproxy(current), initRoute);
+	A.copy(A.unproxy(current), initRoute);
 }
 reset();
 
@@ -269,25 +269,25 @@ windowE.addEventListener("popstate", function(event: PopStateEvent) {
 	
 	prevStack = stack;
 	log('popstate', newRoute);
-	copy(current, newRoute);
+	A.copy(current, newRoute);
 	
-	runQueue();
+	A.runQueue();
 });
 
 // Make sure these observers are never cleaned up, not even by `unmountAll`.
 leakScope(() => {
 	// Sync `p` to `path`. We need to do this in a separate, higher-priority observer,
 	// so that setting `route.p` will not be immediately overruled by the pre-existing `route.path`.
-	$(() => {
+	A(() => {
 		current.path = "/" + Array.from(current.p).join("/");
 	});
 
-	// Do a replaceState based on changes to proxy
-	$(() => {
+	// Do a replaceState based on changes to A.proxy
+	A(() => {
 		// First normalize `route`
 		const stack = historyE.state?.stack || [];
-		const newRoute = toCanonRoute(current, unproxy(current).nav, stack.length + 1);
-		copy(current, newRoute);
+		const newRoute = toCanonRoute(current, A.unproxy(current).nav, stack.length + 1);
+		A.copy(current, newRoute);
 		
 		// Then replace the current browser state if something actually changed
 		const state = {state: newRoute.state, stack};
@@ -310,10 +310,10 @@ leakScope(() => {
 * The scroll position will be persisted in `route.aux.scroll.<name>`.
 */
 export function persistScroll(name = "main") {
-	const el = $()!;
-	$('scroll=', onScroll);
+	const el = A()!;
+	A('scroll=', onScroll);
 	
-	const restore = unproxy(current).state.scroll?.[name];
+	const restore = A.unproxy(current).state.scroll?.[name];
 	if (restore) {
 		log("restoring scroll", name, restore);
 		Object.assign(el, restore);
@@ -340,11 +340,11 @@ export function persistScroll(name = "main") {
  * route.interceptLinks();
  * 
  * // Now you can use regular anchor tags:
- * $('a text=About href=/corporate/about');
+ * A('a text=About href=/corporate/about');
  * ```
  */
 export function interceptLinks() {
-	$({
+	A({
 		click: handleEvent,
 		keydown: handleKeyEvent,
 	});

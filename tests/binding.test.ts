@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, ref } from "../src/aberdeen";
+import A from "../src/aberdeen";
 
 test('binds input values', async () => {
-  let data = proxy('test');
+  let data = A.proxy('test');
   let inputElement;
-  $(() => {
-    $('input', {bind: data}, () => {
-      inputElement = $();
-      $({".correct": data.value.length >= 5});
+  A(() => {
+    A('input', {bind: data}, () => {
+      inputElement = A();
+      A({".correct": data.value.length >= 5});
     });
   });
   assertBody(`input{value->test}`);
@@ -24,11 +24,11 @@ test('binds input values', async () => {
 });
 
 test('binds checkboxes', async () => {
-  let data = proxy(true);
+  let data = A.proxy(true);
   let inputElement;
-  $(() => {
-    $('input', {type: 'checkbox', bind: data}, () => {
-      inputElement = $();
+  A(() => {
+    A('input', {type: 'checkbox', bind: data}, () => {
+      inputElement = A();
     });
   });
   assertBody(`input{type=checkbox checked->true}`);
@@ -39,14 +39,14 @@ test('binds checkboxes', async () => {
 });
 
 test('binds radio buttons', async () => {
-  let data = proxy('woman' as string);
+  let data = A.proxy('woman' as string);
   let inputElement1, inputElement2;
-  $(() => {
-    $('input', {type: 'radio', name: 'gender', value: 'man', bind: data}, () => {
-      inputElement1 = $();
+  A(() => {
+    A('input', {type: 'radio', name: 'gender', value: 'man', bind: data}, () => {
+      inputElement1 = A();
     });
-    $('input', {type: 'radio', name: 'gender', value: 'woman', bind: data}, () => {
-      inputElement2 = $();
+    A('input', {type: 'radio', name: 'gender', value: 'woman', bind: data}, () => {
+      inputElement2 = A();
     });
   });
   assertBody(`input{name=gender type=radio checked->false value->man} input{name=gender type=radio checked->true value->woman}`);
@@ -58,24 +58,24 @@ test('binds radio buttons', async () => {
   expect(data.value).toEqual('man');
 });
 
-test('reads initial value when proxy is undefined', () => {
-  let data = proxy({} as Record<string, any>);
-  $(() => {
-    $('input', {value: 'a', bind: ref(data, 'input')});
-    $('input', {type: 'checkbox', checked: true, bind: ref(data, 'checkbox')});
-    $('input', {type: 'radio', name: 'abc', value: 'x', checked: false, bind: ref(data, 'radio')});
-    $('input', {type: 'radio', name: 'abc', value: 'y', checked: true, bind: ref(data, 'radio')});
-    $('input', {type: 'radio', name: 'abc', value: 'z', checked: false, bind: ref(data, 'radio')});
+test('reads initial value when A.proxy is undefined', () => {
+  let data = A.proxy({} as Record<string, any>);
+  A(() => {
+    A('input', {value: 'a', bind: A.ref(data, 'input')});
+    A('input', {type: 'checkbox', checked: true, bind: A.ref(data, 'checkbox')});
+    A('input', {type: 'radio', name: 'abc', value: 'x', checked: false, bind: A.ref(data, 'radio')});
+    A('input', {type: 'radio', name: 'abc', value: 'y', checked: true, bind: A.ref(data, 'radio')});
+    A('input', {type: 'radio', name: 'abc', value: 'z', checked: false, bind: A.ref(data, 'radio')});
   });
   expect(data).toEqual({input: 'a', checkbox: true, radio: 'y'});
 });
 
-test('changes DOM when proxy value is updated', async () => {
-  let data = proxy("test" as string);
-  let toggle = proxy(true as boolean);
-  $(() => {
-    $('input', {bind: data});
-    $('input', {type: 'checkbox', bind: toggle});
+test('changes DOM when A.proxy value is updated', async () => {
+  let data = A.proxy("test" as string);
+  let toggle = A.proxy(true as boolean);
+  A(() => {
+    A('input', {bind: data});
+    A('input', {type: 'checkbox', bind: toggle});
   });
   assertBody(`input{value->test} input{type=checkbox checked->true}`);
   data.value = "changed";
@@ -85,11 +85,11 @@ test('changes DOM when proxy value is updated', async () => {
 });
 
 test('returns numbers for number/range typed inputs', async () => {
-  let data = proxy("" as any);
+  let data = A.proxy("" as any);
   let inputElement;
-  $(() => {
-    $('input', {type: 'number', bind: data}, () => {
-      inputElement = $();
+  A(() => {
+    A('input', {type: 'number', bind: data}, () => {
+      inputElement = A();
     });
   });
   assertBody(`input{type=number value->""}`);

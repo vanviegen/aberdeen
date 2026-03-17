@@ -1,23 +1,23 @@
 import { expect, test } from "bun:test";
-import { $, onEach, proxy } from '../src/aberdeen';
+import A from "../src/aberdeen";
 
 test('creates regular HTML elements with HTML namespace', () => {
-	$('div');
+	A('div');
 	const div = document.body.firstChild as Element;
 	expect(div.tagName).toBe('div');
 	expect(div.namespaceURI).toBe('http://www.w3.org/1999/xhtml');
 });
 
 test('creates SVG elements with SVG namespace', () => {
-	$('svg');
+	A('svg');
 	const svg = document.body.firstChild as Element;
 	expect(svg.tagName).toBe('svg');
 	expect(svg.namespaceURI).toBe('http://www.w3.org/2000/svg');
 });
 
 test('creates SVG child elements with SVG namespace', () => {
-	$('svg', () => {
-		$('circle', {cx: 50, cy: 50, r: 40});
+	A('svg', () => {
+		A('circle', {cx: 50, cy: 50, r: 40});
 	});
 	
 	const svg = document.body.firstChild as Element;
@@ -33,7 +33,7 @@ test('creates SVG child elements with SVG namespace', () => {
 });
 
 test('Works with chained tags', () => {
-	$('div', 'svg', 'circle', {cx: 50, cy: 50, r: 40}, ':Test');
+	A('div', 'svg', 'circle', {cx: 50, cy: 50, r: 40}, ':Test');
 	
 	const div = document.body.firstChild as Element;
 	const svg = div.firstChild as Element;
@@ -51,10 +51,10 @@ test('Works with chained tags', () => {
 });
 
 test('creates nested SVG elements with SVG namespace', () => {
-	$('svg', () => {
-		$('g', () => {
-			$('rect', {x: 10, y: 10, width: 50, height: 30});
-			$('text', () => $('#Hello SVG'));
+	A('svg', () => {
+		A('g', () => {
+			A('rect', {x: 10, y: 10, width: 50, height: 30});
+			A('text', () => A('#Hello SVG'));
 		});
 	});
 	
@@ -71,12 +71,12 @@ test('creates nested SVG elements with SVG namespace', () => {
 });
 
 test('mixes HTML and SVG correctly', () => {
-	$('div', () => {
-		$('h1#Title');
-		$('svg', () => {
-			$('circle', {cx: 25, cy: 25, r: 20});
+	A('div', () => {
+		A('h1#Title');
+		A('svg', () => {
+			A('circle', {cx: 25, cy: 25, r: 20});
 		});
-		$('p#Description');
+		A('p#Description');
 	});
 	
 	const div = document.body.firstChild as Element;
@@ -92,12 +92,12 @@ test('mixes HTML and SVG correctly', () => {
 	expect(p.namespaceURI).toBe('http://www.w3.org/1999/xhtml');
 });
 
-test('handles SVG within onEach', () => {
-	const points = proxy([{x: 10, y: 10}, {x: 20, y: 30}]);
+test('handles SVG within A.onEach', () => {
+	const points = A.proxy([{x: 10, y: 10}, {x: 20, y: 30}]);
 	
-	$('svg', () => {
-		onEach(points, (point) => {
-			$('circle', {cx: point.x, cy: point.y, r: 5});
+	A('svg', () => {
+		A.onEach(points, (point) => {
+			A('circle', {cx: point.x, cy: point.y, r: 5});
 		});
 	});
 	
@@ -110,14 +110,14 @@ test('handles SVG within onEach', () => {
 });
 
 test('returns back to HTML namespace after SVG', () => {
-	$('div', () => {
-		$('svg', () => {
-			$('circle');
+	A('div', () => {
+		A('svg', () => {
+			A('circle');
 		});
 	});
 	
 	// Add another div after the first one
-	$('div');
+	A('div');
 	
 	const firstDiv = document.body.firstChild as Element;
 	const svg = firstDiv.firstChild as Element;

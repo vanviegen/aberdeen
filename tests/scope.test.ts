@@ -1,17 +1,17 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, peek, onEach, clean, unmountAll, unproxy, derive } from "../src/aberdeen";
+import A from "../src/aberdeen";
 
 test('rerenders only the inner scope', async () => {
-  let data = proxy('before');
+  let data = A.proxy('before');
   let cnt1 = 0, cnt2 = 0;
   
-  $(() => {
-    $('a', () => {
+  A(() => {
+    A('a', () => {
       cnt1++;
-      $('span', () => {
+      A('span', () => {
         cnt2++;
-        $("#" + data.value);
+        A("#" + data.value);
       });
     });
   });
@@ -26,14 +26,14 @@ test('rerenders only the inner scope', async () => {
 });
 
 test('adds and removes elements', async () => {
-  let data = proxy(false);
+  let data = A.proxy(false);
   
   let cnt1 = 0, cnt2 = 0;
-  $(() => {
+  A(() => {
     cnt1++;
-    $('a', () => {
+    A('a', () => {
       cnt2++;
-      if (data.value) $('i');
+      if (data.value) A('i');
     });
   });
   
@@ -48,16 +48,16 @@ test('adds and removes elements', async () => {
   expect(cnt2).toEqual(5);
 });
 
-test('refreshes standalone $()s', async () => {
-  let data = proxy(false);
+test('refreshes standalone A()s', async () => {
+  let data = A.proxy(false);
   
   let cnt1 = 0, cnt2 = 0;
-  $(() => {
+  A(() => {
     cnt1++;
-    $('a');
-    $(() => {
+    A('a');
+    A(() => {
       cnt2++;
-      if (data.value) $('i');
+      if (data.value) A('i');
     });
   });
   
@@ -72,23 +72,23 @@ test('refreshes standalone $()s', async () => {
   expect(cnt2).toEqual(5);
 });
 
-test('uses $()s as reference for DOM insertion', async () => {
-  let data1 = proxy(false);
-  let data2 = proxy(false);
+test('uses A()s as reference for DOM insertion', async () => {
+  let data1 = A.proxy(false);
+  let data2 = A.proxy(false);
   
   let cnt0 = 0, cnt1 = 0, cnt2 = 0;
-  $(() => {
+  A(() => {
     cnt0++;
-    $('i');
-    $(() => {
+    A('i');
+    A(() => {
       cnt1++;
-      data1.value && $('a');
+      data1.value && A('a');
     });
-    $(() => {
+    A(() => {
       cnt2++;
-      data2.value && $('b');
+      data2.value && A('b');
     });
-    $('p');
+    A('p');
   });
   
   assertBody(`i p`);
@@ -113,11 +113,11 @@ test('uses $()s as reference for DOM insertion', async () => {
 });
 
 test('insert at right position with an empty parent scope', () => {
-  $(() => {
-    $('a');
-    $(() => {
-      $(() => {
-        $('b');
+  A(() => {
+    A('a');
+    A(() => {
+      A(() => {
+        A('b');
       });
     });
   });
@@ -126,12 +126,12 @@ test('insert at right position with an empty parent scope', () => {
 });
 
 test('does not trigger when a value changes back to the same value', async () => {
-  let data = proxy('a') as {value?: string};
+  let data = A.proxy('a') as {value?: string};
   let cnt = 0;
   
-  $(() => {
+  A(() => {
     cnt++;
-    $(data.value || 'none');
+    A(data.value || 'none');
   });
   
   assertBody(`a`);
@@ -159,16 +159,16 @@ test('does not trigger when a value changes back to the same value', async () =>
 
 test('refrains from rerendering dead scopes', async () => {
   let cnts = [0, 0, 0, 0];
-  let data = proxy('a');
+  let data = A.proxy('a');
   
-  $(() => {
+  A(() => {
     cnts[0]++;
-    $(() => {
+    A(() => {
       cnts[1]++;
-      $(() => {
+      A(() => {
         cnts[2]++;
         if (data.value === 'b') return;
-        $(() => {
+        A(() => {
           cnts[3]++;
           data.value;
         });
@@ -184,21 +184,21 @@ test('refrains from rerendering dead scopes', async () => {
 });
 
 test('inserts higher priority updates', async () => {
-  let parent = proxy(false);
-  let children = proxy(false);
+  let parent = A.proxy(false);
+  let children = A.proxy(false);
   let pcnt = 0, ccnt = 0;
   
-  $(() => {
+  A(() => {
     pcnt++;
     if (parent.value) return;
     
-    $('a', () => {
+    A('a', () => {
       ccnt++;
       if (children.value) {
         parent.value = true;
       }
     });
-    $('b', () => {
+    A('b', () => {
       ccnt++;
       if (children.value) {
         parent.value = true;
@@ -214,17 +214,17 @@ test('inserts higher priority updates', async () => {
   expect(ccnt).toEqual(3); // only a *or* b should have executed a second time, triggering parent
 });
 
-test('does not rerender on peek', async () => {
-  let data = proxy('before');
+test('does not rerender on A.peek', async () => {
+  let data = A.proxy('before');
   let cnt1 = 0, cnt2 = 0;
   
-  $(() => {
-    $('a', () => {
+  A(() => {
+    A('a', () => {
       cnt1++;
-      $('span', () => {
+      A('span', () => {
         cnt2++;
-        $("#" + peek(() => data.value));
-        $("#" + unproxy(data).value);
+        A("#" + A.peek(() => data.value));
+        A("#" + A.unproxy(data).value);
       });
     });
   });
@@ -239,22 +239,22 @@ test('does not rerender on peek', async () => {
 
 test('allows modifying proxied objects from within scopes', async () => {
   let cnt0 = 0, cnt1 = 0, cnt2 = 0, cnt3 = 0;
-  let data = proxy({} as Record<string, string>);
-  let inverse = proxy({} as Record<string, number>);
+  let data = A.proxy({} as Record<string, string>);
+  let inverse = A.proxy({} as Record<string, number>);
   
-  $(() => {
+  A(() => {
     cnt0++;
-    onEach(data, (value, key) => {
+    A.onEach(data, (value, key) => {
       inverse[value] = parseInt(key);
       cnt1++;
-      clean(() => {
+      A.clean(() => {
         delete inverse[value];
         cnt2++;
       });
     });
     
-    onEach(inverse, (value, key) => {
-      $("#" + key + "=" + value);
+    A.onEach(inverse, (value, key) => {
+      A("#" + key + "=" + value);
       cnt3++;
     });
   });
@@ -288,15 +288,15 @@ test('allows modifying proxied objects from within scopes', async () => {
   assertBody(`"a=2" "d=3"`);
   expect([cnt0, cnt1, cnt2, cnt3]).toEqual([1, 4, 2, 4]);
   
-  unmountAll();
+  A.unmountAll();
   assertBody(``);
   expect([cnt0, cnt1, cnt2, cnt3]).toEqual([1, 4, 4, 4]);
 });
 
 test('returns a reactive value when only a function is given', async () => {
-  const data = proxy(20);
-  const plus2 = derive(() => data.value + 2);
-  $('p', {text: plus2})
+  const data = A.proxy(20);
+  const plus2 = A.derive(() => data.value + 2);
+  A('p', {text: plus2})
 
   expect(plus2.value).toEqual(22)
   assertBody(`p{"22"}`)

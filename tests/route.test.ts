@@ -2,7 +2,7 @@ import { expect, test, beforeEach } from "bun:test";
 import { resetBrowserState } from "./fakedom";
 import { passTime } from "./helpers";
 import * as route from "../src/route";
-import { mount, $ } from "../src/aberdeen";
+import A from "../src/aberdeen";
 
 beforeEach(async () => {
     resetBrowserState();
@@ -232,11 +232,11 @@ test('browser route.back/forward navigation', async () => {
 });
 
 test('route.persistScroll() saves and restores scroll position', async () => {
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         route.persistScroll();
     });
     
-    const parentEl = $() as any;
+    const parentEl = A() as any;
     
     // Set scroll position
     parentEl.scrollTop = 100;
@@ -258,7 +258,7 @@ test('route.persistScroll() saves and restores scroll position', async () => {
     await passTime(1);
     
     // Mount again to test restoration
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         route.persistScroll();
     });
     
@@ -267,11 +267,11 @@ test('route.persistScroll() saves and restores scroll position', async () => {
 });
 
 test('route.persistScroll() with custom name', async () => {
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         route.persistScroll('sidebar');
     });
     
-    const parentEl = $() as any;
+    const parentEl = A() as any;
     // route.reset any previous scroll position
     parentEl.scrollLeft = 0;
     parentEl.scrollTop = 200;
@@ -357,11 +357,11 @@ test('complex navigation sequence', async () => {
 });
 test('interceptLinks handles local link clicks', async () => {
     let link: any;
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         route.interceptLinks();
         
         // Create a link element using Aberdeen's $ function
-        link = $('a', {href: '/test/path?foo=bar#section'}, 'Test Link');
+        link = A('a', {href: '/test/path?foo=bar#section'}, 'Test Link');
     });
     await passTime(1);
     
@@ -376,10 +376,10 @@ test('interceptLinks handles local link clicks', async () => {
 
 test('interceptLinks ignores external links', async () => {
     let link: any;
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         route.interceptLinks();
         
-        link = $('a', {href: 'https://example.com/path', host: 'example.com'});
+        link = A('a', {href: 'https://example.com/path', host: 'example.com'});
     });
     await passTime(1);
     
@@ -400,11 +400,11 @@ test('interceptLinks ignores links with protocols', async () => {
     ];
     
     const links: any[] = [];
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         route.interceptLinks();
         
         for (const href of testCases) {
-            links.push($('a', {href}));
+            links.push(A('a', {href}));
         }
     });
     await passTime(1);
@@ -420,10 +420,10 @@ test('interceptLinks ignores links with protocols', async () => {
 
 test('interceptLinks ignores links with target attribute', async () => {
     let link: any;
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         route.interceptLinks();
         
-        link = $('a', {href: '/test', target: '_blank'});
+        link = A('a', {href: '/test', target: '_blank'});
     });
     await passTime(1);
     
@@ -436,10 +436,10 @@ test('interceptLinks ignores links with target attribute', async () => {
 
 test('interceptLinks handles Enter key on links', async () => {
     let link: any;
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         route.interceptLinks();
         
-        link = $('a', {href: '/test/keyboard'});
+        link = A('a', {href: '/test/keyboard'});
     });
     await passTime(1);
     
@@ -455,10 +455,10 @@ test('interceptLinks ignores hash-only links', async () => {
     await passTime(1);
     
     let link: any;
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         route.interceptLinks();
         
-        link = $('a', {href: '#section'});
+        link = A('a', {href: '#section'});
     });
     await passTime(1);
     

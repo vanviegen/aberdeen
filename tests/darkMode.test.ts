@@ -1,19 +1,19 @@
 import { test, expect } from "bun:test";
-import { darkMode, $, cssVars } from "../src/aberdeen";
+import A from "../src/aberdeen";
 import { passTime } from "./helpers";
 import { setMediaQuery } from "./fakedom";
 
-test('darkMode() returns boolean', () => {
-	const result = darkMode();
+test('A.darkMode() returns boolean', () => {
+	const result = A.darkMode();
 	expect(typeof result).toBe('boolean');
 });
 
-test('darkMode() is reactive and responds to media query changes', async () => {
+test('A.darkMode() is reactive and responds to media query changes', async () => {
 	let callCount = 0;
 	let lastValue: boolean | undefined;
 	
-	$(() => {
-		lastValue = darkMode();
+	A(() => {
+		lastValue = A.darkMode();
 		callCount++;
 	});
 	
@@ -39,24 +39,24 @@ test('darkMode() is reactive and responds to media query changes', async () => {
 	expect(lastValue).toBe(false);
 });
 
-test('darkMode() can be used with cssVars', async () => {
-	$(() => {
-		if (darkMode()) {
-			cssVars.testBg = '#1a1a1a';
+test('A.darkMode() can be used with A.cssVars', async () => {
+	A(() => {
+		if (A.darkMode()) {
+			A.cssVars.testBg = '#1a1a1a';
 		} else {
-			cssVars.testBg = '#ffffff';
+			A.cssVars.testBg = '#ffffff';
 		}
 	});
 	
 	await passTime();
 	
 	// Initially light mode
-	expect(cssVars.testBg).toBe('#ffffff');
+	expect(A.cssVars.testBg).toBe('#ffffff');
 	
 	// Switch to dark mode
 	setMediaQuery('(prefers-color-scheme: dark)', true);
 	await passTime();
 	
 	// Should update to dark colors
-	expect(cssVars.testBg).toBe('#1a1a1a');
+	expect(A.cssVars.testBg).toBe('#1a1a1a');
 });

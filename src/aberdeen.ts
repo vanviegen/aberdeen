@@ -51,9 +51,9 @@ function queue(runner: QueueRunner) {
  *
  * @example
  * ```typescript
- * const data = proxy("before");
+ * const data = A.proxy("before");
  *
- * $('#', data);
+ * A('#', data);
  * console.log(1, document.body.innerHTML); // before
  *
  * // Make an update that should cause the DOM to change.
@@ -61,7 +61,7 @@ function queue(runner: QueueRunner) {
  *
  * // Normally, the DOM update would happen after a timeout.
  * // But this causes an immediate update:
- * runQueue();
+ * A.runQueue();
  *
  * console.log(2, document.body.innerHTML); // after
  * ```
@@ -131,15 +131,15 @@ function partToStr(part: number | string): string {
  *
  * @example
  * ```typescript
- * const users = proxy([
+ * const users = A.proxy([
  *     { id: 1, name: 'Charlie', score: 95 },
  *     { id: 2, name: 'Alice', score: 100 },
  *     { id: 3, name: 'Bob', score: 90 },
  * ]);
  *
- * onEach(users, (user) => {
- *     $(`p#${user.name}: ${user.score}`);
- * }, (user) => invertString(user.name)); // Reverse alphabetic order
+ * A.onEach(users, (user) => {
+ *     A(`p#${user.name}: ${user.score}`);
+ * }, (user) => A.invertString(user.name)); // Reverse alphabetic order
  * ```
  *
  * @param input The string whose sort order needs to be inverted.
@@ -901,10 +901,10 @@ export function onEach<K extends string | number | symbol, T>(
  *
  * @example Iterating an array
  * ```typescript
- * const items = proxy(['apple', 'banana', 'cherry']);
+ * const items = A.proxy(['apple', 'banana', 'cherry']);
  *
  * // Basic iteration
- * onEach(items, (item, index) => $(`li#${item} (#${index})`));
+ * A.onEach(items, (item, index) => A(`li#${item} (#${index})`));
  *
  * // Add a new item - the list updates automatically
  * setTimeout(() => items.push('durian'), 2000);
@@ -915,28 +915,28 @@ export function onEach<K extends string | number | symbol, T>(
  *
  * @example Iterating an array with custom ordering
  * ```typescript
- * const users = proxy([
+ * const users = A.proxy([
  *     { id: 3, group: 1, name: 'Charlie' },
  *     { id: 1, group: 1, name: 'Alice' },
  *     { id: 2, group: 2, name: 'Bob' },
  * ]);
  *
  * // Sort by name alphabetically
- * onEach(users, (user) => {
- *     $(`p#${user.name} (id=${user.id})`);
+ * A.onEach(users, (user) => {
+ *     A(`p#${user.name} (id=${user.id})`);
  * }, (user) => [user.group, user.name]); // Sort by group, and within each group sort by name
  * ```
  *
  *  @example Iterating an object
  * ```javascript
- * const config = proxy({ theme: 'dark', fontSize: 14, showTips: true });
+ * const config = A.proxy({ theme: 'dark', fontSize: 14, showTips: true });
  *
  * // Display configuration options
- * $('dl', () => {
- *     onEach(config, (value, key) => {
+ * A('dl', () => {
+ *     A.onEach(config, (value, key) => {
  *         if (key === 'showTips') return; // Don't render this one
- *         $('dt#'+key);
- *         $('dd#'+value);
+ *         A('dt#'+key);
+ *         A('dd#'+value);
  *     });
  * });
  *
@@ -951,7 +951,7 @@ export function onEach(
 	makeKey?: (value: any, key: any) => SortKeyType,
 ): void {
 	if (!target || typeof target !== "object")
-		throw new Error("onEach requires an object");
+		throw new Error("A.onEach requires an object");
 	target = (target as any)[TARGET_SYMBOL] || target;
 
 	new OnEachScope(target, render, makeKey);
@@ -979,14 +979,14 @@ export const EMPTY = Symbol("empty");
  *
  * @example
  * ```typescript
- * const items = proxy([]);
+ * const items = A.proxy([]);
  *
  * // Reactively display a message if the items array is empty
- * $('div', () => {
- *     if (isEmpty(items)) {
- *         $('p i#No items yet!');
+ * A('div', () => {
+ *     if (A.isEmpty(items)) {
+ *         A('p i#No items yet!');
  *     } else {
- *         onEach(items, item => $('p#'+item));
+ *         A.onEach(items, item => A('p#'+item));
  *     }
  * });
  *
@@ -1039,15 +1039,15 @@ export interface ValueRef<T> {
  * 
  * @example
  * ```typescript
- * const items = proxy({x: 3, y: 7} as any);
- * const cnt = count(items);
+ * const items = A.proxy({x: 3, y: 7} as any);
+ * const cnt = A.count(items);
  *
  * // Create a DOM text node for the count:
- * $('div text=', cnt);
+ * A('div text=', cnt);
  * // <div>2</div>
 
  * // Or we can use it in an {@link derive} function:
- * $(() => console.log("The count is now", cnt.value));
+ * A(() => console.log("The count is now", cnt.value));
  * // The count is now 2
  * 
  * // Adding/removing items will update the count
@@ -1384,7 +1384,7 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  * Creates a reactive proxy around the given data.
  *
  * Reading properties from the returned proxy within a reactive scope (like one created by
- * {@link $} or {@link derive}) establishes a subscription. Modifying properties *through*
+ * {@link $ | A} or {@link derive}) establishes a subscription. Modifying properties *through*
  * the proxy will notify subscribed scopes, causing them to re-execute.
  *
  * - Plain objects and arrays are wrapped in a standard JavaScript `Proxy` that intercepts
@@ -1404,23 +1404,23 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  *
  * @example Object
  * ```javascript
- * const state = proxy({ count: 0, message: 'Hello' });
- * $(() => console.log(state.message)); // Subscribes to message
+ * const state = A.proxy({ count: 0, message: 'Hello' });
+ * A(() => console.log(state.message)); // Subscribes to message
  * setTimeout(() => state.message = 'World', 1000); // Triggers the observing function
  * setTimeout(() => state.count++, 2000); // Triggers nothing
  * ```
  *
  * @example Array
  * ```javascript
- * const items = proxy(['a', 'b']);
- * $(() => console.log(items.length)); // Subscribes to length
+ * const items = A.proxy(['a', 'b']);
+ * A(() => console.log(items.length)); // Subscribes to length
  * setTimeout(() => items.push('c'), 2000); // Triggers the observing function
  * ```
  *
  * @example Primitive
  * ```javascript
- * const name = proxy('Aberdeen');
- * $(() => console.log(name.value)); // Subscribes to value
+ * const name = A.proxy('Aberdeen');
+ * A(() => console.log(name.value)); // Subscribes to value
  * setTimeout(() => name.value = 'UI', 2000); // Triggers the observing function
  * ```
  *
@@ -1431,8 +1431,8 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  *   grow() { this.width *= 2; }
  *   toString() { return `${this.name}Widget (${this.width}x${this.height})`; }
  * }
- * let graph: Widget = proxy(new Widget('Graph', 200, 100));
- * $(() => console.log(''+graph));
+ * let graph: Widget = A.proxy(new Widget('Graph', 200, 100));
+ * A(() => console.log(''+graph));
  * setTimeout(() => graph.grow(), 2000);
  * setTimeout(() => graph.grow(), 4000);
  * ```
@@ -1471,13 +1471,13 @@ export function proxy(target: TargetType): TargetType {
  *
  * @example
  * ```typescript
- * const userProxy = proxy({ name: 'Frank' });
- * const rawUser = unproxy(userProxy);
+ * const userProxy = A.proxy({ name: 'Frank' });
+ * const rawUser = A.unproxy(userProxy);
  *
  * // Log reactively
- * $(() => console.log('proxied', userProxy.name));
+ * A(() => console.log('proxied', userProxy.name));
  * // The following will only ever log once, as we're not subscribing to any observable
- * $(() => console.log('unproxied', rawUser.name));
+ * A(() => console.log('unproxied', rawUser.name));
  *
  * // This cause the first log to run again:
  * setTimeout(() => userProxy.name += '!', 1000);
@@ -1512,11 +1512,9 @@ function destroyWithClass(element: Element, cls: string) {
  * - **Minimizes Updates:** When copying between objects/arrays (proxied or not), if a nested object
  *   exists in `dst` with the same constructor as the corresponding object in `src`, `copy`
  *   will recursively copy properties into the existing `dst` object instead of replacing it.
- *   This minimizes change notifications for reactive updates.
- * - **Handles Proxies:** Can accept proxied or unproxied objects/arrays for both `dst` and `src`.
- * - **Cross-Type Copying:** Supports copying between Maps and objects. When copying from an object
- *   to a Map, object properties become Map entries. When copying from a Map to an object, Map entries
- *   become object properties (only for Maps with string/number/symbol keys).
+ *   This minimizes change notifications for reactive (proxied) destinations.
+ * - **Fast with Proxies:** When copying to/from proxied objects, `copy` uses Aberdeen internals
+ *   to speed things up (compared to a non-Aberdeen-aware deep copy).
  *
  * @param dst - The destination object/array/Map (proxied or unproxied).
  * @param src - The source object/array/Map (proxied or unproxied). It won't be modified.
@@ -1526,11 +1524,11 @@ function destroyWithClass(element: Element, cls: string) {
  *
  * @example Basic Copy
  * ```typescript
- * const source = proxy({ a: 1, b: { c: 2 } });
- * const dest = proxy({ b: { d: 3 } });
- * copy(dest, source);
+ * const source = A.proxy({ a: 1, b: { c: 2 } });
+ * const dest = A.proxy({ b: { d: 3 } });
+ * A.copy(dest, source);
  * console.log(dest); // proxy({ a: 1, b: { c: 2 } })
- * copy(dest, 'b', { e: 4 });
+ * A.copy(dest, 'b', { e: 4 });
  * console.log(dest); // proxy({ a: 1, b: { e: 4 } })
  * ```
  */
@@ -1567,10 +1565,10 @@ function copySet(dst: any, dstKey: any, src: any, flags: number): boolean {
  * @example Basic merge
  * ```typescript
  * const source = { b: { c: 99 }, d: undefined }; // d: undefined will delete
- * const dest = proxy({ a: 1, b: { x: 5 }, d: 4 });
- * merge(dest, source);
- * merge(dest, 'b', { y: 6 }); // merge into dest.b
- * merge(dest, 'c', { z: 7 }); // merge.c doesn't exist yet, so it will just be assigned
+ * const dest = A.proxy({ a: 1, b: { x: 5 }, d: 4 });
+ * A.merge(dest, source);
+ * A.merge(dest, 'b', { y: 6 }); // merge into dest.b
+ * A.merge(dest, 'c', { z: 7 }); // merge.c doesn't exist yet, so it will just be assigned
  * console.log(dest); // proxy({ a: 1, b: { c: 99, x: 5, y: 6 }, c: { z: 7 } })
  * ```
  *
@@ -1755,20 +1753,20 @@ export const NO_COPY = Symbol("NO_COPY");
  *
  * @example
  * ```javascript
- * import { cssVars, setSpacingCssVars, $ } from 'aberdeen';
+ * import A from 'aberdeen';
  *
  * // Optionally initialize spacing scale
- * setSpacingCssVars(); // Uses defaults: base=1, unit='rem'
+ * A.setSpacingCssVars(); // Uses defaults: base=1, unit='rem'
  *
  * // Define custom colors - style tag is automatically created
- * cssVars.primary = '#3b82f6';
- * cssVars.danger = '#ef4444';
+ * A.cssVars.primary = '#3b82f6';
+ * A.cssVars.danger = '#ef4444';
  *
  * // Use in elements with the $ prefix
- * $('button bg:$primary fg:white');
+ * A('button bg:$primary fg:white #I'm a primary button');
  *
  * // Use spacing (if setSpacingCssVars() was called)
- * $('div mt:$3'); // Sets margin-top to var(--m3)
+ * A('hr mt:$3'); // Sets margin-top to var(--m3)
  * ```
  */
 export const cssVars: Record<string, string> = optProxy({});
@@ -1783,19 +1781,19 @@ export const cssVars: Record<string, string> = optProxy({});
  *
  * @example
  * ```javascript
- * import { setSpacingCssVars, cssVars, onEach, $} from 'aberdeen';
+ * import A from 'aberdeen';
  * // Use default scale (0.25rem to 512rem)
- * setSpacingCssVars();
+ * A.setSpacingCssVars();
  *
  * // Use custom base size
- * setSpacingCssVars(16, 'px'); // 4px to 8192px
+ * A.setSpacingCssVars(16, 'px'); // 4px to 8192px
  *
  * // Use em units
- * setSpacingCssVars(1, 'em'); // 0.25em to 512em
+ * A.setSpacingCssVars(1, 'em'); // 0.25em to 512em
  * 
  * // Show the last generated spacing values
- * onEach(cssVars, (value, key) => {
- * 	$(`div #${key} → ${value}`)
+ * A.onEach(A.cssVars, (value, key) => {
+ * 	A(`div #${key} → ${value}`)
  * }, (value, key) => parseInt(key)); // Numeric sort
  * ```
  */
@@ -1832,21 +1830,21 @@ let darkModeState: {value: boolean} | undefined;
  * This function is reactive - scopes that call it will re-execute when the
  * browser's color scheme preference changes (via the `prefers-color-scheme` media query).
  *
- * Use this in combination with {@link $} and {@link cssVars} to implement theme switching:
+ * Use this in combination with {@link $ | A} and {@link cssVars} to implement theme switching:
  *
  * @returns `true` if the browser prefers dark mode, `false` if it prefers light mode.
  *
  * @example
  * ```javascript
- * import { darkMode, cssVars, $, mount } from 'aberdeen';
+ * import A from 'aberdeen';
  *
  * // Reactively set colors based on browser preference
- * $(() => {
- *   cssVars.bg = darkMode() ? '#1a1a1a' : '#ffffff';
- *   cssVars.fg = darkMode() ? '#e5e5e5' : '#000000';
+ * A(() => {
+ *   A.cssVars.bg = A.darkMode() ? '#1a1a1a' : '#ffffff';
+ *   A.cssVars.fg = A.darkMode() ? '#e5e5e5' : '#000000';
  * });
  * 
- * $('div bg:$bg fg:$fg p:1rem #Colors change based on system dark mode preference');
+ * A('div bg:$bg fg:$fg p:1rem #Colors change based on system dark mode preference');
  * ```
  */
 export function darkMode(): boolean {
@@ -1929,8 +1927,8 @@ const refHandler: ProxyHandler<RefTarget> = {
  * Creates a reactive reference (`{ value: T }`-like object) to a specific value
  * within a proxied object or array.
  *
- * This is primarily used for the `bind` property in {@link $} to create two-way data bindings
- * with form elements, and for passing a reactive property to any of the {@link $} key-value pairs.
+ * This is primarily used for the `bind` property in {@link $ | A} to create two-way data bindings
+ * with form elements, and for passing a reactive property to any of the {@link $ | A} key-value pairs.
  *
  * Reading `ref.value` accesses the property from the underlying proxy (and subscribes the current scope).
  * Assigning to `ref.value` updates the property in the underlying proxy (triggering reactive updates).
@@ -1941,16 +1939,16 @@ const refHandler: ProxyHandler<RefTarget> = {
  *
  * @example
  * ```javascript
- * const formData = proxy({ color: 'orange', velocity: 42 });
+ * const formData = A.proxy({ color: 'orange', velocity: 42 });
  *
  * // Usage with `bind`
- * $('input type=text bind=', ref(formData, 'color'));
+ * A('input type=text bind=', A.ref(formData, 'color'));
  *
  * // Usage as a dynamic property, causes a TextNode with just the name to be created and live-updated
- * $('p text="Selected color: " text=', ref(formData, 'color'), 'color:', ref(formData, 'color'));
+ * A('p text="Selected color: " text=', A.ref(formData, 'color'), 'color:', A.ref(formData, 'color'));
  *
  * // Changes are actually stored in formData - this causes logs like `{color: "Blue", velocity 42}`
- * $(() => console.log(formData))
+ * A(() => console.log(formData))
  * ```
  */
 export function ref<T extends TargetType, K extends keyof T>(
@@ -2101,7 +2099,7 @@ export function disableCreateDestroy() {
  * The format of a string is: (**tag** | `.` **class** | **key**[=:]**val** | **key**[=:]"**val containing spaces**")* ('#' **text** | **key**[=:])?
  * 
  * So a string may consist of any number of...
- * - **tag** elements, like `h1` or `div`. These elements are created, added to the *current* element, and become the new *current* element for the rest of this `$` function execution.
+ * - **tag** elements, like `h1` or `div`. These elements are created, added to the *current* element, and become the new *current* element for the rest of this `A` function execution.
  * - CSS classes prefixed by `.` characters. These classes will be added to the *current* element. Optionally, CSS classes can be appended to a **tag** without a space. So both `div.myclass` and `div .myclass` are valid and do the same thing.
  * - Property key/value pairs, like `type=password`, `placeholder="Your name"` or `data-id=123`. When the value contains spaces, it needs to be quoted with either "double quotes", 'single quotes' or \`backticks\`. Quotes within quoted values cannot be escaped (see the next rule for a solution). Key/value pairs will be handled according to *Property rules* below, but with the caveat that values can only be strings.
  * - CSS key/value pairs using two syntaxes:
@@ -2113,29 +2111,29 @@ export function disableCreateDestroy() {
  * 
  * And a string may end in...
  * - A '#' followed by text, which will be added as a `TextNode` to the *current* element. The text ranges til the end of the string, and may contain any characters, including spaces and quotes.
- * - A key followed by an '=' character, in which case the value is expected as a separate argument. The key/value pair is set according to the *Property rules* below. This is useful when the value is not a string or contains spaces or user data. Example: `$('button text="Click me" click=', () => alert('Clicked!'))` or `$('input.value=', someUserData, "placeholder=", "Type your stuff")`. In case the value is a proxied object, its `.value` property will be applied reactively without needing to rerender the parent scope.
- * - A key followed by a ':' character (with no value), in which case the value is expected as a separate argument. The value is treated as a CSS value to be set inline on the *current* element. Example: `$('div margin-top:', someValueInPx)`. In case the value is a proxied object, its `.value` property will be applied reactively without needing to rerender the parent scope.
+ * - A key followed by an '=' character, in which case the value is expected as a separate argument. The key/value pair is set according to the *Property rules* below. This is useful when the value is not a string or contains spaces or user data. Example: `A('button text="Click me" click=', () => alert('Clicked!'))` or `A('input.value=', someUserData, "placeholder=", "Type your stuff")`. In case the value is a proxied object, its `.value` property will be applied reactively without needing to rerender the parent scope.
+ * - A key followed by a ':' character (with no value), in which case the value is expected as a separate argument. The value is treated as a CSS value to be set inline on the *current* element. Example: `A('div margin-top:', someValueInPx)`. In case the value is a proxied object, its `.value` property will be applied reactively without needing to rerender the parent scope.
  * 
  * ### Function arguments
- * When a function (without arguments nor a return value) is passed in, it will be reactively executed in its own observer scope, preserving the *current* element. So any `$()` invocations within this function will add child elements to or set properties on that element. If the function reads observable data, and that data is changed later on, the function we re-execute (after side effects, such as DOM modifications through `$`, have been cleaned - see also {@link clean}).
+ * When a function (without arguments nor a return value) is passed in, it will be reactively executed in its own observer scope, preserving the *current* element. So any `A()` invocations within this function will add child elements to or set properties on that element. If the function reads observable data, and that data is changed later on, the function we re-execute (after side effects, such as DOM modifications through `A`, have been cleaned - see also {@link clean}).
  * 
  * ### Object arguments
  * When an object is passed in, its key-value pairs are used to modify the *current* element according to the *Property rules* below, *unless* the key starts with a `$` character, in which case that character is stripped of and the key/value pair is treated as a CSS property, subject to the *CSS shortcuts* below. In case a value is a proxied object, its `.value` property will be applied reactively without needing to rerender the parent scope. In most cases, the string notation (`key=` and `key:`) is preferred over this object notation, for readability.
  * 
  * ### DOM node arguments
- * When a DOM Node (Element or TextNode) is passed in, it is added as a child to the *current* element. If the Node is an Element, it becomes the new *current* element for the rest of this `$` function execution.
+ * When a DOM Node (Element or TextNode) is passed in, it is added as a child to the *current* element. If the Node is an Element, it becomes the new *current* element for the rest of this `A` function execution.
  * 
  * ### Property rules
- * - **Attribute:** The common case is setting the value as an HTML attribute named key. For example `$('input placeholder=Name')` results in `<input placeholder="Name">`.
- * - **Event listener:** If the value is a `function` it is set as an event listener for the event with the name given by the key. For example: $('button text=Press! click=', () => alert('Clicked!'))`. The event listener will be removed when the current scope is destroyed.
- * - **DOM property:** When the value is a boolean, or the key is `"value"` or `"selectedIndex"`, it is set on the `current` element as a DOM property instead of an HTML attribute. For example `$('checked=', true)` would do `el.checked = true` for the *current* element.
- * - **Conditional CSS class:** If the key starts with a `.` character, its either added to or removed from the *current* element as a CSS class, based on the truthiness of the value. So `$('.hidden=', isHidden)` would toggle the `hidden` CSS class. This only works if the `=` is the last character of the string, and the next argument is the value. Its common for the value to be a proxied object, in which case its `.value` is reactively applied without needing to rerender the parent scope.
+ * - **Attribute:** The common case is setting the value as an HTML attribute named key. For example `A('input placeholder=Name')` results in `<input placeholder="Name">`.
+ * - **Event listener:** If the value is a `function` it is set as an event listener for the event with the name given by the key. For example: A('button text=Press! click=', () => alert('Clicked!'))`. The event listener will be removed when the current scope is destroyed.
+ * - **DOM property:** When the value is a boolean, or the key is `"value"` or `"selectedIndex"`, it is set on the `current` element as a DOM property instead of an HTML attribute. For example `A('checked=', true)` would do `el.checked = true` for the *current* element.
+ * - **Conditional CSS class:** If the key starts with a `.` character, its either added to or removed from the *current* element as a CSS class, based on the truthiness of the value. So `A('.hidden=', isHidden)` would toggle the `hidden` CSS class. This only works if the `=` is the last character of the string, and the next argument is the value. Its common for the value to be a proxied object, in which case its `.value` is reactively applied without needing to rerender the parent scope.
  * - **Create transition:** When the key is `"create"`, the value will be added as a CSS class to the *current* element immediately, and then removed right after the browser has finished doing a layout pass. This behavior only triggers when the scope setting the `create` is the top-level scope being (re-)run. This allows for creation transitions, without triggering the transitions for deeply nested elements being drawn as part of a larger component. The string may also contain multiple dot-separated CSS classes, such as `.fade.grow`. The initial dot is optional. Alternatively, to allow for more complex transitions, the value may be a function that receives the `HTMLElement` being created as its only argument. It is *only* called if this is the top-level element being created in this scope run. See `transitions.ts` in the Aberdeen source code for some examples.
  * - **Destroy transition:** When the key is `"destroy"` the value will be used to apply a CSS transition if the *current* element is later on removed from the DOM and is the top-level element to be removed. This happens as follows: actual removal from the DOM is delayed by 2 seconds, and in the mean-time the value string is added as a CSS class to the element, allowing for a deletion transition. The string may also contain multiple dot-separated CSS classes, such as `.fade.shrink`. The initial dot is optional. Alternatively, to allow for more complex transitions, the value may be a function that receives the `HTMLElement` to be removed from the DOM as its only argument. This function may perform any transitions and is then itself responsible for eventually removing the element from the DOM. See `transitions.ts` in the Aberdeen source code for some examples.
  * - **Two-way data binding:** When the key is `"bind"` a two-way binding between the `.value` property of the given proxied object, and the *current* input element (`<input>`, `<select>` or `<textarea>`) is created. This is often used together with {@link ref}, in order to use properties other than `.value`.
- * - **Text:**: If the key is `"text"`, the value will be appended as a `TextNode` to the *current* element. The same can also be done with the `#` syntax in string arguments, though `text=` allows additional properties to come after in the same string: `$('button text=Hello click=', alert)`.
+ * - **Text:**: If the key is `"text"`, the value will be appended as a `TextNode` to the *current* element. The same can also be done with the `#` syntax in string arguments, though `text=` allows additional properties to come after in the same string: `A('button text=Hello click=', alert)`.
  * - **Unsafe HTML:** When the key is `"html"`, the value will be added as HTML to the *current* element. This should only be used in exceptional situations. Beware of XSS! Never use this with untrusted user data.
- * - **Rich text:** When the key is `"rich"`, the value is parsed as simple markdown-like syntax and rendered as inline elements. Supports `*italic*`, `**bold**`, `` `code` ``, and `[link text](/path)`. All text content is safely escaped, making it suitable for user data (though links should be validated if untrusted). Example: `$('p rich="Click *here* for **more** info")`.
+ * - **Rich text:** When the key is `"rich"`, the value is parsed as simple markdown-like syntax and rendered as inline elements. Supports `*italic*`, `**bold**`, `` `code` ``, and `[link text](/path)`. All text content is safely escaped, making it suitable for user data (though links should be validated if untrusted). Example: `A('p rich="Click *here* for **more** info")`.
  * 
  * ### CSS shortcuts
  * For conciseness, Aberdeen supports some CSS shortcuts when setting CSS properties.
@@ -2156,7 +2154,7 @@ export function disableCreateDestroy() {
  *
  * @example Create Element
  * ```typescript
- * $('button.secondary.outline text=Submit color:red disabled=', false, 'click=', () => console.log('Clicked!'));
+ * A('button.secondary.outline text=Submit color:red disabled=', false, 'click=', () => console.log('Clicked!'));
  * ```
  * 
  * We want to set `disabled` as a property instead of an attribute, so we must use the `key=` syntax in order to provide
@@ -2164,7 +2162,7 @@ export function disableCreateDestroy() {
  *
  * @example Create Nested Elements
  * ```typescript
- * let inputElement: Element = $('label text="Click me" input type=checkbox');
+ * let inputElement: Element = A('label text="Click me" input type=checkbox');
  * // You should usually not touch raw DOM elements, unless when integrating
  * // with non-Aberdeen code.
  * console.log('DOM element:', inputElement);
@@ -2172,38 +2170,38 @@ export function disableCreateDestroy() {
  *
  * @example Content Functions & Reactive Scope
  * ```typescript
- * const state = proxy({ count: 0 });
- * $('div', () => { // Outer element
+ * const state = A.proxy({ count: 0 });
+ * A('div', () => { // Outer element
  *   // This scope re-renders when state.count changes
- *   $(`p#Count is ${state.count}`);
- *   $('button text=Increment click=', () => state.count++);
+ *   A(`p#Count is ${state.count}`);
+ *   A('button text=Increment click=', () => state.count++);
  * });
  * ```
  *
  * @example Two-way Binding
  * ```typescript
- * const user = proxy({ name: '' });
- * $('input placeholder=Name bind=', ref(user, 'name'));
- * $('h3', () => { // Reactive scope
- *   $(`#Hello ${user.name || 'stranger'}`);
+ * const user = A.proxy({ name: '' });
+ * A('input placeholder=Name bind=', A.ref(user, 'name'));
+ * A('h3', () => { // Reactive scope
+ *   A(`#Hello ${user.name || 'stranger'}`);
  * });
  * ```
  *
  * @example Conditional Rendering
  * ```typescript
- * const show = proxy(false);
- * $('button click=', () => show.value = !show.value, () => $(show.value ? '#Hide' : '#Show'));
- * $(() => { // Reactive scope
+ * const show = A.proxy(false);
+ * A('button click=', () => show.value = !show.value, () => A(show.value ? '#Hide' : '#Show'));
+ * A(() => { // Reactive scope
  *   if (show.value) {
- *     $('p#Details are visible!');
+ *     A('p#Details are visible!');
  *   }
  * });
  * ```
  * 
  * @example Proxied objects as values
  * ```typescript
- * const myColor = proxy('red');
- * $('p text="The color is " text=', myColor, 'click=', () => myColor.value = 'yellow')
+ * const myColor = A.proxy('red');
+ * A('p text="The color is " text=', myColor, 'click=', () => myColor.value = 'yellow')
  * // Clicking the text will cause it to change color without recreating the <p> itself
  * ```
  * This is often used together with {@link ref}, in order to use properties other than `.value`.
@@ -2345,7 +2343,7 @@ let cssCount = 0;
  *
  * ### Concise Style Strings
  * 
- * Concise style strings use two syntaxes (same as inline CSS in {@link $}):
+ * Concise style strings use two syntaxes (same as inline CSS in {@link $ | A}):
  * - **Short form** `key:value` (no space after colon): The value ends at the next whitespace.
  *   Example: `'m:$3 bg:red r:8px'`
  * - **Long form** `key: value;` (space after colon): The value continues until a semicolon.
@@ -2353,27 +2351,27 @@ let cssCount = 0;
  * 
  * Both forms can be mixed: `'m:$3 box-shadow: 0 2px 4px rgba(0,0,0,0.2); bg:$cardBg'`
  * 
- * Supports the same CSS shortcuts as {@link $} and CSS variable references with `$` (e.g., `$primary`, `$3`).
+ * Supports the same CSS shortcuts as {@link $ | A} and CSS variable references with `$` (e.g., `$primary`, `$3`).
  *
  * @param style - A concise style string or a style object.
  * @returns The unique class name prefix used for scoping (e.g., `.AbdStl1`). 
- *          Use this prefix with {@link $} to apply the styles.
+ *          Use this prefix with {@link $ | A} to apply the styles.
  *
  * @example Basic Usage with Shortcuts and CSS Variables
  * ```typescript
- * const cardClass = insertCss({
+ * const cardClass = A.insertCss({
  *   '&': 'bg:white p:$4 r:8px transition: background-color 0.3s;',
  *   '&:hover': 'bg:#f5f5f5',
  * });
  *
- * $('section', cardClass, () => { 
- *   $('p#Card content'); 
+ * A('section', cardClass, () => { 
+ *   A('p#Card content'); 
  * });
  * ```
  *
  * @example Nested Selectors and Media Queries
  * ```typescript
- * const formClass = insertCss({
+ * const formClass = A.insertCss({
  *   '&': 'bg:#0004 p:$3 r:$2',
  *   button: {
  *     '&': 'bg:$primary fg:white p:$2 r:4px cursor:pointer',
@@ -2384,22 +2382,22 @@ let cssCount = 0;
  *   }
  * });
  *
- * $('form', formClass, () => {
- *   $('button', () => {
- *     $('span.icon text=🔥');
- *     $('#Click Me');
+ * A('form', formClass, () => {
+ *   A('button', () => {
+ *     A('span.icon text=🔥');
+ *     A('#Click Me');
  *   });
  * });
  * ```
  *
  * @example Complex CSS Values
  * ```typescript
- * const badge = insertCss({
+ * const badge = A.insertCss({
  *   '&::before': 'content: "★"; color:gold mr:$1',
  *   '&': 'position:relative box-shadow: 0 2px 8px rgba(0,0,0,0.15);'
  * });
  *
- * $(badge + ' span#Product Name');
+ * A(badge + ' span#Product Name');
  * ```
  */
 export function insertCss(style: string | object): string {
@@ -2508,7 +2506,7 @@ function styleStringToCss(styleStr: string, selector: string): string {
  * @example Global Reset and Base Styles
  * ```typescript
  * // Set up global styles using CSS shortcuts
- * insertGlobalCss({
+ * A.insertGlobalCss({
  *   "*": "m:0 p:0 box-sizing:border-box",
  *   "body": "font-family: system-ui, sans-serif; m:0 p:$3 bg:#434 fg:#d0dafa",
  *   "a": "text-decoration:none fg:#57f",
@@ -2516,14 +2514,14 @@ function styleStringToCss(styleStr: string, selector: string): string {
  *   "code": "font-family:monospace bg:#222 fg:#afc p:4px r:3px"
  * });
  *
- * $('h2#Title without margins');
- * $('a#This is a link');
- * $('code#const x = 42;');
+ * A('h2#Title without margins');
+ * A('a#This is a link');
+ * A('code#const x = 42;');
  * ```
  *
  * @example Responsive Global Styles
  * ```typescript
- * insertGlobalCss({
+ * A.insertGlobalCss({
  *   "html": "font-size:16px",
  *   "body": "line-height:1.6",
  *   "h1, h2, h3": "font-weight:600 mt:$4 mb:$2",
@@ -2626,7 +2624,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
 /**
  * Sets a custom error handler function for errors that occur asynchronously
  * within reactive scopes (e.g., during updates triggered by proxy changes in
- * {@link derive} or {@link $} render functions).
+ * {@link derive} or {@link $ | A} render functions).
  *
  * The default handler logs the error to `console.error` and adds a simple
  * 'Error' message div to the DOM at the location where the error occurred (if possible).
@@ -2640,14 +2638,14 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
  *
  * @example Custom Logging and Suppressing Default Message
  * ```typescript
- * setErrorHandler(error => {
+ * A.setErrorHandler(error => {
  *   console.warn('Aberdeen render error:', error.message);
  *   // Log to error reporting service
  *   // myErrorReporter.log(error);
  *
  *   try {
  *     // Attempt to show a custom message in the UI
- *     $('div#Oops, something went wrong!', errorClass);
+ *     A('div#Oops, something went wrong!', errorClass);
  *   } catch (e) {
  *     // Ignore errors during error handling itself
  *   }
@@ -2656,10 +2654,10 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
  * });
  *
  * // Styling for our custom error message
- * const errorClass = insertCss('background-color:#e31f00 display:inline-block color:white r:3px padding: 2px 4px;');
+ * const errorClass = A.insertCss('background-color:#e31f00 display:inline-block color:white r:3px padding: 2px 4px;');
  *
  * // Cause an error within a render scope.
- * $('div.box', () => {
+ * A('div.box', () => {
  *   // Will cause our error handler to insert an error message within the box
  *   noSuchFunction();
  * })
@@ -2678,30 +2676,30 @@ export function setErrorHandler(
  * This is useful for releasing resources, removing manual event listeners, or cleaning up
  * side effects associated with the scope. Cleaners are run in reverse order of registration.
  *
- * Scopes are created by functions like {@link derive}, {@link mount}, {@link $} (when given a render function),
+ * Scopes are created by functions like {@link derive}, {@link mount}, {@link $ | A} (when given a render function),
  * and internally by constructs like {@link onEach}.
  *
  * @param cleaner - The function to execute during cleanup.
  *
  * @example Maintaing a sum for a changing array
  * ```typescript
- * const myArray = proxy([3, 5, 10]);
- * let sum = proxy(0);
+ * const myArray = A.proxy([3, 5, 10]);
+ * let sum = A.proxy(0);
  *
  * // Show the array items and maintain the sum
- * onEach(myArray, (item, index) => {
- *     $(`code#${index}→${item}`);
+ * A.onEach(myArray, (item, index) => {
+ *     A(`code#${index}→${item}`);
  *     // We'll update sum.value using peek, as += first does a read, but
  *     // we don't want to subscribe.
- *     peek(() => sum.value += item);
+ *     A.peek(() => sum.value += item);
  *     // Clean gets called before each rerun for a certain item index
  *     // No need for peek here, as the clean code doesn't run in an
  *     // observer scope.
- *     clean(() => sum.value -= item);
+ *     A.clean(() => sum.value -= item);
  * })
  *
  * // Show the sum
- * $('h1 text=', sum);
+ * A('h1 text=', sum);
  *
  * // Make random changes to the array
  * const rnd = () => 0|(Math.random()*20);
@@ -2723,38 +2721,38 @@ export function clean(cleaner: () => void) {
  * Use {@link peek} or {@link unproxy} within the function to read proxied data without subscribing to it.
  *
  * @param func - The function to execute reactively. Any DOM manipulations should typically
- *   be done using {@link $} within this function. Its return value will be made available as an
+ *   be done using {@link $ | A} within this function. Its return value will be made available as an
  *   observable returned by the `derive()` function.
  * @returns An observable object, with its `value` property containing whatever the last run of `func` returned.
  *
  * @example Observation creating a UI components
  * ```typescript
- * const data = proxy({ user: 'Frank', notifications: 42 });
+ * const data = A.proxy({ user: 'Frank', notifications: 42 });
  *
- * $('main', () => {
+ * A('main', () => {
  *   console.log('Welcome');
- *   $('h3#Welcome, ' + data.user); // Reactive text
+ *   A('h3#Welcome, ' + data.user); // Reactive text
  *
- *   derive(() => {
+ *   A.derive(() => {
  *     // When data.notifications changes, only this inner scope reruns,
  *     // leaving the `<p>Welcome, ..</p>` untouched.
  *     console.log('Notifications');
- *     $('code.notification-badge text=', data.notifications);
- *     $('a text=Notify! click=', () => data.notifications++);
+ *     A('code.notification-badge text=', data.notifications);
+ *     A('a text=Notify! click=', () => data.notifications++);
  *   });
  * });
  * ```
  *
- * ***Note*** that the above could just as easily be done using `$(func)` instead of `derive(func)`.
+ * ***Note*** that the above could just as easily be done using `A(func)` instead of `derive(func)`.
  *
  * @example Observation with return value
  * ```typescript
- * const counter = proxy(0);
+ * const counter = A.proxy(0);
  * setInterval(() => counter.value++, 1000);
- * const double = derive(() => counter.value * 2);
+ * const double = A.derive(() => counter.value * 2);
  *
- * $('h3', () => {
- *     $(`#counter=${counter.value} double=${double.value}`);
+ * A('h3', () => {
+ *     A(`#counter=${counter.value} double=${double.value}`);
  * })
  * ```
  *
@@ -2767,39 +2765,39 @@ export function derive<T>(func: () => T): ValueRef<T> {
 
 /**
  * Attaches a reactive Aberdeen UI fragment to an existing DOM element. Without the use of
- * this function, {@link $} will assume `document.body` as its root.
+ * this function, {@link $ | A} will assume `document.body` as its root.
  *
  * It creates a top-level reactive scope associated with the `parentElement`. The provided
  * function `func` is executed immediately within this scope. Any proxied data read by `func`
  * will cause it to re-execute when the data changes, updating the DOM elements created within it.
  *
- * Calls to {@link $} inside `func` will append nodes to `parentElement`.
- * You can nest {@link derive} or other {@link $} scopes within `func`.
+ * Calls to {@link $ | A} inside `func` will append nodes to `parentElement`.
+ * You can nest {@link derive} or other {@link $ | A} scopes within `func`.
  * Use {@link unmountAll} to clean up all mounted scopes and their DOM nodes.
  *
  * Mounting scopes happens reactively, meaning that if this function is called from within another
- * ({@link derive} or {@link $} or {@link mount}) scope that gets cleaned up, so will the mount.
+ * ({@link derive} or {@link $ | A} or {@link mount}) scope that gets cleaned up, so will the mount.
  *
  * @param parentElement - The native DOM `Element` to which the UI fragment will be appended.
- * @param func - The function that defines the UI fragment, typically containing calls to {@link $}.
+ * @param func - The function that defines the UI fragment, typically containing calls to {@link $ | A}.
  *
  * @example Basic Mount
  * ```javascript
  * // Create a pre-existing DOM structure (without Aberdeen)
  * document.body.innerHTML = `<h3>Static content <span id="title-extra"></span></h3><div class="box" id="app-root"></div>`;
  *
- * import { mount, $, proxy } from 'aberdeen';
+ * import A from 'aberdeen';
  *
- * const runTime = proxy(0);
+ * const runTime = A.proxy(0);
  * setInterval(() => runTime.value++, 1000);
  *
- * mount(document.getElementById('app-root'), () => {
- *   $('h4#Aberdeen App');
- *   $(`p#Run time: ${runTime.value}s`);
+ * A.mount(document.getElementById('app-root'), () => {
+ *   A('h4#Aberdeen App');
+ *   A(`p#Run time: ${runTime.value}s`);
  *   // Conditionally render some content somewhere else in the static page
  *   if (runTime.value&1) {
- *     mount(document.getElementById('title-extra'), () =>
- *       $(`i#(${runTime.value}s)`)
+ *     A.mount(document.getElementById('title-extra'), () =>
+ *       A(`i#(${runTime.value}s)`)
  *     );
  *   }
  * });
@@ -2814,7 +2812,7 @@ export function mount(parentElement: Element, func: () => void) {
 
 /**
  * Removes all Aberdeen-managed DOM nodes and stops all active reactive scopes
- * (created by {@link mount}, {@link derive}, {@link $} with functions, etc.).
+ * (created by {@link mount}, {@link derive}, {@link $ | A} with functions, etc.).
  *
  * This effectively cleans up the entire Aberdeen application state. Aside from in
  * automated tests, there should probably be little reason to call this function.
@@ -2827,7 +2825,7 @@ export function unmountAll() {
 /**
  * Executes a function or retrieves a value *without* creating subscriptions in the current reactive scope, and returns its result.
  *
- * This is useful when you need to access reactive data inside a reactive scope (like {@link $})
+ * This is useful when you need to access reactive data inside a reactive scope (like {@link $ | A})
  * but do not want changes to that specific data to trigger a re-execute of the scope.
  * 
  * Note: You may also use {@link unproxy} to get to the raw underlying data structure, which can be used to similar effect.
@@ -2838,10 +2836,10 @@ export function unmountAll() {
  *
  * @example Peeking within observer
  * ```typescript
- * const data = proxy({ a: 1, b: 2 });
- * $(() => {
+ * const data = A.proxy({ a: 1, b: 2 });
+ * A(() => {
  *   // re-executes only when data.a changes, because data.b is peeked.
- *   const b = peek(() => data.b);
+ *   const b = A.peek(() => data.b);
  *   console.log(`A is ${data.a}, B was ${b} when A changed.`);
  * });
  * data.b = 3; // Does not trigger console.log
@@ -2902,25 +2900,25 @@ export function map<IN, const IN_KEY extends string | number | symbol, OUT>(
  *
  * @example Map array values
  * ```typescript
- * const numbers = proxy([1, 2, 3]);
- * const doubled = map(numbers, (n) => n * 2);
+ * const numbers = A.proxy([1, 2, 3]);
+ * const doubled = A.map(numbers, (n) => n * 2);
  * // doubled is proxy([2, 4, 6])
  *
- * $(() => console.log(doubled)); // Logs updates
+ * A(() => console.log(doubled)); // Logs updates
  * numbers.push(4); // doubled becomes proxy([2, 4, 6, 8])
  * ```
  *
  * @example Filter and map object properties
  * ```typescript
- * const users = proxy({
+ * const users = A.proxy({
  *   'u1': { name: 'Alice', active: true },
  *   'u2': { name: 'Bob', active: false },
  *   'u3': { name: 'Charlie', active: true }
  * });
  *
- * const activeUserNames = map(users, (user) => user.active ? user.name : undefined);
+ * const activeUserNames = A.map(users, (user) => user.active ? user.name : undefined);
  * // activeUserNames is proxy({ u1: 'Alice', u3: 'Charlie' })
- * $(() => console.log(Object.values(activeUserNames)));
+ * A(() => console.log(Object.values(activeUserNames)));
  *
  * users.u2.active = true;
  * // activeUserNames becomes proxy({ u1: 'Alice', u2: 'Bob', u3: 'Charlie' })
@@ -3000,17 +2998,17 @@ export function multiMap<
  *
  * @example Creating an index from an array
  * ```typescript
- * const items = proxy([
+ * const items = A.proxy([
  *   { id: 'a', value: 10 },
  *   { id: 'b', value: 20 },
  * ]);
- * const itemsById = multiMap(items, (item) => ({
+ * const itemsById = A.multiMap(items, (item) => ({
  *   [item.id]: item.value,
  *   [item.id+item.id]: item.value*10,
  * }));
  * // itemsById is proxy({ a: 10, aa: 100, b: 20, bb: 200 })
  *
- * $(() => console.log(itemsById));
+ * A(() => console.log(itemsById));
  *
  * items.push({ id: 'c', value: 30 });
  * // itemsById becomes proxy({ a: 10, aa: 100, b: 20, bb: 200, c: 30, cc: 300 })
@@ -3092,7 +3090,7 @@ export function partition<
  * @example Grouping items by a property
  * ```typescript
  * interface Product { id: string; category: string; name: string; }
- * const products = proxy<Product[]>([
+ * const products = A.proxy<Product[]>([
  *   { id: 'p1', category: 'Fruit', name: 'Apple' },
  *   { id: 'p2', category: 'Veg', name: 'Carrot' },
  *   { id: 'p3', category: 'Fruit', name: 'Banana' },
@@ -3100,10 +3098,10 @@ export function partition<
  *
  * // Partition products by category. Output keys are categories (string).
  * // Inner keys are original array indices (number).
- * const productsByCategory = partition(products, (product) => product.category);
+ * const productsByCategory = A.partition(products, (product) => product.category);
  *
  * // Reactively show the data structure
- * dump(productsByCategory);
+ * A.dump(productsByCategory);
  *
  * // Make random changes to the categories, to show reactiveness
  * setInterval(() => products[0|(Math.random()*3)].category = ['Snack','Fruit','Veg'][0|(Math.random()*3)], 2000);
@@ -3112,14 +3110,14 @@ export function partition<
  * @example Item in multiple buckets
  * ```typescript
  * interface User { id: number; tags: string[]; name: string; }
- * const users = proxy({
+ * const users = A.proxy({
  *   'u1': { name: 'Alice', tags: ['active', 'new'] },
  *   'u2': { name: 'Bob', tags: ['active'] }
  * });
  *
  * // Partition users by tag. Output keys are tags (string).
  * // Inner keys are original object keys (string: 'u1', 'u2').
- * const usersByTag = partition(users, (user) => user.tags);
+ * const usersByTag = A.partition(users, (user) => user.tags);
  *
  * console.log(usersByTag);
  * ```
@@ -3157,7 +3155,7 @@ export function partition<
 
 /**
  * Renders a live, recursive dump of a proxied data structure (or any value)
- * into the DOM at the current {@link $} insertion point.
+ * into the DOM at the current {@link $ | A} insertion point.
  *
  * Uses `<ul>` and `<li>` elements to display object properties and array items.
  * Updates reactively if the dumped data changes. Primarily intended for debugging purposes.
@@ -3168,15 +3166,15 @@ export function partition<
  *
  * @example Dumping reactive state
  * ```typescript
- * import { $, proxy, dump } from 'aberdeen';
+ * import A from 'aberdeen';
  *
- * const state = proxy({
+ * const state = A.proxy({
  *   user: { name: 'Frank', kids: 1 },
  *   items: ['a', 'b']
  * });
  *
- * $('h2#Live State Dump');
- * dump(state);
+ * A('h2#Live State Dump');
+ * A.dump(state);
  *
  * // Change state later, the dump in the DOM will update
  * setTimeout(() => { state.user.kids++; state.items.push('c'); }, 2000);
@@ -3274,3 +3272,52 @@ if (typeof document !== "undefined") {
 		});
 	});
 }
+
+/**
+ * The main Aberdeen API. `A` is itself a callable function for building reactive DOM trees
+ * (creating elements, setting attributes, adding content). All other Aberdeen functions and
+ * values are available as properties on `A`.
+ *
+ * @example Basic usage
+ * ```typescript
+ * import A from 'aberdeen';
+ *
+ * const state = A.proxy({ count: 0 });
+ * A('div', () => {
+ *   A(`p#Count: ${state.count}`);
+ *   A('button text=+ click=', () => state.count++);
+ * });
+ * ```
+ */
+const A = Object.assign($, {
+	/** {@inheritDoc clean} */ clean,
+	/** {@inheritDoc clone} */ clone,
+	/** {@inheritDoc copy} */ copy,
+	/** {@inheritDoc count} */ count,
+	/** {@inheritDoc cssVars} */ cssVars,
+	/** {@inheritDoc darkMode} */ darkMode,
+	/** {@inheritDoc derive} */ derive,
+	/** {@inheritDoc disableCreateDestroy} */ disableCreateDestroy,
+	/** {@inheritDoc dump} */ dump,
+	/** {@inheritDoc insertCss} */ insertCss,
+	/** {@inheritDoc insertGlobalCss} */ insertGlobalCss,
+	/** {@inheritDoc invertString} */ invertString,
+	/** {@inheritDoc isEmpty} */ isEmpty,
+	/** {@inheritDoc map} */ map,
+	/** {@inheritDoc merge} */ merge,
+	/** {@inheritDoc mount} */ mount,
+	/** {@inheritDoc multiMap} */ multiMap,
+	/** {@inheritDoc NO_COPY} */ NO_COPY,
+	/** {@inheritDoc onEach} */ onEach,
+	/** {@inheritDoc partition} */ partition,
+	/** {@inheritDoc peek} */ peek,
+	/** {@inheritDoc proxy} */ proxy,
+	/** {@inheritDoc ref} */ ref,
+	/** {@inheritDoc runQueue} */ runQueue,
+	/** {@inheritDoc setErrorHandler} */ setErrorHandler,
+	/** {@inheritDoc setSpacingCssVars} */ setSpacingCssVars,
+	/** {@inheritDoc unmountAll} */ unmountAll,
+	/** {@inheritDoc unproxy} */ unproxy,
+});
+
+export default A;

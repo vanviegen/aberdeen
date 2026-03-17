@@ -1,15 +1,15 @@
 import { test } from "bun:test";
-import { insertCss, insertGlobalCss } from "../src/aberdeen";
+import A from "../src/aberdeen";
 import { assertCss, passTime } from './helpers';
 
 test('Basic style', async () => {
-  let cls = insertCss('color:red');
+  let cls = A.insertCss('color:red');
   await passTime();
   assertCss(`${cls}{color:red;}`);
 });
 
 test('Complex selectors', async () => {
-  let cls = insertCss({
+  let cls = A.insertCss({
     '&': 'margin:5',
     ".x .y": 'font-weight:bold',
     "&:before": 'content: "BEFORE";',
@@ -27,7 +27,7 @@ test('Complex selectors', async () => {
 });
 
 test('Global style', async () => {
-  insertGlobalCss({
+  A.insertGlobalCss({
     '*': 'margin:4',
     'h1': 'color:red',
   });
@@ -39,7 +39,7 @@ test('Global style', async () => {
 })
 
 test('Nested selectors with object values', async () => {
-  let cls = insertCss({
+  let cls = A.insertCss({
     '&': 'display:flex',
     'button': {
       '&': 'bg:blue p:$2',
@@ -57,7 +57,7 @@ test('Nested selectors with object values', async () => {
 });
 
 test('Media query with object containing multiple selectors', async () => {
-  let cls = insertCss({
+  let cls = A.insertCss({
     '&': 'display:flex',
     '@media (max-width: 600px)': {
       '&': 'flex-direction:column',
@@ -77,7 +77,7 @@ test('Media query with object containing multiple selectors', async () => {
 });
 
 test('Media query with string value', async () => {
-  let cls = insertCss({
+  let cls = A.insertCss({
     '&': 'color:black',
     '@media (prefers-color-scheme: dark)': 'color:white',
   });
@@ -91,7 +91,7 @@ test('Media query with string value', async () => {
 });
 
 test('Media queries nested deeply get bubbled to outside', async () => {
-  let cls = insertCss({
+  let cls = A.insertCss({
     '&': 'display:grid',
     'main': {
       '&': 'padding:$4',
@@ -117,7 +117,7 @@ test('Media queries nested deeply get bubbled to outside', async () => {
 });
 
 test('Quoted values (e.g., content property)', async () => {
-  let cls = insertCss({
+  let cls = A.insertCss({
     '&::before': `content: "★"; color:gold mr:$1`,
     '&::after': `content: "\\00A0"; display:inline-block`,
   });
@@ -129,7 +129,7 @@ test('Quoted values (e.g., content property)', async () => {
 });
 
 test('Multi-word values with space-colon-semicolon syntax', async () => {
-  let cls = insertCss({
+  let cls = A.insertCss({
     '&': `border: 1px solid blue; transition: all 0.3s ease;`,
   });
   await passTime();
@@ -139,7 +139,7 @@ test('Multi-word values with space-colon-semicolon syntax', async () => {
 });
 
 test('Grid template areas with multiple quoted strings', async () => {
-  let cls = insertCss({
+  let cls = A.insertCss({
     '&': `grid-template-areas: "header header" "sidebar content" "footer footer";`,
   });
   await passTime();
@@ -149,7 +149,7 @@ test('Grid template areas with multiple quoted strings', async () => {
 });
 
 test('Handles unions combined with further nested selectors', async () => {
-  let cls = insertCss({
+  let cls = A.insertCss({
     'button, a.link': {
       '&': 'color:blue',
       '&:hover, &.active': 'color:darkblue'

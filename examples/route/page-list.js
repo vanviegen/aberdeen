@@ -1,4 +1,4 @@
-import {$, ref} from '../../dist/aberdeen.js';
+import A from '../../dist/aberdeen.js';
 import * as route from "../../dist/route.js";
 
 console.log(route);
@@ -6,15 +6,15 @@ console.log(route);
 const words = ['butterfly', 'orchestra', 'whisper', 'mountain', 'zebra', 'chocolate', 'umbrella', 'lighthouse', 'rainbow', 'dragon', 'bicycle', 'galaxy', 'penguin', 'tornado', 'waterfall', 'cinnamon', 'compass', 'firefly', 'carousel', 'telescope'];
 
 export default function() {
-    $('input', {bind: ref(route.current.search, 'filter'), placeholder: 'Filter'});
+    A('input', {bind: A.ref(route.current.search, 'filter'), placeholder: 'Filter'});
 
-    $('div.columns', () => {
+    A('div.columns', () => {
 
         // The list of words
-        $('nav.vertical', () => {
+        A('nav.vertical', () => {
             for(let word of words) {
-                $('button', {text: word, click: () => route.p[1] = word}, () => {
-                    $({
+                A('button', {text: word, click: () => route.p[1] = word}, () => {
+                    A({
                         '.active': route.current.p[1] === word,
                         $display: word.indexOf(route.current.search.filter || '') >= 0 ? '' : 'none'
                     })
@@ -23,7 +23,7 @@ export default function() {
         })
         
         // The detail view for the selected word
-        $('section', () => {
+        A('section', () => {
             const word = route.current.p[1]
             if (!word) return
             if (words.indexOf(word) < 0) {
@@ -31,8 +31,8 @@ export default function() {
                 route.back(route.current.p.slice(0,1));
                 return
             }
-            $('h2', {text: word})
-            $('p', {text: `This word has ${word.length} letters.`})
+            A('h2', {text: word})
+            A('p', {text: `This word has ${word.length} letters.`})
         })
     })
 }

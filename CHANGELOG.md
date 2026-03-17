@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.10.0 (2026-03-17)
+
+**New features:**
+- Added a default export `A`, which is the main DOM-building function (previously `$`) with all other Aberdeen functions attached as properties (e.g. `A.proxy`, `A.onEach`). All existing named exports (`$`, `proxy`, `onEach`, etc.) remain available, so this is a fully backwards-compatible addition. The recommended import style going forward is `import A from 'aberdeen'`.
+
 ### 1.9.0 (2026-02-09)
 
 **Enhancements:**

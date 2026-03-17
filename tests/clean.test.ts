@@ -1,15 +1,15 @@
 import { expect, test } from "bun:test";
-import { $, proxy, clean, unmountAll } from "../src/aberdeen";
+import A from "../src/aberdeen";
 import { assertBody, passTime } from './helpers';
 
 test('Clean triggers once when redrawing', async () => {
   let cnt1 = 0, cnt2 = 0;
-  let data = proxy(1);
+  let data = A.proxy(1);
   
-  $(() => {
+  A(() => {
     cnt1++;
-    $({text: data.value});
-    clean(() => {
+    A({text: data.value});
+    A.clean(() => {
       cnt2++;
     });
   });
@@ -25,7 +25,7 @@ test('Clean triggers once when redrawing', async () => {
   expect(cnt1).toEqual(2);
   expect(cnt2).toEqual(1);
   
-  unmountAll();
+  A.unmountAll();
   expect(cnt1).toEqual(2);
   expect(cnt2).toEqual(2);
 });

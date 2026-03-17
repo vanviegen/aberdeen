@@ -1,36 +1,36 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, assertDomUpdates, assertThrow } from "./helpers";
-import { $, proxy, unproxy, copy, dump, mount, unmountAll, merge } from "../src/aberdeen";
+import A from "../src/aberdeen";
 
 test('adds nodes', async () => {
-  $('p');
+  A('p');
   await passTime();
   assertBody(`p`);
 });
 
 test('adds classes', async () => {
-  $('p.a.b');
+  A('p.a.b');
   await passTime();
   assertBody(`p.a.b`);
 });
 
 test('sets attributes', async () => {
-  $('div', {class: 'C', text: "T"}, {id: 'I', index: 1});
+  A('div', {class: 'C', text: "T"}, {id: 'I', index: 1});
   await passTime();
   assertBody(`div.C{id=I index=1 "T"}`);
 });
 
 test('sets properties', async () => {
-  $('p.C', {class: 'C', value: 3});
+  A('p.C', {class: 'C', value: 3});
   await passTime();
   assertBody(`p.C{value->3}`);
 });
 
 test('nests elements', async () => {
-  $('p', () => {
-    $('a', () => {
-      $('i', () => {
-        $({text: 'contents'});
+  A('p', () => {
+    A('a', () => {
+      A('i', () => {
+        A({text: 'contents'});
       });
     });
   });
@@ -39,8 +39,8 @@ test('nests elements', async () => {
 });
 
 test('sets properties from the inner scope', async () => {
-  $('a', () => {
-    $({
+  A('a', () => {
+    A({
       href: '/',
       target: '_blank',
       disabled: true,
@@ -51,32 +51,32 @@ test('sets properties from the inner scope', async () => {
 });
 
 test('sets style objects', () => {
-  $('a', {style: 'color: red;'});
-  $('b', {$color: 'green'});
-  $('c', () => {
-    $({$color: 'orange'});
+  A('a', {style: 'color: red;'});
+  A('b', {$color: 'green'});
+  A('c', () => {
+    A({$color: 'orange'});
   });
-  $('d', () => {
-    $({$color: 'purple'});
+  A('d', () => {
+    A({$color: 'purple'});
   });
-  $('e', () => {
-    $({style: 'color: magento;'});
+  A('e', () => {
+    A({style: 'color: magento;'});
   });
-  $('f', () => {
-    $({style: 'color: cyan;'});
+  A('f', () => {
+    A({style: 'color: cyan;'});
   });
   assertBody(`a{style="color: red;"} b{color:green} c{color:orange} d{color:purple} e{style="color: magento;"} f{style="color: cyan;"}`);
 });
 
 test('unmounts', async () => {
-  let proxied = proxy('Hej world');
+  let proxied = A.proxy('Hej world');
   let cnt = 0;
-  mount(document.body, () => {
+  A.mount(document.body, () => {
     cnt++;
-    $('p#' + proxied.value);
+    A('p#' + proxied.value);
   });
   assertBody(`p{"Hej world"}`);
-  unmountAll();
+  A.unmountAll();
   assertBody(``);
   proxied.value = 'Updated';
   await passTime();
@@ -84,7 +84,7 @@ test('unmounts', async () => {
 });
 
 test('creates text nodes', async () => {
-  let index = proxy(0);
+  let index = A.proxy(0);
   let cases = [
     ['test', `"test"`],
     ['', `""`],
@@ -93,13 +93,13 @@ test('creates text nodes', async () => {
     [undefined, ``],
     [false, `"false"`],
   ];
-  mount(document.body, () => {
-    $({text: cases[index.value][0]});
+  A.mount(document.body, () => {
+    A({text: cases[index.value][0]});
   });
   while(true) {
     await passTime();
-    assertBody('' + cases[unproxy(index).value][1]);
-    if (unproxy(index).value >= cases.length-1) {
+    assertBody('' + cases[A.unproxy(index).value][1]);
+    if (A.unproxy(index).value >= cases.length-1) {
       break;
     }
     index.value += 1;
@@ -107,60 +107,60 @@ test('creates text nodes', async () => {
 });
 
 test('adds preexisting elements to the DOM', () => {
-  mount(document.body, () => {
+  A.mount(document.body, () => {
     let el = document.createElement('video');
     el.classList.add("test");
     el.appendChild(document.createElement('source'));
     let txt = document.createTextNode('txt');
-    $('p', el, txt, 'source.b');
-    $(null); // should be ignored
+    A('p', el, txt, 'source.b');
+    A(null); // should be ignored
   });
   assertBody(`p{video.test{source "txt" source.b}}`);
 });
 
 test('handles nontypical options well', () => {
   let cases: Array<[string,()=>void]> = [
-    [`div`, () => $("div")],
-    [`div`, () => $("div.")],
-    [`div.a.b.c`, () => $("div.a.b.c")],
-    [`"1234"`, () => $(undefined, {text:1234})],
-    [`_!@*{"first" "1234" "last"}`, () => $("_!@*", null, undefined, {}, {text: "first"}, {text: 1234}, {text: "last"})],
+    [`div`, () => A("div")],
+    [`div`, () => A("div.")],
+    [`div.a.b.c`, () => A("div.a.b.c")],
+    [`"1234"`, () => A(undefined, {text:1234})],
+    [`_!@*{"first" "1234" "last"}`, () => A("_!@*", null, undefined, {}, {text: "first"}, {text: 1234}, {text: "last"})],
   ];
   for(let c of cases) {
-    mount(document.body, () => {
+    A.mount(document.body, () => {
       c[1]();
     });
     assertBody(c[0]);
-    unmountAll();
+    A.unmountAll();
   }
-  mount(document.body, () => {
-    assertThrow("Unexpected argument", () => $("span", [] as any));
-    assertThrow("Unexpected argument", () => $("span", new Error() as any));
-    assertThrow("Unexpected argument", () => $("span", true as any));
+  A.mount(document.body, () => {
+    assertThrow("Unexpected argument", () => A("span", [] as any));
+    assertThrow("Unexpected argument", () => A("span", new Error() as any));
+    assertThrow("Unexpected argument", () => A("span", true as any));
   });
 });
 
 test('dumps all basic values', () => {
-  let data = proxy([true, false, null, undefined, -12, 3.14, "test", '"quote"']);
-  mount(document.body, () => dump(data));
+  let data = A.proxy([true, false, null, undefined, -12, 3.14, "test", '"quote"']);
+  A.mount(document.body, () => A.dump(data));
   assertBody(`"<array>" ul{li{"0: " "true"} li{"1: " "false"} li{"2: " "null"} li{"3: "} li{"4: " "-12"} li{"5: " "3.14"} li{"6: " "\\"test\\""} li{"7: " "\\"\\\\\\"quote\\\\\\"\\""}}`);
 });
 
 test('dumps objects and arrays', async () => {
-  let data = proxy({3: 4, a: 'b', d: [4, undefined, 'b']} as any);
-  mount(document.body, () => dump(data));
+  let data = A.proxy({3: 4, a: 'b', d: [4, undefined, 'b']} as any);
+  A.mount(document.body, () => A.dump(data));
   assertBody(`"<object>" ul{li{"\\"3\\": " "4"} li{"\\"a\\": " "\\"b\\""} li{"\\"d\\": " "<array>" ul{li{"0: " "4"} li{"1: "} li{"2: " "\\"b\\""}}}}`);
 });
 
 test('adds html', async () => {
-  let data = proxy('test' as string|number);
-  mount(document.body, () => {
-    $('main', () => {
-      $('hr');
-      $(() => {
-        $({html: data.value});
+  let data = A.proxy('test' as string|number);
+  A.mount(document.body, () => {
+    A('main', () => {
+      A('hr');
+      A(() => {
+        A({html: data.value});
       });
-      $('img');
+      A('img');
     });
   });
   assertBody(`main{hr fake-emulated-html{"test"} img}`);
@@ -173,23 +173,23 @@ test('adds html', async () => {
 });
 
 test('renders rich text with markdown-like syntax', async () => {
-  mount(document.body, () => {
-    $('p rich="This is *italic* and **bold** and `some code` here."');
+  A.mount(document.body, () => {
+    A('p rich="This is *italic* and **bold** and `some code` here."');
   });
   assertBody(`p{"This is " em{"italic"} " and " strong{"bold"} " and " code{"some code"} " here."}`);
 });
 
 test('renders rich text with links', async () => {
-  mount(document.body, () => {
-    $('p rich="Click [here](/path) for more."');
+  A.mount(document.body, () => {
+    A('p rich="Click [here](/path) for more."');
   });
   assertBody(`p{"Click " a{href->/path "here"} " for more."}`);
 });
 
 test('renders rich text reactively', async () => {
-  let data = proxy('plain text');
-  mount(document.body, () => {
-    $('p rich=', data);
+  let data = A.proxy('plain text');
+  A.mount(document.body, () => {
+    A('p rich=', data);
   });
   assertBody(`p{"plain text"}`);
   data.value = 'now with *emphasis*';
@@ -198,19 +198,19 @@ test('renders rich text reactively', async () => {
 });
 
 test('renders rich text with plain text only', async () => {
-  mount(document.body, () => {
-    $('p rich="No special formatting here"');
+  A.mount(document.body, () => {
+    A('p rich="No special formatting here"');
   });
   assertBody(`p{"No special formatting here"}`);
 });
 
 test('only unlinks the top parent of the tree being removed', async () => {
-  let data = proxy(true);
-  mount(document.body, () => {
-    if (data.value) $('main', () => {
-      $('a');
-      $('b');
-      $('c');
+  let data = A.proxy(true);
+  A.mount(document.body, () => {
+    if (data.value) A('main', () => {
+      A('a');
+      A('b');
+      A('c');
     });
   });
   assertBody(`main{a b c}`);
@@ -222,29 +222,29 @@ test('only unlinks the top parent of the tree being removed', async () => {
 });
 
 test('merges objects collapsing changes', async () => {
-  const data = proxy({a: 1, b: 2, c: 3} as Record<string,number>);
+  const data = A.proxy({a: 1, b: 2, c: 3} as Record<string,number>);
   let cnt = 0;
   
-  mount(document.body, () => {
+  A.mount(document.body, () => {
     cnt++;
-    $({text: data.a + data.a + data.b});
+    A({text: data.a + data.a + data.b});
   });
   
   assertBody(`"4"`);
   
-  copy(data, {a: 3, b: 4});
+  A.copy(data, {a: 3, b: 4});
   await passTime();
   assertBody(`"10"`);
   expect(cnt).toEqual(2);
   
-  merge(data, {c: 4});
+  A.merge(data, {c: 4});
   expect(cnt).toEqual(2);
 });
 
 test('text in content function comes after argument text', async () => {
-  $('p#abc', '#def', () => {
-    $('#ghi');
-    $('#jkl')
+  A('p#abc', '#def', () => {
+    A('#ghi');
+    A('#jkl')
   })
   assertBody(`p{"abc" "def" "ghi" "jkl"}`);
 });

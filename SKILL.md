@@ -7,8 +7,8 @@ Aberdeen is a reactive UI library using fine-grained reactivity via JavaScript P
 
 # Guidance for AI Assistants
 
-1. **Use string syntax by default** - `$('div.box#Hello')` is more concise than object syntax
-2. **Never concatenate user data** - Use `$('input value=', data)` not `$('input value=${data}')`
+1. **Use string syntax by default** - `A('div.box#Hello')` is more concise than object syntax
+2. **Never concatenate user data** - Use `A('input value=', data)` not `A('input value=${data}')`
 3. **Pass observables directly** - Use `text=', ref(obj, 'key')` to avoid parent scope subscriptions
 4. **Use `onEach` for lists** - Never iterate proxy arrays with `for`/`map` in render functions
 5. **Class instances are great** - Better than plain objects for typed, structured state

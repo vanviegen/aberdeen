@@ -1,19 +1,19 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, assertDomUpdates, getBody } from "./helpers";
-import { $, proxy, copy, onEach } from "../src/aberdeen";
+import A from "../src/aberdeen";
 import { grow } from "../src/transitions";
 
 test('Create event does not apply on initial rendering', () => {
-    const data = proxy(true);
-    $('b', {create: 'y'});
+    const data = A.proxy(true);
+    A('b', {create: 'y'});
     
     assertBody(`b`);
 });
 
 test('Create event works at top-level', async () => {
-    const data = proxy(false);
-    $(() => {
-        if (data.value) $('b', {create: 'y'});
+    const data = A.proxy(false);
+    A(() => {
+        if (data.value) A('b', {create: 'y'});
     });
     
     assertBody(``);
@@ -30,9 +30,9 @@ test('Create event works at top-level', async () => {
 });
 
 test('Create event does not apply when it is part of a larger whole newly rendered', async () => {
-    const data = proxy(false);
-    $(() => {
-        if (data.value) $('b', () => $('c', {create: 'y'}));
+    const data = A.proxy(false);
+    A(() => {
+        if (data.value) A('b', () => A('c', {create: 'y'}));
     });
     
     assertBody(``);
@@ -46,15 +46,15 @@ test('Create event does not apply when it is part of a larger whole newly render
     assertBody(`b{c}`);
 });
 
-test('Create event works in an onEach', async () => {
-    const data = proxy([] as string[]);
-    $(() => {
-        onEach(data, (item) => {
-            $(item, {create: "y"});
+test('Create event works in an A.onEach', async () => {
+    const data = A.proxy([] as string[]);
+    A(() => {
+        A.onEach(data, (item) => {
+            A(item, {create: "y"});
         });
     });
     
-    copy(data, ['a', 'c']);
+    A.copy(data, ['a', 'c']);
     await passTime(0);
     // We don't have a good way to know if the class has been set and immediately
     // removed, so we'll just look at the number of changes, which would have
@@ -65,10 +65,10 @@ test('Create event works in an onEach', async () => {
 });
 
 test('Create event performs a grow animation', async() => {
-    const data = proxy(false);
-    $(() => {
-        $('div', {$display: 'flex'}, () => {
-            if (data.value) $('a', {create: grow});
+    const data = A.proxy(false);
+    A(() => {
+        A('div', {$display: 'flex'}, () => {
+            if (data.value) A('a', {create: grow});
         });
     });
     assertBody(`div{display:flex}`);
@@ -82,10 +82,10 @@ test('Create event performs a grow animation', async() => {
 });
 
 test('Create event aborts a grow animation', async () => {
-    const data = proxy(false);
-    $(() => {
+    const data = A.proxy(false);
+    A(() => {
         if (data.value) {
-            $('a', {create: 'grow'});
+            A('a', {create: 'grow'});
             data.value = false;
         }
     });

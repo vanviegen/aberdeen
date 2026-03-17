@@ -1,20 +1,20 @@
 import { expect, test } from "bun:test";
-import { $, count, isEmpty, map, multiMap, onEach, partition, proxy, unmountAll, derive } from "../src/aberdeen";
+import A from "../src/aberdeen";
 import { assertBody, passTime } from "./helpers";
 
-test('map transforms arrays to arrays', async () => {
-    let data = proxy([0, 2, 3]);
+test('A.map transforms arrays to arrays', async () => {
+    let data = A.proxy([0, 2, 3]);
     let cnt1 = 0, cnt2 = 0;
     
-    let out = map(data, value => {
+    let out = A.map(data, value => {
         cnt1++;
         if (value) return value * 10;
         return undefined;
     });
     
-    onEach(out, (value, index) => {
+    A.onEach(out, (value, index) => {
         cnt2++;
-        $({text: index + "=" + value});
+        A({text: index + "=" + value});
     }, value => value);
     
     assertBody(`"1=20" "2=30"`);
@@ -30,18 +30,18 @@ test('map transforms arrays to arrays', async () => {
     expect(cnt2).toEqual(3);
 });
 
-test('map transforms objects to objects', async () => {
-    let data = proxy({a: 1, b: 2, c: 3} as Record<string,number>);
+test('A.map transforms objects to objects', async () => {
+    let data = A.proxy({a: 1, b: 2, c: 3} as Record<string,number>);
     let cnt1 = 0, cnt2 = 0;
     
-    let out = map(data, value => {
+    let out = A.map(data, value => {
         cnt1++;
         return value===2 ? undefined : value*value;
     });
     
-    onEach(out, (value, index) => {
+    A.onEach(out, (value, index) => {
         cnt2++;
-        $({text: index.toString() + "=" + value});
+        A({text: index.toString() + "=" + value});
     }, value => -value);
     
     assertBody(`"c=9" "a=1"`);
@@ -51,18 +51,18 @@ test('map transforms objects to objects', async () => {
     assertBody(`"x=81" "c=9" "a=1"`);
 });
 
-test('multiMap transforms arrays to objects', async () => {
-    let data = proxy(['a', 'b']);
+test('A.multiMap transforms arrays to objects', async () => {
+    let data = A.proxy(['a', 'b']);
     let cnt1 = 0, cnt2 = 0;
     
-    let out = multiMap(data, (value, index) => {
+    let out = A.multiMap(data, (value, index) => {
         cnt1++;
         return {[value]: index*10, [value+value]: index*10+1};
     });
     
-    onEach(out, (value, key) => {
+    A.onEach(out, (value, key) => {
         cnt2++;
-        $({text: key + '=' + value});
+        A({text: key + '=' + value});
     }, (value, key) => -value);
     
     expect(out).toEqual({a: 0, aa: 1, b: 10, bb: 11});
@@ -81,11 +81,11 @@ test('multiMap transforms arrays to objects', async () => {
     expect(cnt2).toEqual(8);
 });
 
-test('multiMap transforms objects to objects', async () => {
-    let data = proxy({a: 23, e: 123} as Record<string,number>);
+test('A.multiMap transforms objects to objects', async () => {
+    let data = A.proxy({a: 23, e: 123} as Record<string,number>);
     let cnt1 = 0;
     
-    let out = multiMap(data, (value: number, index) => {
+    let out = A.multiMap(data, (value: number, index) => {
         cnt1++;
         return {[value]: index};
     });
@@ -101,11 +101,11 @@ test('multiMap transforms objects to objects', async () => {
     expect(cnt1).toEqual(3);
 });
 
-test('creates derived values with map', async () => {
-    const data = proxy({value: 21} as Record<string,number>);
+test('creates derived values with A.map', async () => {
+    const data = A.proxy({value: 21} as Record<string,number>);
     // This is not really a best practice, as this creates a relatively slow iterator.
     // Use $, as shown in the next test, instead.
-    const double = map(data, v => v * 2);
+    const double = A.map(data, v => v * 2);
     
     expect(double.value).toEqual(42);
     
@@ -115,8 +115,8 @@ test('creates derived values with map', async () => {
 });
 
 test('can create reactive computations with the $ function', async () => {
-    const data = proxy(21);
-    const double = derive(() => data.value * 2);
+    const data = A.proxy(21);
+    const double = A.derive(() => data.value * 2);
     
     expect(double.value).toEqual(42);
     
@@ -125,12 +125,12 @@ test('can create reactive computations with the $ function', async () => {
     expect(double.value).toEqual(200);
 });
 
-test('isEmpty works on arrays', async () => {
-    let data = proxy([] as number[]);
+test('A.isEmpty works on arrays', async () => {
+    let data = A.proxy([] as number[]);
     let cnt = 0;
-    $(() => {
+    A(() => {
         cnt++;
-        $(isEmpty(data,) ? "#empty" : "#not empty");
+        A(A.isEmpty(data,) ? "#empty" : "#not empty");
     })
     assertBody(`"empty"`);
     expect(cnt).toBe(1);
@@ -160,20 +160,20 @@ test('isEmpty works on arrays', async () => {
     assertBody(`"not empty"`);
     expect(cnt).toBe(4);
     
-    unmountAll();
-    $(() => { // test initial value for isEmpty
-        $(isEmpty(data,) ? "#empty2" : "#not empty2");
+    A.unmountAll();
+    A(() => { // test initial value for A.isEmpty
+        A(A.isEmpty(data,) ? "#empty2" : "#not empty2");
     })
     assertBody(`"not empty2"`);
 })
 
 
-test('isEmpty works on objects', async () => {
-    let data = proxy({} as Record<string,number|undefined>);
+test('A.isEmpty works on objects', async () => {
+    let data = A.proxy({} as Record<string,number|undefined>);
     let cnt = 0;
-    $(() => {
+    A(() => {
         cnt++;
-        $(isEmpty(data,) ? "#empty" : "#not empty");
+        A(A.isEmpty(data,) ? "#empty" : "#not empty");
     })
     assertBody(`"empty"`);
     expect(cnt).toBe(1);
@@ -199,21 +199,21 @@ test('isEmpty works on objects', async () => {
     assertBody(`"empty"`);
     expect(cnt).toBe(5);
 
-    unmountAll();
+    A.unmountAll();
     
     data.x = 1;
-    $(() => { // test initial value for isEmpty
-        $(isEmpty(data,) ? "#empty2" : "#not empty2");
+    A(() => { // test initial value for A.isEmpty
+        A(A.isEmpty(data,) ? "#empty2" : "#not empty2");
     })
     assertBody(`"not empty2"`);
 })
 
-test('isEmpty does not fire events when array state is changed back immediately', async () => {
-    let data = proxy([] as number[]);
+test('A.isEmpty does not fire events when array state is changed back immediately', async () => {
+    let data = A.proxy([] as number[]);
     let cnt = 0;
-    $(() => {
+    A(() => {
         cnt++;
-        $(isEmpty(data,) ? "#empty" : "#not empty");
+        A(A.isEmpty(data,) ? "#empty" : "#not empty");
     })
     assertBody(`"empty"`);
     expect(cnt).toBe(1);
@@ -236,12 +236,12 @@ test('isEmpty does not fire events when array state is changed back immediately'
     expect(cnt).toBe(2); // not triggered
 });
 
-test('isEmpty does not fire events when object state is changed back immediately', async () => {
-    let data = proxy({} as Record<string,number|undefined>);
+test('A.isEmpty does not fire events when object state is changed back immediately', async () => {
+    let data = A.proxy({} as Record<string,number|undefined>);
     let cnt = 0;
-    $(() => {
+    A(() => {
         cnt++;
-        $(isEmpty(data) ? "#empty" : "#not empty");
+        A(A.isEmpty(data) ? "#empty" : "#not empty");
     })
     assertBody(`"empty"`);
     expect(cnt).toBe(1);
@@ -264,11 +264,11 @@ test('isEmpty does not fire events when object state is changed back immediately
     expect(cnt).toBe(2); // not triggered
 });
 
-test('count works on array', async() => {
-    const data = proxy([2, 4]);
-    const cnt = count(data);
+test('A.count works on array', async() => {
+    const data = A.proxy([2, 4]);
+    const cnt = A.count(data);
     
-    $('div', {text: cnt});
+    A('div', {text: cnt});
     assertBody(`div{"2"}`);
     
     data.push(9);
@@ -284,11 +284,11 @@ test('count works on array', async() => {
     assertBody(`div{"2"}`);
 })
 
-test('count works on objects', async() => {
-    const data = proxy({x: 3, y: 7} as Record<string,number|undefined>);
-    const cnt = count(data);
+test('A.count works on objects', async() => {
+    const data = A.proxy({x: 3, y: 7} as Record<string,number|undefined>);
+    const cnt = A.count(data);
     
-    $('div', {text: cnt});
+    A('div', {text: cnt});
     assertBody(`div{"2"}`);
     
     data.z = 9;
@@ -308,16 +308,16 @@ test('count works on objects', async() => {
     assertBody(`div{"1"}`);
 })
 
-test('partition partitions array items into single buckets', async () => {
-    const source = proxy([
+test('A.partition partitions array items into single buckets', async () => {
+    const source = A.proxy([
         { id: 101, type: 'A', tags: ['x'] },
         { id: 102, type: 'B', tags: ['y'] },
         { id: 103, type: 'A', tags: ['x', 'y'] },
     ]);
-    const partKey = proxy('type') as {value: 'type' | 'tags'};
+    const partKey = A.proxy('type') as {value: 'type' | 'tags'};
     let partitionFuncCalls = 0;
     
-    const partitioned = partition(source, (item, _index) => {
+    const partitioned = A.partition(source, (item, _index) => {
         partitionFuncCalls++;
         return item[partKey.value];
     });
@@ -327,10 +327,10 @@ test('partition partitions array items into single buckets', async () => {
         B: { 1: { id: 102, type: 'B', tags: ['y'] } },
     });
     
-    onEach(partitioned, (bucket, bucketKey) => {
-        $(`p.${bucketKey}`, () => {
-            onEach(bucket, (item, originalIndex) => {
-                $(`#id=${item.id} index=${originalIndex}`);
+    A.onEach(partitioned, (bucket, bucketKey) => {
+        A(`p.${bucketKey}`, () => {
+            A.onEach(bucket, (item, originalIndex) => {
+                A(`#id=${item.id} index=${originalIndex}`);
             });
         });
     });
@@ -362,12 +362,12 @@ test('partition partitions array items into single buckets', async () => {
     expect(partitionFuncCalls).toBe(9); // No extra function invocations
 });
 
-test('count mapped values', async () => {
+test('A.count mapped values', async () => {
     // Create some random data
-    const people: Record<number,{weight: number, height: number}> = proxy({});
+    const people: Record<number,{weight: number, height: number}> = A.proxy({});
 
-    const bmis = map(people, person => person.weight / ((person.height/100) ** 2));
-    const overweightCount = count(bmis);
+    const bmis = A.map(people, person => person.weight / ((person.height/100) ** 2));
+    const overweightCount = A.count(bmis);
 
     await passTime();
     

@@ -359,7 +359,7 @@ addEventListener('DOMContentLoaded', () => {
         });
         if (js === orgJs) {
             // No imports have been done, do our default input
-            js = `import {$,clean,clone,copy,count,derive,dump,insertCss,insertGlobalCss,invertString,isEmpty,map,merge,mount,multiMap,onEach,partition,peek,proxy,ref,runQueue,setErrorHandler,unmountAll,unproxy} from "${absBase}assets/aberdeen/aberdeen.js";\n\n` + js;
+            js = `import A from "${absBase}assets/aberdeen/aberdeen.js";\n\n` + js;
         }
         
         // Create edit button
@@ -475,7 +475,7 @@ addEventListener('DOMContentLoaded', () => {
             tabs[name] = {select, tabE};
         }
         
-        let hasLayout = !!js.match(/\$\(\s*['"`]|\b(dump|insertCss|insertGlobalCss)\(/);
+        let hasLayout = !!js.match(/\bA\(\s*['"`]|\b(dump|insertCss|insertGlobalCss)\(/);
         let hasInteraction = !!js.match(/\bbind[=:]|\bclick[=:]|\binput[=:]|\bsetInterval\b|\bsetTimeout\b/);
         tabs[hasLayout ? (hasInteraction ? 'Browser' : 'HTML') : 'Console'].select();
         

@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, assertThrow } from "./helpers";
-import { $, proxy, mount, merge } from "../src/aberdeen";
+import A from "../src/aberdeen";
 import { applyPrediction, applyCanon } from "../src/prediction";
 
 test('Prediction reverts', async () => {
-    let data = proxy('a');
-    $(() => {
-        $(data.value);
+    let data = A.proxy('a');
+    A(() => {
+        A(data.value);
     });
     assertBody(`a`);
     
@@ -25,16 +25,16 @@ test('Prediction reverts', async () => {
 });
 
 test('Prediction reverts entire patch when it can no longer apply', async () => {
-    let data = proxy({1: 'a', 2: 'x', 3: 'm'} as Record<number,string>);
-    $(() => {
-        $(data[1]);
-        $(data[2]);
-        $(data[3]);
+    let data = A.proxy({1: 'a', 2: 'x', 3: 'm'} as Record<number,string>);
+    A(() => {
+        A(data[1]);
+        A(data[2]);
+        A(data[3]);
     });
     assertBody(`a x m`);
     
     // This prediction should be flushed out due to conflict
-    applyPrediction(() => merge(data, {1: 'b', 2: 'y'}));
+    applyPrediction(() => A.merge(data, {1: 'b', 2: 'y'}));
     await passTime();
     assertBody(`b y m`);
     
@@ -56,9 +56,9 @@ test('Prediction reverts entire patch when it can no longer apply', async () => 
 });
 
 test('Prediction forcibly reverts to canon state', async () => {
-    let data = proxy('a');
-    $(() => {
-        $(data.value);
+    let data = A.proxy('a');
+    A(() => {
+        A(data.value);
     });
     assertBody(`a`);
     
@@ -77,10 +77,10 @@ test('Prediction forcibly reverts to canon state', async () => {
 });
 
 test('Prediction does not cause redraw when it comes true', async () => {
-    let data = proxy('a');
+    let data = A.proxy('a');
     let draws = 0;
-    mount(document.body, () => {
-        $(data.value);
+    A.mount(document.body, () => {
+        A(data.value);
         draws++;
     });
     assertBody(`a`);
@@ -98,11 +98,11 @@ test('Prediction does not cause redraw when it comes true', async () => {
 });
 
 test('Prediction handles property deletion', async () => {
-    let data = proxy({a: 1, b: 2} as Record<string, number | undefined>);
-    $(() => {
-        $(''+data.a);
-        $(' ');
-        $(''+data.b);
+    let data = A.proxy({a: 1, b: 2} as Record<string, number | undefined>);
+    A(() => {
+        A(''+data.a);
+        A(' ');
+        A(''+data.b);
     });
     assertBody(`1 2`);
     
@@ -118,11 +118,11 @@ test('Prediction handles property deletion', async () => {
 });
 
 test('Prediction works with Map collections', async () => {
-    let data = proxy(new Map([['a', 1], ['b', 2]]));
-    $(() => {
-        $(''+data.get('a'));
-        $(' ');
-        $(''+data.get('b'));
+    let data = A.proxy(new Map([['a', 1], ['b', 2]]));
+    A(() => {
+        A(''+data.get('a'));
+        A(' ');
+        A(''+data.get('b'));
     });
     assertBody(`1 2`);
     
@@ -138,11 +138,11 @@ test('Prediction works with Map collections', async () => {
 });
 
 test('Prediction handles Map key deletion', async () => {
-    let data = proxy(new Map([['a', 1], ['b', 2]]));
-    $(() => {
-        $(''+data.get('a'));
-        $(' ');
-        $(''+data.get('b'));
+    let data = A.proxy(new Map([['a', 1], ['b', 2]]));
+    A(() => {
+        A(''+data.get('a'));
+        A(' ');
+        A(''+data.get('b'));
     });
     assertBody(`1 2`);
     

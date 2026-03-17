@@ -1,24 +1,24 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime } from "./helpers";
-import { $, proxy, mount, merge } from "../src/aberdeen";
+import A from "../src/aberdeen";
 
 test('Sets and unsets classes', async () => {
     let cnt1 = 0, cnt2 = 0, cnt3 = 0;
-    let classObj = proxy({".a": false, ".b": true, ".c": undefined} as any);
-    mount(document.body, () => {
+    let classObj = A.proxy({".a": false, ".b": true, ".c": undefined} as any);
+    A.mount(document.body, () => {
         cnt1++;
-        $('div', () => {
+        A('div', () => {
             cnt2++;
-            $(() => {
+            A(() => {
                 cnt3++;
-                $(classObj);
+                A(classObj);
             });
         });
     });
     await passTime();
     assertBody(`div.b`);
     
-    merge(classObj, {".a": true, ".d": true});
+    A.merge(classObj, {".a": true, ".d": true});
     await passTime();
     assertBody(`div.a.b.d`);
     
@@ -31,14 +31,14 @@ test('Sets and unsets classes', async () => {
 });
 
 test('Defines and removes event listeners', async () => {
-    let data = proxy(true);
+    let data = A.proxy(true);
     let el;
     let myFunc = () => {};
     
-    mount(document.body, () => {
-        $('div', () => {
-            el = $();
-            if (data.value) $({click: myFunc});
+    A.mount(document.body, () => {
+        A('div', () => {
+            el = A();
+            if (data.value) A({click: myFunc});
         });
     });
     
@@ -51,12 +51,12 @@ test('Defines and removes event listeners', async () => {
 });
 
 test('Styles elements', async () => {
-    const colorData = proxy('blue');
+    const colorData = A.proxy('blue');
     let count = 0;
     
-    mount(document.body, () => {
+    A.mount(document.body, () => {
         count++;
-        $('div', {
+        A('div', {
             $margin: 10+'px',
             $padding: null, // ignore
             $border: false, // ignore as well

@@ -1,8 +1,8 @@
-import { $, proxy, ref } from '../../dist/aberdeen.js';
+import A from '../../dist/aberdeen.js';
 import { grow, shrink } from '../../dist/transitions.js';
 
-// The `proxy` function makes the data structure observable.
-const data = proxy({
+// The `A.proxy` function makes the data structure observable.
+const data = A.proxy({
     name: 'John Doe',
     age: 23,
     gender: 'w',
@@ -13,34 +13,34 @@ const data = proxy({
 });
 
 // Add an <h2>. Unless `mount` is used, our root is the `<body>`.
-$('h2', () => {
+A('h2', () => {
     // Add a text node ('#' prefix) to h2. This anonymous function will be rerun whenever
     // `data.name` changes, first removing the earlier text node.
-    $("#", (data.name || "Nobody") + "'s biography");
+    A("#", (data.name || "Nobody") + "'s biography");
 });
 
 // We're creating a two-way binding between this input element and `data.name`.
 // As `bind` needs two-way access to our variable, just passing in a value wouldn't work.
-// The `ref()` function creates an object with just a `value` property that is proxied
+// The `A.ref()` function creates an object with just a `value` property that is proxied
 // to the given object and property.
-$('input', { bind: ref(data, 'name') });
-$('input', { type: 'number', placeholder: 'Age', bind: ref(data, 'age') });
+A('input', { bind: A.ref(data, 'name') });
+A('input', { type: 'number', placeholder: 'Age', bind: A.ref(data, 'age') });
 
-$('label', () => {
-    $('input', { type: 'checkbox', bind: ref(data, 'active') });
-    $('#Active member');
+A('label', () => {
+    A('input', { type: 'checkbox', bind: A.ref(data, 'active') });
+    A('#Active member');
 });
 
-$(() => {
+A(() => {
     // This block will rerun when any observed data is changed.
     if (data.active) {
         // Show the member id field only for active members.
-        $('input', { 
+        A('input', { 
             type: 'number', 
             placeholder: 'Member id', 
             create: grow, // Use shiny transitions to show/hide this field.
             destroy: shrink, 
-            bind: ref(data, 'member_id') 
+            bind: A.ref(data, 'member_id') 
         });
     } else {
         // When `active` has been untoggled, we want to forget the `member_id`.
@@ -48,52 +48,52 @@ $(() => {
     }
 });
 
-$('select', { bind: ref(data, 'gender') }, () => {
-    $('option#Man', { value: "m" });
-    $('option#Woman', { value: "w" });
-    $('option#Other', { value: "o" });
+A('select', { bind: A.ref(data, 'gender') }, () => {
+    A('option#Man', { value: "m" });
+    A('option#Woman', { value: "w" });
+    A('option#Other', { value: "o" });
 });
 
-$(() => {
+A(() => {
     if (data.gender === 'o') {
-        $('input', { 
+        A('input', { 
             placeholder: 'Specify gender', 
             create: grow, 
             destroy: shrink, 
-            bind: ref(data, 'gender_other') 
+            bind: A.ref(data, 'gender_other') 
         });
     } else if (data.gender_other) {
         delete data.gender_other;
     }
 });
 
-$('fieldset', () => {
-    $('legend#Vehicle')
+A('fieldset', () => {
+    A('legend#Vehicle')
     const vehicles = { plane: 'Plane', car: 'Car', bike: 'Bicycle', none: 'None' };
     for (let id in vehicles) {
-        $('label', () => {
-            $('input', { 
+        A('label', () => {
+            A('input', { 
                 type: 'radio', 
                 name: 'vehicle', 
                 value: id, 
-                bind: ref(data, 'vehicle') 
+                bind: A.ref(data, 'vehicle') 
             });
-            $("#", vehicles[id]);
+            A("#", vehicles[id]);
         });
     }
 });
 
-$('textarea', { placeholder: "Biography", bind: ref(data, 'bio') });
+A('textarea', { placeholder: "Biography", bind: A.ref(data, 'bio') });
 
-$('label', () => {
-    $('input', { type: 'color', bind: ref(data, 'color') });
-    $('#Favorite color');
+A('label', () => {
+    A('input', { type: 'color', bind: A.ref(data, 'color') });
+    A('#Favorite color');
 });
 
-$('input', { type: 'range', min: 50, max: 230, bind: ref(data, 'height') });
+A('input', { type: 'range', min: 50, max: 230, bind: A.ref(data, 'height') });
 
-$('input', { type: 'date', bind: ref(data, 'first_day') });
+A('input', { type: 'date', bind: A.ref(data, 'first_day') });
 
-$('pre', () => {
-    $({ text: JSON.stringify(data, undefined, 4) });
+A('pre', () => {
+    A({ text: JSON.stringify(data, undefined, 4) });
 });

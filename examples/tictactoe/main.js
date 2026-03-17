@@ -1,17 +1,17 @@
-import {$, proxy, onEach, insertCss, derive } from '../../dist/aberdeen.js';
+import A from '../../dist/aberdeen.js';
 
 // UI drawing functions.
 
 function drawMain() {
-    // Define our state, wrapped by an observable proxy
-    const history = proxy({
+    // Define our state, wrapped by an observable A.proxy
+    const history = A.proxy({
         boards: [[]], // eg. [[], [undefined, 'O', undefined, 'X'], ...]
         current: 0, // indicates which of the boards is currently showing
     });
 
-    $('main.row', () => {
-        $('div.box', () => drawBoard(history));
-        $('div.box', {$flex: 1}, () => {
+    A('main.row', () => {
+        A('div.box', () => drawBoard(history));
+        A('div.box', {$flex: 1}, () => {
             drawStatusMessage(history);
             drawTurns(history);
         });
@@ -19,14 +19,14 @@ function drawMain() {
 }
 
 function drawBoard(history) {
-    $('div', boardStyle, () => {
+    A('div', boardStyle, () => {
         for(let pos=0; pos<9; pos++) {
-            $('button.square', () => {
+            A('button.square', () => {
                 let marker = getBoard(history)[pos];
                 if (marker) {
-                    $({ text: marker });
+                    A({ text: marker });
                 } else {
-                    $({ click: () => markSquare(history, pos) });
+                    A({ click: () => markSquare(history, pos) });
                 }
             });
         }
@@ -34,29 +34,29 @@ function drawBoard(history) {
 }
 
 function drawStatusMessage(history) {
-    $('h4', () => {
+    A('h4', () => {
         // Reruns whenever observable data read by calculateWinner or getCurrentMarker changes
         const board = getBoard(history);
         const winner = calculateWinner(board);
         if (winner) {
-            $(`#Winner: ${winner}!`);
+            A(`#Winner: ${winner}!`);
         } else if (board.filter(square=>square).length === 9) {
-            $(`#It's a draw...`);
+            A(`#It's a draw...`);
         } else {
-            $(`#Current player: ${getCurrentMarker(board)}`);
+            A(`#Current player: ${getCurrentMarker(board)}`);
         }
     });
 }
 
 function drawTurns(history) {
-    $('div#Select a turn:')
+    A('div#Select a turn:')
     // Reactively iterate all (historic) board versions
-    onEach(history.boards, (_, index) => {
-        $('button', {
+    A.onEach(history.boards, (_, index) => {
+        A('button', {
             // A text node:
             text: index,
             // Conditional css class:
-            ".outline": derive(() => history.current != index),
+            ".outline": A.derive(() => history.current != index),
             // Inline styles:
             $marginRight: "0.5em",
             $marginTop: "0.5em",
@@ -108,7 +108,7 @@ function markSquare(history, position) {
 // Define component-local CSS, which we'll utilize in the drawBoard function.
 // Of course, you can use any other styling solution instead, if you prefer.
 
-const boardStyle = insertCss({
+const boardStyle = A.insertCss({
     '&': 'display:grid gap:0.5em gridTemplateColumns:"1fr 1fr 1fr"',
     '> *': 'width:2em height:2em padding:0',
 });

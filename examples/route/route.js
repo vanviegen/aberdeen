@@ -3,7 +3,7 @@
  * for pages as well as modal content. 
  */
 
-import { $, proxy } from '../../dist/aberdeen.js';
+import A from '../../dist/aberdeen.js';
 import * as route from "../../dist/route.js";
 
 // If opened directly from a file, fake the initial path as '/'
@@ -11,8 +11,8 @@ if (route.current.p.indexOf('route') >= 0) {
     route.current.p = [];
 }
 
-// Create a proxy for dynamically loaded modules
-const modules = proxy({});
+// Create a A.proxy for dynamically loaded modules
+const modules = A.proxy({});
 
 function loadModule(name) {
     const module = modules[name];
@@ -34,52 +34,52 @@ async function backgroundLoadModule(name) {
 }
 
 // Main page component wrapped in observer to make it reactive
-$(() => {
-    $('header', () => {
-        $('nav', () => {
-            $('button.no-line.logo', 'LOGO', {
+A(() => {
+    A('header', () => {
+        A('nav', () => {
+            A('button.no-line.logo', 'LOGO', {
                 click: () => route.back('/')
             });
             
             // Draw the top navigation bar
             const menu = { "": 'Home', settings: 'Settings', list: 'List' };
             for (const [id, label] of Object.entries(menu)) {
-                $('button', {
+                A('button', {
                     text: label, 
                     click: () => route.go("/"+id)
                 }, () => {
-                    $({ '.active': route.current.p[0] === (id || undefined) });
+                    A({ '.active': route.current.p[0] === (id || undefined) });
                 });
             }
             
-            $('div', { $flex: 1 });
-            $('button.no-line#Modal!', {
+            A('div', { $flex: 1 });
+            A('button.no-line#Modal!', {
                 click: () => route.push({state: {modal: 'settings'}})
             });
         });
     });
     
-    $('main', () => {
+    A('main', () => {
         let module = loadModule(route.current.p[0]);
         if (module) {
             module.default();
         } else if (module === false) {
-            $('p:No such page!');
+            A('p:No such page!');
         } else {
-            $('p:Loading...');
+            A('p:Loading...');
         }
     });
     
-    $("footer", () => {
+    A("footer", () => {
         // Display route data for debugging
-        $({ text: JSON.stringify(route.current, null, 2) });
+        A({ text: JSON.stringify(route.current, null, 2) });
     });
     
-    $(() => {
+    A(() => {
         let modal = route.current.state.modal;
         if (!modal) return;
         
-        $('div.modal-bg', {
+        A('div.modal-bg', {
             click: function(e) {
                 if (e.target === this) {
                     route.back({state: {modal: undefined}});
@@ -88,14 +88,14 @@ $(() => {
             create: "transparent",
             destroy: "transparent",
         }, () => {
-            $('div.modal', () => {
+            A('div.modal', () => {
                 let module = loadModule(modal);
                 if (module) {
                     module.default();
                 } else if (module === false) {
-                    $('p:No such modal!');
+                    A('p:No such modal!');
                 } else {
-                    $('p:Loading...');
+                    A('p:Loading...');
                 }
             });
         });

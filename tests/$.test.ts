@@ -1,30 +1,30 @@
 import { expect, test } from "bun:test";
 import { assertBody, passTime, assertDomUpdates } from "./helpers";
-import { $, proxy, ref, copy, mount, derive } from "../src/aberdeen";
+import A from "../src/aberdeen";
 
 test('xcreates regular HTML elements with HTML namespace', () => {
-	$('div');
+	A('div');
 });
 
 test('creates nested nodes', () => {
-	$("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
+	A("a", "b.cls", {".second":true, ".third":false}, "c", {x:"y"})
 	assertBody(`a{b.cls.second{c{x=y}}}`)
 });
 
 test('creates elements with text', () => {
-	$('div.cls#This is my #-containg text!')
-	$('h2', {text: 'More text...'})
+	A('div.cls#This is my #-containg text!')
+	A('h2', {text: 'More text...'})
 	assertBody(`div.cls{"This is my #-containg text!"} h2{"More text..."}`)
 })
 
 test('reactively modifies attributes that have proxies as values', async () => {
 	let cnt = 0
-	let data = proxy('initial' as string)
-	mount(document.body, () => {
+	let data = A.proxy('initial' as string)
+	A.mount(document.body, () => {
 		cnt++
-		$('input', {placeholder:data})
-		$('div', {text:data})
-		$('p', {$color:data})
+		A('input', {placeholder:data})
+		A('div', {text:data})
+		A('p', {$color:data})
 	})
 	assertBody(`input{placeholder=initial} div{"initial"} p{color:initial}`)
 	expect(cnt).toEqual(1)
@@ -36,21 +36,21 @@ test('reactively modifies attributes that have proxies as values', async () => {
 })
 
 test('reacts to conditions', async () => {
-	const data: Record<string,any> = proxy({a: true})
+	const data: Record<string,any> = A.proxy({a: true})
 	expect(data.a).toEqual(true)
 	let cnt = 0
-	mount(document.body, () => {
+	A.mount(document.body, () => {
 		cnt++
-		$("div", {".y": ref(data, 'a')}, "span", {".z": ref(data, 'b')})
-		$("input", {
-			value: derive(() => data.a ? 'nope' : data.yes)
+		A("div", {".y": A.ref(data, 'a')}, "span", {".z": A.ref(data, 'b')})
+		A("input", {
+			value: A.derive(() => data.a ? 'nope' : data.yes)
 		})
 	})
 	assertBody(`div.y{span} input{value->nope}`)
 	expect(cnt).toEqual(1)
 	assertDomUpdates({new: 3, changed: 5}) // also removes unset classes
 
-	copy(data, {b: true, yes: "abc"}) // delete 'a'
+	A.copy(data, {b: true, yes: "abc"}) // delete 'a'
 	await passTime()
 
 	assertBody(`div{span.z} input{value->abc}`)
@@ -64,9 +64,9 @@ test('reacts to conditions', async () => {
 })
 
 test('long-form string args', async () => {
-	const enabled = proxy(false);
-	$(() => {
-		$('div.cls text=Title .enabled=', enabled, '$color=red span .important $font-decoration=underline #The rest is text');
+	const enabled = A.proxy(false);
+	A(() => {
+		A('div.cls text=Title .enabled=', enabled, '$color=red span .important $font-decoration=underline #The rest is text');
 	})
 	assertBody(`div.cls{color:red "Title" span.important{font-decoration:underline "The rest is text"}}`);
 
@@ -77,24 +77,24 @@ test('long-form string args', async () => {
 })
 
 test('long-form string arg escaping', async () => {
-	$('div text="My title" margin: 0 auto;.cls');
+	A('div text="My title" margin: 0 auto;.cls');
 	assertBody(`div.cls{margin:"0 auto" "My title"}`);
 })
 
 test('style with space-colon-semicolon for multi-word values', async () => {
-	$(`div box-shadow: 2px 0 6px black; m:$3`);
+	A(`div box-shadow: 2px 0 6px black; m:$3`);
 	assertBody('div{box-shadow:"2px 0 6px black" margin:var(--m3)}');
 });
 
-test('mixing short and long form CSS in $()', async () => {
-	$('div m:$3 border: 1px solid blue; bg:red');
+test('mixing short and long form CSS in A()', async () => {
+	A('div m:$3 border: 1px solid blue; bg:red');
 	assertBody('div{background:red border:"1px solid blue" margin:var(--m3)}');
 });
 
-test('reactive proxy text with # shorthand', async () => {
-	const text = proxy('Hello');
-	mount(document.body, () => {
-		$('p#', text);
+test('reactive A.proxy text with # shorthand', async () => {
+	const text = A.proxy('Hello');
+	A.mount(document.body, () => {
+		A('p#', text);
 	});
 	assertBody(`p{"Hello"}`);
 
@@ -103,12 +103,12 @@ test('reactive proxy text with # shorthand', async () => {
 	assertBody(`p{"World"}`);
 });
 
-test('reactive proxy text with # and static prefix', async () => {
-	const name = proxy('Alice');
-	mount(document.body, () => {
-		$('p', () => {
-			$('#Hello, ');
-			$({text: name});
+test('reactive A.proxy text with # and static prefix', async () => {
+	const name = A.proxy('Alice');
+	A.mount(document.body, () => {
+		A('p', () => {
+			A('#Hello, ');
+			A({text: name});
 		});
 	});
 	assertBody(`p{"Hello, " "Alice"}`);
@@ -119,14 +119,14 @@ test('reactive proxy text with # and static prefix', async () => {
 });
 
 test('inline style with colon shorthand', () => {
-	$('div color:red');
+	A('div color:red');
 	assertBody(`div{color:red}`);
 });
 
-test('inline style with reactive proxy value', async () => {
-	const color = proxy('red');
-	mount(document.body, () => {
-		$('div color:', color);
+test('inline style with reactive A.proxy value', async () => {
+	const color = A.proxy('red');
+	A.mount(document.body, () => {
+		A('div color:', color);
 	});
 	assertBody(`div{color:red}`);
 
@@ -135,10 +135,10 @@ test('inline style with reactive proxy value', async () => {
 	assertBody(`div{color:blue}`);
 });
 
-test('multiple inline styles with reactive proxy', async () => {
-	const bgColor = proxy('white');
-	mount(document.body, () => {
-		$('div color:red background-color:', bgColor);
+test('multiple inline styles with reactive A.proxy', async () => {
+	const bgColor = A.proxy('white');
+	A.mount(document.body, () => {
+		A('div color:red background-color:', bgColor);
 	});
 	assertBody(`div{background-color:white color:red}`);
 

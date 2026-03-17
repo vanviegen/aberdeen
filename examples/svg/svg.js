@@ -1,14 +1,14 @@
-import { $, proxy } from '../../dist/aberdeen.js';
+import A from '../../dist/aberdeen.js';
 
-const radius = proxy(20);
+const radius = A.proxy(20);
 
-$('h1#Aberdeen SVG Support Demo');
+A('h1#Aberdeen SVG Support Demo');
 
-$('div', () => {
-    $('p#This is an inline SVG:')
-    $('svg', { width: 100, height: 100, $backgroundColor: '#eee' }, () => {
+A('div', () => {
+    A('p#This is an inline SVG:')
+    A('svg', { width: 100, height: 100, $backgroundColor: '#eee' }, () => {
         // SVG elements are created with proper SVG namespace
-        $('circle', {
+        A('circle', {
             cx: 50, 
             cy: 50, 
             r: radius, 
@@ -17,7 +17,7 @@ $('div', () => {
             'stroke-width': 2
         });
         
-        $('text', {
+        A('text', {
             x: 50,
             y: 55,
             'text-anchor': 'middle',
@@ -28,8 +28,8 @@ $('div', () => {
         });
     });
     
-    $('p', () => {
-        $('button#Decrement radius', {click: () => radius.value -= 5});
-        $('button#Increment radius', {click: () => radius.value += 5});
+    A('p', () => {
+        A('button#Decrement radius', {click: () => radius.value -= 5});
+        A('button#Increment radius', {click: () => radius.value += 5});
     });
 });

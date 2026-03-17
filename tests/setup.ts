@@ -1,16 +1,16 @@
 import { beforeEach, afterEach } from "bun:test";
 import * as fakedom from './fakedom';
 import { assertBody } from "./helpers";
-import { setErrorHandler, unmountAll, cssVars, copy } from '../src/aberdeen';
+import A from "../src/aberdeen";
 
 beforeEach(() => {
 	fakedom.resetCounts();
-	setErrorHandler();
+	A.setErrorHandler();
 });
 
 afterEach(async () => {
-	copy(cssVars, {});
-	unmountAll();
+	A.copy(A.cssVars, {});
+	A.unmountAll();
 	try {
 		await fakedom.passTime(2001); // wait for deletion transitions
 		assertBody(``);
