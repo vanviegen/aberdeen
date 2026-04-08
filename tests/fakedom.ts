@@ -474,49 +474,83 @@ export const resetBrowserState = function(): void {
 type TimeoutItem = {
   func: () => void;
   time: number;
+  realId: ReturnType<typeof global.setTimeout>;
 };
 
 let timeouts: TimeoutItem[] = [];
 let currentTime: number = 0;
+let deferredErrors: any[] = [];
 
 const realSetTimeout = global.setTimeout;
+const realClearTimeout = global.clearTimeout;
+
+function fireItem(item: TimeoutItem) {
+  const idx = timeouts.indexOf(item);
+  if (idx < 0) return; // Already fired by passTime or another path
+  timeouts.splice(idx, 1);
+  if (item.time > currentTime) currentTime = item.time;
+  item.func();
+}
 
 const setTimeout = function(func: () => void, time: number): void {
-  timeouts.push({func, time: time + currentTime});
+  const item: TimeoutItem = { func, time: time + currentTime, realId: undefined! };
+  item.realId = realSetTimeout(() => {
+    try { fireItem(item); }
+    catch (e) { deferredErrors.push(e); }
+  }, time);
+  timeouts.push(item);
 };
 
 const queueMicrotask = function(func: () => void): void {
-  timeouts.push({func, time: 0});
+  const item: TimeoutItem = { func, time: 0, realId: undefined! };
+  item.realId = realSetTimeout(() => {
+    try { fireItem(item); }
+    catch (e) { deferredErrors.push(e); }
+  }, 0);
+  timeouts.push(item);
 };
 
-export const passTime = async function(ms?: number): Promise<number> {
-  let count = 0;
+// Fast-forward fake time, firing all timeouts up to `ms` ms ahead.
+// Without arguments, fires all pending timeouts regardless of scheduled time.
+// Rethrows any errors from timeouts that fired via real timers in the background.
+export const passTime = async function(ms?: number): Promise<void> {
   let targetTime = ms == null ? undefined : currentTime + ms;
   while(true) {
-    // Allow all async tasks that are ready (or become ready during another task) to run.
     await new Promise(resolve => realSetTimeout(resolve, 0));
 
-    // If there are no timeouts left, we're done.
-    if (!timeouts.length) break;
+    // Rethrow errors from background-fired timeouts
+    if (deferredErrors.length) {
+      const err = deferredErrors.shift();
+      throw err;
+    }
 
-    // Find the timeout that should occur first
+    if (!timeouts.length) {
+      // Async I/O (e.g. database commits) may still be in flight, about to schedule
+      // new timeouts. Retry a few real event-loop ticks before giving up.
+      let settled = false;
+      for (let r = 0; r < 5 && !settled; r++) {
+        await new Promise(resolve => realSetTimeout(resolve, 0));
+        settled = timeouts.length > 0;
+      }
+      if (!settled) break;
+    }
+
+    // Find the earliest timeout
     let smallestIdx = 0;
     for(let idx = 1; idx < timeouts.length; idx++) {
       if (timeouts[idx].time < timeouts[smallestIdx].time) smallestIdx = idx;
     }
-    let timeout = timeouts[smallestIdx];
+    let item = timeouts[smallestIdx];
 
-    // If this timeout is not due yet, we're done
-    if (targetTime != null && timeout.time > targetTime) break;
-    
-    // Timeout is due! Remove it from the list, update the currentTime, and fire the callback!
+    if (targetTime != null && item.time > targetTime) break;
+
+    // Fire early, cancel real timer
     timeouts.splice(smallestIdx, 1);
-    if (timeout.time > currentTime) currentTime = timeout.time;
-    timeout.func();
-    count++;
+    realClearTimeout(item.realId);
+    if (item.time > currentTime) currentTime = item.time;
+    item.func();
   }
   currentTime = targetTime == null ? 0 : targetTime;
-  return count;
 };
 
 const IGNORE_OUTPUT = new Set("tagName-> attrs-> events-> childNodes-> parentNode-> class= namespaceURI->".split(" "));

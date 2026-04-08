@@ -1,8 +1,8 @@
 {
   "name": "aberdeen",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "author": "Frank van Viegen",
-  "main": "dist-min/aberdeen.js",
+  "main": "dist/src/aberdeen.min.js",
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/bun": "latest",
@@ -12,36 +12,41 @@
   },
   "exports": {
     ".": {
-      "default": "./dist-min/aberdeen.js",
-      "development": "./dist/aberdeen.js",
-      "types": "./dist/aberdeen.d.ts"
+      "default": "./dist/src/aberdeen.min.js",
+      "development": "./dist/src/aberdeen.js",
+      "types": "./dist/src/aberdeen.d.ts"
     },
     "./route": {
-      "default": "./dist-min/route.js",
-      "development": "./dist/route.js",
-      "types": "./dist/route.d.ts"
+      "default": "./dist/src/route.min.js",
+      "development": "./dist/src/route.js",
+      "types": "./dist/src/route.d.ts"
     },
     "./transitions": {
-      "default": "./dist-min/transitions.js",
-      "development": "./dist/transitions.js",
-      "types": "./dist/transitions.d.ts"
+      "default": "./dist/src/transitions.min.js",
+      "development": "./dist/src/transitions.js",
+      "types": "./dist/src/transitions.d.ts"
     },
     "./prediction": {
-      "default": "./dist-min/prediction.js",
-      "development": "./dist/prediction.js",
-      "types": "./dist/prediction.d.ts"
+      "default": "./dist/src/prediction.min.js",
+      "development": "./dist/src/prediction.js",
+      "types": "./dist/src/prediction.d.ts"
     },
     "./dispatcher": {
-      "default": "./dist-min/dispatcher.js",
-      "development": "./dist/dispatcher.js",
-      "types": "./dist/dispatcher.d.ts"
+      "default": "./dist/src/dispatcher.min.js",
+      "development": "./dist/src/dispatcher.js",
+      "types": "./dist/src/dispatcher.d.ts"
+    },
+    "./test-helpers": {
+      "bun": "./tests/helpers.ts",
+      "default": "./dist/tests/helpers.js",
+      "types": "./dist/tests/helpers.d.ts"
     },
     "./package.json": "./package.json"
   },
   "description": "Build fast reactive UIs in pure TypeScript/JavaScript without a virtual DOM.",
   "files": [
     "dist",
-    "dist-min",
+    "dist-docs",
     "src",
     "skill"
   ],
@@ -50,13 +55,17 @@
   },
   "license": "MIT",
   "scripts": {
-    "build": "bun run build:dist && bun run build:docs && bun run build:skill",
-    "build:dist": "rm -rf dist dist-min && bun build src/*.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/ && bun build src/*.ts --minify --sourcemap --target browser --external '*/aberdeen.js' --outdir dist-min/ && npx tsc --emitDeclarationOnly && cd dist-min && ln -s ../dist/*.d.ts .",
-    "build:docs": "typedoc && rm -rf dist-docs/assets/aberdeen && cp -r dist dist-docs/assets/aberdeen",
-    "build:skill": "typedoc --plugin typedoc-plugin-markdown --out skill --tsconfig tsconfig.json --entryPoints src/*.ts --excludeInternal --excludePrivate --hideGenerator --readme none --router module && rm -rf skill/assets skill/documents skill/README.md && cat SKILL.md > skill/SKILL.md && awk '/^-+$/ { count++; next } count >= 2' docs/Tutorial.md >> skill/SKILL.md",
+    "build": "bun run build:clean && bun run build:src && bun run build:min && bun run build:types && bun run build:tests && bun run build:docs && bun run build:skill",
+    "build:clean": "rm -rf dist dist-docs",
+    "build:src": "bun build src/aberdeen.ts src/dispatcher.ts src/prediction.ts src/route.ts src/transitions.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/src/",
+    "build:min": "for f in dist/src/*.js; do base=$(basename \"$f\" .js); bun build \"$f\" --minify --sourcemap --external './*.js' --outdir /tmp/aberdeen-min/ && mv /tmp/aberdeen-min/\"$(basename $f)\" \"dist/src/${base}.min.js\" && mv /tmp/aberdeen-min/\"$(basename $f).map\" \"dist/src/${base}.min.js.map\"; done && rm -rf /tmp/aberdeen-min",
+    "build:types": "tsc",
+    "build:tests": "bun build tests/helpers.ts tests/fakedom.ts --sourcemap --target bun --external 'aberdeen' --outdir dist/tests/",
+    "build:docs": "typedoc && rm -rf dist-docs/assets/aberdeen && cp -r dist/src dist-docs/assets/aberdeen",
+    "build:skill": "typedoc --plugin typedoc-plugin-markdown --out skill --tsconfig tsconfig.json --entryPoints src/aberdeen.ts src/dispatcher.ts src/prediction.ts src/route.ts src/transitions.ts --excludeInternal --excludePrivate --hideGenerator --readme none --router module && rm -rf skill/assets skill/documents skill/README.md && cat SKILL.md > skill/SKILL.md && awk '/^-+$/ { count++; next } count >= 2' docs/Tutorial.md >> skill/SKILL.md",
     "test": "bun test --bail",
     "prepack": "bun test && bun run build"
   },
   "type": "module",
-  "types": "dist-min/aberdeen.d.ts"
+  "types": "dist/src/aberdeen.d.ts"
 }

@@ -1549,7 +1549,7 @@ export function copy(a: any, b: any, c?: any): boolean {
 function copySet(dst: any, dstKey: any, src: any, flags: number): boolean {
 	let dstVal = peek(dst, dstKey);
 	if (src === dstVal) return false;
-	if (typeof dstVal === "object" && dstVal && typeof src === "object" && src && dstVal.constructor === src.constructor) {
+	if (typeof dstVal === "object" && dstVal !== null && typeof src === "object" && src !== null && dstVal.constructor === src.constructor) {
 		return copyImpl(dstVal, src, flags);
 	}
 	src = clone(src); 
@@ -1623,8 +1623,8 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 				changed = true;
 			}
 			else if (dstValue !== srcValue) {
-				if (srcValue && typeof srcValue === "object") {
-					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
+				if (typeof srcValue === "object" && srcValue !== null) {
+					if (typeof dstValue === "object" && dstValue !== null && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
 						changed = copyRecursive(dstValue, srcValue, flags) || changed;
 						continue;
 					}
@@ -1659,8 +1659,8 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 			let dstValue = dst.get(key);
 			if (dstValue === undefined && !dst.has(key)) dstValue = EMPTY;
 			if (dstValue !== srcValue) {
-				if (srcValue && typeof srcValue === "object") {
-					if (typeof dstValue === "object" && dstValue && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
+				if (typeof srcValue === "object" && srcValue !== null) {
+					if (typeof dstValue === "object" && dstValue !== null && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
 						changed = copyRecursive(dstValue, srcValue, flags) || changed;
 						continue;
 					}
@@ -1691,8 +1691,8 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 			let srcValue = src[key];
 			const dstValue = dst.hasOwnProperty(key) ? dst[key] : EMPTY;
 			if (dstValue !== srcValue) {
-				if (srcValue && typeof srcValue === "object") {
-					if (dstValue && typeof dstValue === "object" && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
+				if (typeof srcValue === "object" && srcValue !== null) {
+					if (typeof dstValue === "object" && dstValue !== null && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
 						changed = copyRecursive(dstValue as typeof srcValue, srcValue, flags) || changed;
 						continue;
 					}
@@ -1880,7 +1880,7 @@ function cloneRecursive<T extends object>(src: T, flags: number): T {
 }
 
 function cloneValue(v: any, flags: number): any {
-	return v && typeof v === "object" ? cloneRecursive(v, flags) : v;
+	return typeof v === "object" && v !== null ? cloneRecursive(v, flags) : v;
 }
 
 /**
@@ -1891,6 +1891,7 @@ function cloneValue(v: any, flags: number): any {
  * @returns A new unproxied array or object (of the same type as `src`), containing a deep copy of `src`.
  */
 export function clone<T extends object>(src: T): T {
+	if (typeof src !== 'object' || src === null) return src;
 	let flags = 0;
 	const unproxied = (src as any)[TARGET_SYMBOL];
 	if (unproxied) {

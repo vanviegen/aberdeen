@@ -1,5 +1,9 @@
 import { expect } from 'bun:test';
 import * as fakedom from './fakedom';
+export * as fakedom from './fakedom';
+
+// Fakedom must be imported first, as it sets up the global environment.
+import A from "aberdeen";
 
 function toDisplay(value: any) {
 	if (value instanceof Map) {
@@ -79,4 +83,18 @@ export function assertDomUpdates(expected: {new?: number, changed?: number}) {
 	const counts = fakedom.getCounts()
 	if (expected.new!=null) expect(counts.new).toEqual(expected.new)
 	if (expected.changed!=null) expect(counts.changed).toEqual(expected.changed)
+}
+
+export async function reset() {
+	A.copy(A.cssVars, {});
+	A.unmountAll();
+	try {
+		await fakedom.passTime(2001); // wait for deletion transitions
+		assertBody(``);
+	} finally {
+		// Force-clear DOM and state even if errors occurred
+		fakedom.clearBody();
+	}
+	fakedom.resetCounts();
+	A.setErrorHandler();
 }

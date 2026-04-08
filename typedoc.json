@@ -2,6 +2,7 @@
     "name": "Aberdeen",
     "readme": "README.md",
     "entryPoints": ["src/*.ts"],
+    "exclude": ["src/**/*.d.ts"],
     "projectDocuments": ["docs/*.md"],
     "excludeInternal": true,
     "excludePrivate": true,
