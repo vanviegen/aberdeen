@@ -15,7 +15,7 @@ A('h3#Hello world');
 
 It adds a `<h3>Hello world</h3>` element to the `<body>` (which is the default mount point).
 
-The {@link aberdeen.$ | A} function accepts various forms of arguments, which can be combined.
+The {@link aberdeen.A} function accepts various forms of arguments, which can be combined.
 
 When a string is passed:
 - The inital part (if any) is the name of the element to be created.
@@ -37,7 +37,7 @@ A('button.outline.secondary#Pressing me does nothing!');
 A('button', '.outline', '.secondary', '#Pressing me does nothing!');
 ```
 
-Also, we can create multiple nested DOM elements in a single {@link aberdeen.$ | A} invocation, *if* the parents need to have only a single child. For instance:
+Also, we can create multiple nested DOM elements in a single {@link aberdeen.A} invocation, *if* the parents need to have only a single child. For instance:
 
 ```javascript
 A('div.box', '#Text within the div element...', 'input');
@@ -61,7 +61,7 @@ A('div.box input value=Marshmallow input=', el => console.log(el.target.value));
 
 Note that the example is interactive - try typing something!
 
-> **Note:** {@link aberdeen.$ | A} also accepts object syntax as an alternative to strings (see the API reference), but the string syntax shown here is more concise and is recommended for most use cases.
+> **Note:** {@link aberdeen.A} also accepts object syntax as an alternative to strings (see the API reference), but the string syntax shown here is more concise and is recommended for most use cases.
 
 ## Inline styles
 
@@ -138,7 +138,7 @@ If you want different spacing, you can customize the base and unit when calling 
 These shortcuts and variables are also available when using {@link aberdeen.insertCss | A.insertCss}.
 
 ## Nesting content
-Of course, putting everything in a single {@link aberdeen.$ | A} call will get messy soon, and you'll often want to nest more than one child within a parent. To do that, you can pass in a *content* function to {@link aberdeen.$ | A}, like this:
+Of course, putting everything in a single {@link aberdeen.A} call will get messy soon, and you'll often want to nest more than one child within a parent. To do that, you can pass in a *content* function to {@link aberdeen.A}, like this:
 
 ```javascript
 A('div.box.row id=cityContainer', () => {
@@ -152,7 +152,7 @@ Why are we passing in a function instead of just, say, an array of children? I'm
 ## Observable objects
 Aberdeen's reactivity system is built around observable objects. These are created using the {@link aberdeen.proxy | A.proxy} function:
 
-When you access properties of a proxied object within an observer function (the function passed to {@link aberdeen.$ | A}), Aberdeen automatically tracks these dependencies. If the values change later, the observer function will re-run, updating only the affected parts of the DOM.
+When you access properties of a proxied object within an observer function (the function passed to {@link aberdeen.A}), Aberdeen automatically tracks these dependencies. If the values change later, the observer function will re-run, updating only the affected parts of the DOM.
 
 ```javascript
 import A from 'aberdeen';
@@ -204,7 +204,7 @@ Now, updating `user.name` would only cause the *Hello* text node to be replaced,
 
 ## Conditional rendering
 
-Within an observer function (such as created by passing a function to {@link aberdeen.$ | A}), you can use regular JavaScript logic. Like `if` and `else`, for instance:
+Within an observer function (such as created by passing a function to {@link aberdeen.A}), you can use regular JavaScript logic. Like `if` and `else`, for instance:
 
 ```javascript
 const user = A.proxy({
@@ -364,7 +364,7 @@ A('div.row.wide margin-top:1em', () => {
 Note the use of the provided {@link aberdeen.invertString | A.invertString} function to reverse-sort by a string value.
 
 ## Two-way binding
-Aberdeen makes it easy to create two-way bindings between form elements (the various `<input>` types, `<textarea>` and `<select>`) and your data, by passing an observable object with a `.value` as `bind:` property to {@link aberdeen.$ | A}.
+Aberdeen makes it easy to create two-way bindings between form elements (the various `<input>` types, `<textarea>` and `<select>`) and your data, by passing an observable object with a `.value` as `bind:` property to {@link aberdeen.A}.
 
 To bind to object properties not named .value (e.g., user.name), use {@link aberdeen.ref | A.ref}. This creates a new observable A.proxy whose .value property directly maps to the specified property (e.g., name) on your original observable object (e.g., user).
 
@@ -549,7 +549,7 @@ A('h3 text=', derived);
 A('button text=Increment click=', () => original.value++);
 ```
 
-The {@link aberdeen.derive | A.derive} function makes the above a little easier. It works just like passing a function to {@link aberdeen.$ | A}, creating an observer, the only difference being that the value returned by the function is reactively assigned to the `value` property of the observable object returned by `derive`. So the above could also be written as:
+The {@link aberdeen.derive | A.derive} function makes the above a little easier. It works just like passing a function to {@link aberdeen.A}, creating an observer, the only difference being that the value returned by the function is reactively assigned to the `value` property of the observable object returned by `derive`. So the above could also be written as:
 
 ```javascript
 const original = A.proxy(1);

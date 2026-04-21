@@ -8,7 +8,6 @@
 	"rootDir": ".",
 	"strict": true,
 	"strictNullChecks": true,
-	"baseUrl": "./",
 	"paths": { "aberdeen": ["./src/aberdeen.ts"] },
 	"esModuleInterop": true,
 	"forceConsistentCasingInFileNames": true,

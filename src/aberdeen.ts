@@ -1384,7 +1384,7 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  * Creates a reactive proxy around the given data.
  *
  * Reading properties from the returned proxy within a reactive scope (like one created by
- * {@link $ | A} or {@link derive}) establishes a subscription. Modifying properties *through*
+ * {@link A | A} or {@link derive}) establishes a subscription. Modifying properties *through*
  * the proxy will notify subscribed scopes, causing them to re-execute.
  *
  * - Plain objects and arrays are wrapped in a standard JavaScript `Proxy` that intercepts
@@ -1830,7 +1830,7 @@ let darkModeState: {value: boolean} | undefined;
  * This function is reactive - scopes that call it will re-execute when the
  * browser's color scheme preference changes (via the `prefers-color-scheme` media query).
  *
- * Use this in combination with {@link $ | A} and {@link cssVars} to implement theme switching:
+ * Use this in combination with {@link A | A} and {@link cssVars} to implement theme switching:
  *
  * @returns `true` if the browser prefers dark mode, `false` if it prefers light mode.
  *
@@ -1928,8 +1928,8 @@ const refHandler: ProxyHandler<RefTarget> = {
  * Creates a reactive reference (`{ value: T }`-like object) to a specific value
  * within a proxied object or array.
  *
- * This is primarily used for the `bind` property in {@link $ | A} to create two-way data bindings
- * with form elements, and for passing a reactive property to any of the {@link $ | A} key-value pairs.
+ * This is primarily used for the `bind` property in {@link A | A} to create two-way data bindings
+ * with form elements, and for passing a reactive property to any of the {@link A | A} key-value pairs.
  *
  * Reading `ref.value` accesses the property from the underlying proxy (and subscribes the current scope).
  * Assigning to `ref.value` updates the property in the underlying proxy (triggering reactive updates).
@@ -2208,7 +2208,7 @@ export function disableCreateDestroy() {
  * This is often used together with {@link ref}, in order to use properties other than `.value`.
  */
 
-export function $(...args: any[]): undefined | Element {
+export function A(...args: any[]): undefined | Element {
 	let el: undefined | Element = currentScope.el;
 	let svg: boolean = currentScope.svg
 
@@ -2344,7 +2344,7 @@ let cssCount = 0;
  *
  * ### Concise Style Strings
  * 
- * Concise style strings use two syntaxes (same as inline CSS in {@link $ | A}):
+ * Concise style strings use two syntaxes (same as inline CSS in {@link A | A}):
  * - **Short form** `key:value` (no space after colon): The value ends at the next whitespace.
  *   Example: `'m:$3 bg:red r:8px'`
  * - **Long form** `key: value;` (space after colon): The value continues until a semicolon.
@@ -2352,11 +2352,11 @@ let cssCount = 0;
  * 
  * Both forms can be mixed: `'m:$3 box-shadow: 0 2px 4px rgba(0,0,0,0.2); bg:$cardBg'`
  * 
- * Supports the same CSS shortcuts as {@link $ | A} and CSS variable references with `$` (e.g., `$primary`, `$3`).
+ * Supports the same CSS shortcuts as {@link A | A} and CSS variable references with `$` (e.g., `$primary`, `$3`).
  *
  * @param style - A concise style string or a style object.
  * @returns The unique class name prefix used for scoping (e.g., `.AbdStl1`). 
- *          Use this prefix with {@link $ | A} to apply the styles.
+ *          Use this prefix with {@link A | A} to apply the styles.
  *
  * @example Basic Usage with Shortcuts and CSS Variables
  * ```typescript
@@ -2625,7 +2625,7 @@ let onError: (error: Error) => boolean | undefined = defaultOnError;
 /**
  * Sets a custom error handler function for errors that occur asynchronously
  * within reactive scopes (e.g., during updates triggered by proxy changes in
- * {@link derive} or {@link $ | A} render functions).
+ * {@link derive} or {@link A | A} render functions).
  *
  * The default handler logs the error to `console.error` and adds a simple
  * 'Error' message div to the DOM at the location where the error occurred (if possible).
@@ -2677,7 +2677,7 @@ export function setErrorHandler(
  * This is useful for releasing resources, removing manual event listeners, or cleaning up
  * side effects associated with the scope. Cleaners are run in reverse order of registration.
  *
- * Scopes are created by functions like {@link derive}, {@link mount}, {@link $ | A} (when given a render function),
+ * Scopes are created by functions like {@link derive}, {@link mount}, {@link A | A} (when given a render function),
  * and internally by constructs like {@link onEach}.
  *
  * @param cleaner - The function to execute during cleanup.
@@ -2722,7 +2722,7 @@ export function clean(cleaner: () => void) {
  * Use {@link peek} or {@link unproxy} within the function to read proxied data without subscribing to it.
  *
  * @param func - The function to execute reactively. Any DOM manipulations should typically
- *   be done using {@link $ | A} within this function. Its return value will be made available as an
+ *   be done using {@link A | A} within this function. Its return value will be made available as an
  *   observable returned by the `derive()` function.
  * @returns An observable object, with its `value` property containing whatever the last run of `func` returned.
  *
@@ -2766,21 +2766,21 @@ export function derive<T>(func: () => T): ValueRef<T> {
 
 /**
  * Attaches a reactive Aberdeen UI fragment to an existing DOM element. Without the use of
- * this function, {@link $ | A} will assume `document.body` as its root.
+ * this function, {@link A | A} will assume `document.body` as its root.
  *
  * It creates a top-level reactive scope associated with the `parentElement`. The provided
  * function `func` is executed immediately within this scope. Any proxied data read by `func`
  * will cause it to re-execute when the data changes, updating the DOM elements created within it.
  *
- * Calls to {@link $ | A} inside `func` will append nodes to `parentElement`.
- * You can nest {@link derive} or other {@link $ | A} scopes within `func`.
+ * Calls to {@link A | A} inside `func` will append nodes to `parentElement`.
+ * You can nest {@link derive} or other {@link A | A} scopes within `func`.
  * Use {@link unmountAll} to clean up all mounted scopes and their DOM nodes.
  *
  * Mounting scopes happens reactively, meaning that if this function is called from within another
- * ({@link derive} or {@link $ | A} or {@link mount}) scope that gets cleaned up, so will the mount.
+ * ({@link derive} or {@link A | A} or {@link mount}) scope that gets cleaned up, so will the mount.
  *
  * @param parentElement - The native DOM `Element` to which the UI fragment will be appended.
- * @param func - The function that defines the UI fragment, typically containing calls to {@link $ | A}.
+ * @param func - The function that defines the UI fragment, typically containing calls to {@link A | A}.
  *
  * @example Basic Mount
  * ```javascript
@@ -2813,7 +2813,7 @@ export function mount(parentElement: Element, func: () => void) {
 
 /**
  * Removes all Aberdeen-managed DOM nodes and stops all active reactive scopes
- * (created by {@link mount}, {@link derive}, {@link $ | A} with functions, etc.).
+ * (created by {@link mount}, {@link derive}, {@link A | A} with functions, etc.).
  *
  * This effectively cleans up the entire Aberdeen application state. Aside from in
  * automated tests, there should probably be little reason to call this function.
@@ -2826,7 +2826,7 @@ export function unmountAll() {
 /**
  * Executes a function or retrieves a value *without* creating subscriptions in the current reactive scope, and returns its result.
  *
- * This is useful when you need to access reactive data inside a reactive scope (like {@link $ | A})
+ * This is useful when you need to access reactive data inside a reactive scope (like {@link A | A})
  * but do not want changes to that specific data to trigger a re-execute of the scope.
  * 
  * Note: You may also use {@link unproxy} to get to the raw underlying data structure, which can be used to similar effect.
@@ -3156,7 +3156,7 @@ export function partition<
 
 /**
  * Renders a live, recursive dump of a proxied data structure (or any value)
- * into the DOM at the current {@link $ | A} insertion point.
+ * into the DOM at the current {@link A | A} insertion point.
  *
  * Uses `<ul>` and `<li>` elements to display object properties and array items.
  * Updates reactively if the dumped data changes. Primarily intended for debugging purposes.
@@ -3184,21 +3184,21 @@ export function partition<
 export function dump<T>(data: T): T {
 	if (data && typeof data === "object") {
 		const name = data.constructor.name.toLowerCase() || "unknown object";
-		$(`#<${name}>`);
+		A(`#<${name}>`);
 		if (NO_COPY in data ) {
-			$("# [NO_COPY]");
+			A("# [NO_COPY]");
 		} else {
-			$("ul", () => {
+			A("ul", () => {
 				onEach(data as any, (value, key) => {
-					$("li", () => {
-						$(`#${JSON.stringify(key)}: `);
+					A("li", () => {
+						A(`#${JSON.stringify(key)}: `);
 						dump(value);
 					});
 				});
 			});
 		}
 	} else if (data !== undefined) {
-		$("#" + JSON.stringify(data));
+		A("#" + JSON.stringify(data));
 	}
 	return data;
 }
@@ -3220,7 +3220,7 @@ function handleError(e: any, showMessage: boolean) {
 		console.error(e);
 	}
 	try {
-		if (showMessage) $("div.aberdeen-error#Error");
+		if (showMessage) A("div.aberdeen-error#Error");
 	} catch {
 		// Error while adding the error marker to the DOM. Apparently, we're in
 		// an awkward context. The error should already have been logged by
@@ -3251,14 +3251,14 @@ export function withEmitHandler(
 // Automatically add cssVars and cssSnippets (from insertCss) into a <head> style tag
 if (typeof document !== "undefined") {
 	leakScope(() => {
-		$(() => {
+		A(() => {
 			if (isEmpty(cssSnippets) && isEmpty(cssVars)) return;
 			mount(document.head, () => {
-				$('style.abd', () => {
+				A('style.abd', () => {
 					onEach(cssSnippets, (value) => {
-						$('#', value);
+						A('#', value);
 					});
-					$(() => {
+					A(() => {
 						if (isEmpty(cssVars)) return;
 						let css = ":root{";
 						for(const [key, value] of Object.entries(cssVars)) {
@@ -3266,7 +3266,7 @@ if (typeof document !== "undefined") {
 							css += `--${varName}:${value};`;
 						}
 						css += "}\n";
-						$('#', css);
+						A('#', css);
 					})
 				});
 			});
@@ -3290,7 +3290,7 @@ if (typeof document !== "undefined") {
  * });
  * ```
  */
-const A = Object.assign($, {
+export default Object.assign(A, {
 	/** {@inheritDoc clean} */ clean,
 	/** {@inheritDoc clone} */ clone,
 	/** {@inheritDoc copy} */ copy,
@@ -3320,5 +3320,3 @@ const A = Object.assign($, {
 	/** {@inheritDoc unmountAll} */ unmountAll,
 	/** {@inheritDoc unproxy} */ unproxy,
 });
-
-export default A;

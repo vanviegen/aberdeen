@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.10.1",
+  "version": "1.10.2",
   "author": "Frank van Viegen",
   "main": "dist/src/aberdeen.min.js",
   "devDependencies": {
@@ -12,28 +12,28 @@
   },
   "exports": {
     ".": {
-      "default": "./dist/src/aberdeen.min.js",
       "development": "./dist/src/aberdeen.js",
+      "default": "./dist/src/aberdeen.min.js",
       "types": "./dist/src/aberdeen.d.ts"
     },
     "./route": {
-      "default": "./dist/src/route.min.js",
       "development": "./dist/src/route.js",
+      "default": "./dist/src/route.min.js",
       "types": "./dist/src/route.d.ts"
     },
     "./transitions": {
-      "default": "./dist/src/transitions.min.js",
       "development": "./dist/src/transitions.js",
+      "default": "./dist/src/transitions.min.js",
       "types": "./dist/src/transitions.d.ts"
     },
     "./prediction": {
-      "default": "./dist/src/prediction.min.js",
       "development": "./dist/src/prediction.js",
+      "default": "./dist/src/prediction.min.js",
       "types": "./dist/src/prediction.d.ts"
     },
     "./dispatcher": {
-      "default": "./dist/src/dispatcher.min.js",
       "development": "./dist/src/dispatcher.js",
+      "default": "./dist/src/dispatcher.min.js",
       "types": "./dist/src/dispatcher.d.ts"
     },
     "./test-helpers": {
