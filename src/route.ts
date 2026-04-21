@@ -154,6 +154,7 @@ function targetToPartial(target: RouteTarget) {
 * ```
 */
 export function go(target: RouteTarget, nav: NavType = "go"): void {
+	pendingGoOffset = 0;
 	const stack: string[] = historyE.state?.stack || [];
 
 	prevStack = stack.concat(JSON.stringify(A.unproxy(current)));
@@ -192,17 +193,18 @@ export function push(target: RouteTarget, nav?: NavType): void {
 export function back(target: RouteTarget = {}): void {
 	const partial = targetToPartial(target);
 	const stack: string[] = historyE.state?.stack || [];
-	for(let i = stack.length - 1; i >= 0; i--) {
+	const effectiveLen = stack.length + pendingGoOffset;
+	for(let i = effectiveLen - 1; i >= 0; i--) {
 		const histRoute: Route = JSON.parse(stack[i]);
 		if (equal(histRoute, partial, true)) {
-			const pages = i - stack.length;
+			const pages = i - effectiveLen;
 			log(`back`, pages, histRoute);
-			historyE.go(pages);
+			scheduleHistoryGo(pages);
 			return;
 		}
 	}
 
-	const newRoute = toCanonRoute(partial, "back", stack.length + 1);
+	const newRoute = toCanonRoute(partial, "back", effectiveLen + 1);
 	log(`back not found, replacing`, partial);
 	A.copy(current, newRoute);
 }
@@ -217,23 +219,39 @@ export function back(target: RouteTarget = {}): void {
 export function up(stripCount: number = 1): void {
 	const currentP = A.unproxy(current).p;
 	const stack: string[] = historyE.state?.stack || [];
-	for(let i = stack.length - 1; i >= 0; i--) {
+	const effectiveLen = stack.length + pendingGoOffset;
+	for(let i = effectiveLen - 1; i >= 0; i--) {
 		const histRoute: Route = JSON.parse(stack[i]);
 		if (histRoute.p.length < currentP.length && equal(histRoute.p, currentP.slice(0, histRoute.p.length), false)) {
 			// This route is shorter and matches the start of the current path
-			log(`up to ${i+1} / ${stack.length}`, histRoute);
-			historyE.go(i - stack.length);
+			log(`up to ${i+1} / ${effectiveLen}`, histRoute);
+			scheduleHistoryGo(i - effectiveLen);
 			return;
 		}
 	}
 	// Replace current route with /
-	const newRoute = toCanonRoute({p: currentP.slice(0, currentP.length - stripCount)}, "back", stack.length + 1);
+	const newRoute = toCanonRoute({p: currentP.slice(0, currentP.length - stripCount)}, "back", effectiveLen + 1);
 	log(`up not found, replacing`, newRoute);
 	A.copy(current, newRoute);
 }
 
 
 let prevStack: string[];
+
+// Track pending historyE.go() offset. Multiple back()/up() calls before the event loop
+// processes them are batched into a single historyE.go() via queueMicrotask.
+let pendingGoOffset = 0;
+
+function scheduleHistoryGo(delta: number) {
+	pendingGoOffset += delta;
+	setTimeout(() => {
+		if (pendingGoOffset) {
+			const offset = pendingGoOffset;
+			pendingGoOffset = 0;
+			historyE.go(offset);
+		}
+	}, 0);
+}
 
 /**
 * The global {@link Route} object reflecting the current URL and browser history state. Changes you make to this affect the current browser history item (modifying the URL if needed).
@@ -254,6 +272,7 @@ reset();
 
 // Handle browser history back and forward
 windowE.addEventListener("popstate", function(event: PopStateEvent) {
+	pendingGoOffset = 0;
 	const newRoute = getRouteFromBrowser();
 	
 	// If the stack length changes, and at least the top-most shared entry is the same,
