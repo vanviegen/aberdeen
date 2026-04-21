@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import A from "../src/aberdeen";
-import { assertBody, passTime } from "./helpers";
+import { assertBody, assertThrow, passTime } from "./helpers";
 
 test('A.proxy creates Map A.proxy', () => {
     const data = new Map([['a', 1], ['b', 2]]);
@@ -664,11 +664,11 @@ test('Map iterator methods return proxied values', async () => {
     A.onEach(data, (value,key) => {
         Object.assign({}, key);
         keyCount++;
-    });
+    }, (value, key) => key.id);
     A.onEach(data, (value,key) => {
         Object.assign({}, value);
         valueCount++;
-    });
+    }, (value, key) => key.id);
 
     await passTime(); // Not needed, but just to be sure
     expect(keyCount).toBe(2);

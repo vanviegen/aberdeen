@@ -19,7 +19,7 @@ let runQueueDepth = 0; // Incremented when a queue event causes another queue ev
 let topRedrawScope: Scope | undefined; // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 
 /** @internal */
-export type TargetType = any[] | { [key: string | symbol]: any } | Map<any, any>;
+export type TargetType = any[] | { [key: string | symbol]: any } | Map<any, any> | Set<any>;
 
 
 function queue(runner: QueueRunner) {
@@ -90,33 +90,38 @@ export function runQueue(): void {
 export type SortKeyType = number | string | Array<number | string> | undefined | void;
 
 /**
- * Given an integer number or a string, this function returns a string that can be concatenated
- * with other strings to create a composed sort key, that follows natural number ordering.
+ * Given an array of integer numbers or strings, this function returns a string that sorts
+ * by natural number ordering.
  */
-function partToStr(part: number | string): string {
-	if (typeof part === "string") {
-		return `${part}\x01`; // end-of-string
+function arrayToStr(parts: (number | string)[]): string {
+	let result = '';
+	for(const part of parts) {
+		if (typeof part === "string") {
+			result += `${part}\x01`; // end-of-string
+			continue;
+		}
+		if (typeof part !== "number") {
+			throw new Error("onEach() sort key must be a string, number or an array of such");
+		}
+		let digits = "";
+		let num = Math.abs(Math.round(part));
+		const negative = part < 0;
+		while (num > 0) {
+			/*
+			* We're reserving a few character codes:
+			* 0 - for compatibility
+			* 1 - separator between string array items
+			* 65535 - for compatibility
+			*/
+			digits = String.fromCharCode(
+				negative ? 65534 - (num % 65533) : 2 + (num % 65533),
+			) + digits;
+			num = Math.floor(num / 65533);
+		}
+		// Prefix the number of digits, counting down from 128 for negative and up for positive
+		result += String.fromCharCode(128 + (negative ? -digits.length : digits.length)) + digits;
 	}
-	let result = "";
-	let num = Math.abs(Math.round(part));
-	const negative = part < 0;
-	while (num > 0) {
-		/*
-		 * We're reserving a few character codes:
-		 * 0 - for compatibility
-		 * 1 - separator between string array items
-		 * 65535 - for compatibility
-		 */
-		result = String.fromCharCode(
-			negative ? 65534 - (num % 65533) : 2 + (num % 65533),
-		) + result;
-		num = Math.floor(num / 65533);
-	}
-	// Prefix the number of digits, counting down from 128 for negative and up for positive
-	return (
-		String.fromCharCode(128 + (negative ? -result.length : result.length)) +
-		result
-	);
+	return result;
 }
 
 /**
@@ -536,7 +541,7 @@ class OnEachScope extends Scope {
 				new OnEachItemScope(this, i, false);
 			}
 		} else {
-			for (const key of (target instanceof Map ? target.keys() : Object.keys(target))) {
+			for (const key of (target instanceof Map ? target.keys() : target instanceof Set ? target.values() : Object.keys(target))) {
 				new OnEachItemScope(this, key, false);
 			}
 		}
@@ -570,7 +575,7 @@ class OnEachScope extends Scope {
 			const oldScope = this.byIndex.get(index);
 			if (oldScope) oldScope.remove();
 
-			if (this.target instanceof Map ? this.target.has(index) : index in this.target) {
+			if (this.target instanceof Set || this.target instanceof Map ? this.target.has(index) : index in this.target) {
 				// Item still exists
 				new OnEachItemScope(this, index, true);
 			} else {
@@ -701,7 +706,9 @@ class OnEachItemScope extends ContentScope {
 		let value: any;
 		const target = this.parent.target;
 		let itemIndex = this.itemIndex;
-		if (target instanceof Map) {
+		if (target instanceof Set) {
+			value = itemIndex = optProxy(itemIndex);
+		} else if (target instanceof Map) {
 			value = optProxy(target.get(itemIndex));
 			// For Maps, the key may be an object. If so, we'll proxy it as well.
 			itemIndex = optProxy(itemIndex);
@@ -713,19 +720,15 @@ class OnEachItemScope extends ContentScope {
 		const savedScope = currentScope;
 		currentScope = this;
 
-		let sortKey: undefined | string | number;
+		let sortKey: any;
 		try {
 			if (this.parent.makeSortKey) {
-				const rawSortKey = this.parent.makeSortKey(value, itemIndex);
-				if (rawSortKey != null)
-					sortKey =
-						rawSortKey instanceof Array
-							? rawSortKey.map(partToStr).join("")
-							: rawSortKey;
+				sortKey = this.parent.makeSortKey(value, itemIndex);
 			} else {
 				sortKey = itemIndex;
 			}
-			if (typeof sortKey === "number") sortKey = partToStr(sortKey);
+			if (sortKey instanceof Array) sortKey = arrayToStr(sortKey);
+			else if (typeof sortKey !== "string" && sortKey != null) sortKey = arrayToStr([sortKey]);
 
 			if (this.sortKey !== sortKey) {
 				// If the sortKey is changed, make sure `this` is removed from the
@@ -817,7 +820,7 @@ const ANY_SYMBOL = Symbol("any");
 const TARGET_SYMBOL = Symbol("target");
 
 /**
- * Symbol used internally to track Map size without clashing with actual Map keys named "size".
+ * Symbol used internally to track Map and Set size without clashing with actual Map keys named "size".
  * 
  * @internal
  */
@@ -880,6 +883,11 @@ export function onEach<K, T>(
 	makeKey?: (value: T, key: K) => SortKeyType,
 ): void;
 export function onEach<T>(
+	target: Set<T>,
+	render: (value: T) => void,
+	makeKey?: (value: T) => SortKeyType,
+): void;
+export function onEach<T>(
 	target: ReadonlyArray<undefined | T>,
 	render: (value: T, index: number) => void,
 	makeKey?: (value: T, index: number) => SortKeyType,
@@ -891,13 +899,13 @@ export function onEach<K extends string | number | symbol, T>(
 ): void;
 
 /**
- * Reactively iterates over the items of an observable array or object, optionally rendering content for each item.
+ * Reactively iterates over the items of an observable array, object, Map, or Set, optionally rendering content for each item.
  *
  * Automatically updates when items are added, removed, or modified.
  *
- * @param target The observable array or object to iterate over. Values that are `undefined` are skipped.
- * @param render A function called for each item in the array. It receives the item's (observable) value and its index/key. Any DOM elements created within this function will be associated with the item, placed at the right spot in the DOM, and cleaned up when redrawing/removing the item.
- * @param makeKey An optional function to generate a sort key for each item. This controls the order in which items are rendered in the DOM. If omitted, items are rendered in array index order. The returned key can be a number, string, or an array of numbers/strings for composite sorting. Use {@link invertString} on string keys for descending order. Returning `null` or `undefined` from `makeKey` will prevent the item from being rendered.
+ * @param target The observable array, object, Map, or Set to iterate over. Values that are `undefined` are skipped.
+ * @param render A function called for each item. It receives the item's (observable) value and its index/key. For Sets, only the value is provided. Any DOM elements created within this function will be associated with the item, placed at the right spot in the DOM, and cleaned up when redrawing/removing the item.
+ * @param makeKey An optional function to generate a sort key for each item. This controls the order in which items are rendered in the DOM. If omitted, arrays use index order, Sets use the item value itself, and objects/Maps use their natural key order. The returned key can be a number, string, or an array of numbers/strings for composite sorting. Use {@link invertString} on string keys for descending order. Returning `null` or `undefined` from `makeKey` will prevent the item from being rendered.
  *
  * @example Iterating an array
  * ```typescript
@@ -943,6 +951,19 @@ export function onEach<K extends string | number | symbol, T>(
  * // Change a value - the display updates automatically
  * setTimeout(() => config.fontSize = 16, 2000);
  * ```
+ *
+ * @example Iterating a Set
+ * ```javascript
+ * const tags = A.proxy(new Set(['ui', 'fast', 'tiny']));
+ *
+ * A('ul', () => {
+ *     A.onEach(tags, (tag) => { // Defaults to alphabetically ordering by tag
+ *         A(`li#${tag}`);
+ *     });
+ * });
+ *
+ * setTimeout(() => tags.add('reactive'), 2000);
+ * ```
  * @see {@link invertString} To easily create keys for reverse sorting.
  */
 export function onEach(
@@ -966,7 +987,7 @@ function isObjEmpty(obj: object): boolean {
 export const EMPTY = Symbol("empty");
 
 /**
- * Reactively checks if an observable array or object is empty.
+ * Reactively checks if an observable array, object, Map, or Set is empty.
  *
  * This function not only returns the current emptiness state but also establishes
  * a reactive dependency. If the emptiness state of the `proxied` object or array
@@ -974,8 +995,8 @@ export const EMPTY = Symbol("empty");
  * is deleted from an object), the scope that called `isEmpty` will be automatically
  * scheduled for re-evaluation.
  *
- * @param proxied The observable array or object to check.
- * @returns `true` if the array has length 0 or the object has no own enumerable properties, `false` otherwise.
+ * @param proxied The observable array, object, Map, or Set to check.
+ * @returns `true` if the array has length 0, the Map/Set has size 0, or the object has no own enumerable properties, `false` otherwise.
  *
  * @example
  * ```typescript
@@ -1008,7 +1029,7 @@ export function isEmpty(proxied: TargetType): boolean {
 		return !target.length;
 	}
 	
-	if (target instanceof Map) {
+	if (target instanceof Map || target instanceof Set) {
 		subscribe(target, MAP_SIZE_SYMBOL, (index: any, newData: any, oldData: any) => {
 			if (!newData !== !oldData) scope.onChange(target, EMPTY, !newData, !oldData);
 		});
@@ -1032,10 +1053,10 @@ export interface ValueRef<T> {
 }
 
 /**
- * Reactively counts the number of properties in an objects.
+ * Reactively counts the number of properties in an object.
  *
- * @param proxied The observable object to count. In case an `array` is passed in, a {@link ref} to its `.length` will be returned.
- * @returns an observable object for which the `value` property reflects the number of properties in `proxied` with a value other than `undefined`.
+ * @param proxied The observable object to count. In case an `array`, `Map`, or `Set` is passed in, a {@link ref} to its `.length` or `.size` will be returned.
+ * @returns an observable object for which the `value` property reflects the number of properties in `proxied` with a value other than `undefined`, or the collection size for arrays, Maps, and Sets.
  * 
  * @example
  * ```typescript
@@ -1059,7 +1080,7 @@ export interface ValueRef<T> {
  */
 export function count(proxied: TargetType): ValueRef<number> {
 	if (proxied instanceof Array) return ref(proxied, "length");
-	if (proxied instanceof Map) return ref(proxied, "size");
+	if (proxied instanceof Map || proxied instanceof Set) return ref(proxied, "size");
 
 	const target = (proxied as any)[TARGET_SYMBOL] || proxied;
 	let cnt = 0;
@@ -1225,24 +1246,21 @@ function wrapIteratorPair(iterator: IterableIterator<[any, any]>): IterableItera
 	};
 }
 
+function unproxyCollectionValue<T>(value: T): T {
+	return typeof value === "object" && value ? ((value as any)[TARGET_SYMBOL] || value) : value;
+}
+
 const mapMethodHandlers = {
 	get(this: any, key: any): any {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
-		// Make sure key is unproxied
-		if (typeof key === "object" && key)
-			key = (key as any)[TARGET_SYMBOL] || key;
+		key = unproxyCollectionValue(key);
 		subscribe(target, key);
 		return optProxy(target.get(key));
 	},
 	set(this: any, key: any, newData: any): any {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
-		// Make sure key and newData are unproxied
-		if (typeof key === "object" && key) {
-			key = (key as any)[TARGET_SYMBOL] || key;
-		}
-		if (typeof newData === "object" && newData) {
-			newData = (newData as any)[TARGET_SYMBOL] || newData;
-		}
+		key = unproxyCollectionValue(key);
+		newData = unproxyCollectionValue(newData);
 		let oldData = target.get(key);
 		if (oldData === undefined && !target.has(key)) oldData = EMPTY;
 		if (newData !== oldData) {
@@ -1255,10 +1273,7 @@ const mapMethodHandlers = {
 	},
 	delete(this: any, key: any): boolean {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
-		// Make sure key is unproxied
-		if (typeof key === "object" && key) {
-			key = (key as any)[TARGET_SYMBOL] || key;
-		}
+		key = unproxyCollectionValue(key);
 		let oldData = target.get(key);
 		if (oldData === undefined && !target.has(key)) oldData = EMPTY;
 		const result: boolean = target.delete(key);
@@ -1279,10 +1294,7 @@ const mapMethodHandlers = {
 	},
 	has(this: any, key: any): boolean {
 		const target: Map<any, any> = this[TARGET_SYMBOL];
-		// Make sure key is unproxied
-		if (typeof key === "object" && key) {
-			key = (key as any)[TARGET_SYMBOL] || key;
-		}
+		key = unproxyCollectionValue(key);
 		subscribe(target, key);
 		return target.has(key);
 	},
@@ -1308,6 +1320,64 @@ const mapMethodHandlers = {
 	}
 };
 
+const setMethodHandlers = {
+	add(this: any, value: any): any {
+		const target: Set<any> = this[TARGET_SYMBOL];
+		value = unproxyCollectionValue(value);
+		if (!target.has(value)) {
+			const oldSize = target.size;
+			target.add(value);
+			emit(target, value, value, EMPTY);
+			emit(target, MAP_SIZE_SYMBOL, target.size, oldSize);
+		}
+		return this;
+	},
+	delete(this: any, value: any): boolean {
+		const target: Set<any> = this[TARGET_SYMBOL];
+		value = unproxyCollectionValue(value);
+		if (!target.has(value)) return false;
+		const oldSize = target.size;
+		target.delete(value);
+		emit(target, value, EMPTY, value);
+		emit(target, MAP_SIZE_SYMBOL, target.size, oldSize);
+		return true;
+	},
+	clear(this: any): void {
+		const target: Set<any> = this[TARGET_SYMBOL];
+		const oldSize = target.size;
+		if (!oldSize) return;
+		for (const value of target.values()) emit(target, value, EMPTY, value);
+		target.clear();
+		emit(target, MAP_SIZE_SYMBOL, 0, oldSize);
+	},
+	has(this: any, value: any): boolean {
+		const target: Set<any> = this[TARGET_SYMBOL];
+		value = unproxyCollectionValue(value);
+		subscribe(target, value);
+		return target.has(value);
+	},
+	keys(this: any): IterableIterator<any> {
+		const target: Set<any> = this[TARGET_SYMBOL];
+		subscribe(target, ANY_SYMBOL);
+		return wrapIteratorSingle(target.keys());
+	},
+	values(this: any): IterableIterator<any> {
+		const target: Set<any> = this[TARGET_SYMBOL];
+		subscribe(target, ANY_SYMBOL);
+		return wrapIteratorSingle(target.values());
+	},
+	entries(this: any): IterableIterator<[any, any]> {
+		const target: Set<any> = this[TARGET_SYMBOL];
+		subscribe(target, ANY_SYMBOL);
+		return wrapIteratorPair(target.entries());
+	},
+	[Symbol.iterator](this: any): IterableIterator<any> {
+		const target: Set<any> = this[TARGET_SYMBOL];
+		subscribe(target, ANY_SYMBOL);
+		return wrapIteratorSingle(target[Symbol.iterator]());
+	}
+};
+
 const mapHandler: ProxyHandler<Map<any, any>> = {
 	get(target: Map<any, any>, prop: any) {
 		if (prop === TARGET_SYMBOL) return target;
@@ -1324,6 +1394,23 @@ const mapHandler: ProxyHandler<Map<any, any>> = {
 		}
 		
 		// Handle other properties normally
+		return (target as any)[prop];
+	},
+};
+
+const setHandler: ProxyHandler<Set<any>> = {
+	get(target: Set<any>, prop: any) {
+		if (prop === TARGET_SYMBOL) return target;
+
+		if (setMethodHandlers.hasOwnProperty(prop)) {
+			return (setMethodHandlers as any)[prop];
+		}
+
+		if (prop === "size") {
+			subscribe(target, MAP_SIZE_SYMBOL);
+			return target.size;
+		}
+
 		return (target as any)[prop];
 	},
 };
@@ -1348,6 +1435,8 @@ function optProxy(value: any): any {
 		handler = arrayHandler;
 	} else if (value instanceof Map) {
 		handler = mapHandler;
+	} else if (value instanceof Set) {
+		handler = setHandler;
 	} else {
 		handler = objectHandler;
 	}
@@ -1387,7 +1476,7 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  * {@link A | A} or {@link derive}) establishes a subscription. Modifying properties *through*
  * the proxy will notify subscribed scopes, causing them to re-execute.
  *
- * - Plain objects and arrays are wrapped in a standard JavaScript `Proxy` that intercepts
+ * - Plain objects, arrays, Maps, and Sets are wrapped in a standard JavaScript `Proxy` that intercepts
  *   property access and mutations, but otherwise works like the underlying data.
  * - Primitives (string, number, boolean, null, undefined) are wrapped in an object
  *   `{ value: T }` which is then proxied. Access the primitive via the `.value` property.
@@ -1398,7 +1487,7 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  *
  * Use {@link unproxy} to get the original underlying data back.
  *
- * @param target - The object, array, or primitive value to make reactive.
+ * @param target - The object, array, Map, Set, or primitive value to make reactive.
  * @returns A reactive proxy wrapping the target data.
  * @template T - The type of the data being proxied.
  *
@@ -1422,6 +1511,13 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  * const name = A.proxy('Aberdeen');
  * A(() => console.log(name.value)); // Subscribes to value
  * setTimeout(() => name.value = 'UI', 2000); // Triggers the observing function
+ * ```
+ *
+ * @example Set
+ * ```javascript
+ * const tags = A.proxy(new Set(['ui', 'tiny']));
+ * A(() => console.log(tags.has('ui'), tags.size));
+ * setTimeout(() => tags.add('fast'), 1000);
  * ```
  *
  * @example Class instance

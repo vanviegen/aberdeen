@@ -13,7 +13,7 @@ async function captureOnError(message: string, func: () => void, showMsg: boolea
 
 test('Error handling - works by default', () => {
     const orgError = console.error;
-    let err;
+    let err: any;
     console.error = function(...args) {err = args.map(a=>a.toString()).join(' ')};
     try {
         A.mount(document.body, () => {
@@ -136,4 +136,14 @@ test('Error handling - breaks up long update->observe recursions', async () => {
         data.b = data.a + 1;
     });
     await captureOnError('recursive', passTime);
+});
+
+
+test('Errors when using Map as onEach sort key', async () => {
+    const data = A.proxy(new Map([[{ id: 1, name: 'first' }, 42]]));
+    
+    await captureOnError('onEach() sort key must be a string, number or an array of such', async () => {
+        A.onEach(data, () => {});
+        await passTime();
+    });
 });

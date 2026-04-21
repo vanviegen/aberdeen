@@ -1,5 +1,20 @@
 # Changelog
 
+### 1.11.0 (2026-04-21)
+
+**New features:**
+- Support for reactive `Set` proxies. 
+
+### 1.10.2 (2026-04-21)
+
+**Fixes:**
+- Fix for quick subsequent route.back() calls.
+
+### 1.10.1 (2026-04-8)
+
+**New features:**
+- The `fakedom` testing framework used by Aberdeen internally is now also available for use by client apps.
+
 ### 1.10.0 (2026-03-17)
 
 **New features:**

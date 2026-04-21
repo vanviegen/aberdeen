@@ -253,7 +253,7 @@ A('div.box color:', textColor, '#Click me to change color', 'click=', () => {
 This way, when `textColor.value` changes, only the style is updated without recreating the element.
 
 
-## Observable arrays
+## Observable arrays and sets
 
 You can create observable arrays too. They work just like regular arrays, apart from being observable.
 
@@ -274,6 +274,24 @@ A('ul', () => {
 });
 
 A('button text=Add click=', () => items.push(items.length+1));
+```
+
+Observable `Set`s work too. They preserve normal Set semantics, including `.size`. When you iterate them with `A.onEach()`, by default they are sorted by value (or an error is thrown if the value is not a number, string or an array of those).
+
+```javascript
+const tags = A.proxy(new Set(['ui', 'tiny']));
+
+A('div', () => {
+    A(`#Tag count: ${tags.size}`);
+});
+
+A('ul', () => {
+    A.onEach(tags, tag => { // Ordered by tag
+        A(`li#${tag}`);
+    });
+});
+
+A('button text=Add fast click=', () => tags.add('fast'));
 ```
 
 ## TypeScript and classes
@@ -338,7 +356,7 @@ A('div.row.wide height:250px', () => {
 })
 ```
 
-We can also use {@link aberdeen.onEach | A.onEach} to reactively iterate over *objects*. In that case, the render and order functions receive `(value, key)` instead of `(value, index)` as their arguments.
+We can also use {@link aberdeen.onEach | A.onEach} to reactively iterate over *objects*, arrays, `Map`s and `Set`s. For objects and `Map`s, the render and order functions receive `(value, key)` instead of `(value, index)`. For `Set`s, they receive only the value. By default, Sets are ordered by that value, which only works for numbers, strings and arrays of those, so Sets of objects need an explicit order function.
 
 ```javascript
 const pairs = A.proxy({A: 'Y', B: 'X',});
@@ -559,7 +577,7 @@ A('h3 text=', derived);
 A('button text=Increment click=', () => original.value++);
 ```
 
-For deriving values from (possibly large) arrays or objects, Aberdeen provides specialized functions that enable fast, incremental updates to derived data: {@link aberdeen.map | A.map} (each item becomes zero or one derived item), {@link aberdeen.multiMap | A.multiMap} (each item becomes any number of derived items), {@link aberdeen.count | A.count} (reactively counts the number of object properties), {@link aberdeen.isEmpty | A.isEmpty} (true when the object/array has no items) and {@link aberdeen.partition | A.partition} (sorts each item into one or more buckets). An example:
+For deriving values from (possibly large) arrays, objects, Maps or Sets, Aberdeen provides specialized functions that enable fast, incremental updates to derived data: {@link aberdeen.map | A.map} (each item becomes zero or one derived item), {@link aberdeen.multiMap | A.multiMap} (each item becomes any number of derived items), {@link aberdeen.count | A.count} (reactively counts the number of object properties or collection items), {@link aberdeen.isEmpty | A.isEmpty} (true when the object/array/Map/Set has no items) and {@link aberdeen.partition | A.partition} (sorts each item into one or more buckets). An example:
 
 ```javascript
 import A from 'aberdeen';
