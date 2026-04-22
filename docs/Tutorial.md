@@ -435,7 +435,8 @@ import A from 'aberdeen';
 const myBoxStyle = A.insertCss({
     "&": "border-color:#6936cd background-color:#1b0447",
     "button": "background-color:#6936cd border:0 transition: box-shadow 0.3s; box-shadow: 0 0 4px #ff6a0044;",
-    "button:hover": "box-shadow: 0 0 16px #ff6a0088;"
+    "button:hover": "box-shadow: 0 0 16px #ff6a0088;",
+    "@media (max-width: 600px)": "p:$1", // Media query is scoped to myBoxStyle as well
 });
 
 // myBoxStyle is now something like ".AbdStl1", the name for a generated CSS class.

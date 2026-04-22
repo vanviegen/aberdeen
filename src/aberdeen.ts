@@ -2552,7 +2552,8 @@ function objectToCss(style: object, prefix: string): string {
 const KEBAB_SEGMENT = /-([a-z])/g;
 function toCamel(p: string) {
 	return p.replace(KEBAB_SEGMENT, (_, l) => l.toUpperCase());
-} 
+}
+const VALID_CSS_KEY = /^[a-zA-Z-]+$/;
 
 function styleStringToCss(styleStr: string, selector: string): string {
 	let props = "";
@@ -2564,6 +2565,7 @@ function styleStringToCss(styleStr: string, selector: string): string {
 		const colon = styleStr.indexOf(':', pos);
 		if (colon === -1) break;
 		const key = styleStr.substring(pos, colon);
+		if (!VALID_CSS_KEY.test(key)) throw new Error(`Invalid CSS key: "${key}" in style string: "${styleStr}"`);
 		pos = colon + 1;
 		
 		// Parse value based on whether there's a space after the colon
@@ -2630,6 +2632,20 @@ function styleStringToCss(styleStr: string, selector: string): string {
  *   "@media (prefers-color-scheme: dark)": {
  *     "body": "bg:#1a1a1a fg:#e5e5e5",
  *     "code": "bg:#2a2a2a"
+ *   }
+ * });
+ * ```
+ * At-rules such as `@media` and `@keyframes` should use nested objects. For keyframes,
+ * the step selectors (`0%`, `50%`, `100%`, etc.) become the nested keys and each value
+ * should be a concise CSS declaration string.
+ *
+ * @example Animation Keyframes
+ * ```typescript
+ * A.insertGlobalCss({
+ *   "@keyframes connection-pulse": {
+ *     "0%": "box-shadow: inset 0 0 0 0 rgba(255, 70, 70, 0.4);",
+ *     "50%": "box-shadow: inset 0 0 0 6px rgba(255, 70, 70, 0.08);",
+ *     "100%": "box-shadow: inset 0 0 0 0 rgba(255, 70, 70, 0.4);"
  *   }
  * });
  * ```

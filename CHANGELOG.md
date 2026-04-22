@@ -1,5 +1,11 @@
 # Changelog
 
+### 1.11.2 (2026-04-22)
+
+**Enhancements:**
+- Throw an error when invalid CSS keys are used in style strings.
+- Some docs/skill guidance on @keyframes.
+
 ### 1.11.1 (2026-04-22)
 
 **Enhancements:**
