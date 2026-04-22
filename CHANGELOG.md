@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.11.1 (2026-04-22)
+
+**Enhancements:**
+- Allow the use of `$dashed-var-names` in CSS variable shortcuts.
+
 ### 1.11.0 (2026-04-21)
 
 **New features:**

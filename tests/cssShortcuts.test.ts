@@ -28,6 +28,11 @@ test('$ prefix outputs var(--name)', () => {
 	assertBody(`div{background:var(--danger) color:var(--primary)}`);
 });
 
+test('$ prefix allows dashed variable names', () => {
+	A('div color:$primary-color bg:$surface-strong');
+	assertBody(`div{background:var(--surface-strong) color:var(--primary-color)}`);
+});
+
 test('numeric $vars get m prefix (e.g. $3 -> var(--m3))', () => {
 	A('div mt:$3 ph:$4');
 	assertBody(`div{margin-top:var(--m3) padding-left:var(--m4) padding-right:var(--m4)}`);

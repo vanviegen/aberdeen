@@ -1900,7 +1900,7 @@ export function setSpacingCssVars(base = 1, unit = 'rem'): void {
 }
 
 // Matches: (1) url() content, (2) quoted content, (3) $varName at start or after space
-const CSS_VAR_PATTERN = /(\burl\([^)]*\))|("[^"]*")|(^| )\$(\w+)/g;
+const CSS_VAR_PATTERN = /(\burl\([^)]*\))|("[^"]*")|(^| )\$([\w-]+)/g;
 const DIGIT_FIRST = /^\d/;
 
 /**
@@ -1908,6 +1908,7 @@ const DIGIT_FIRST = /^\d/;
  * Only matches `$` at the start of the value or after a space.
  * Content inside parentheses or quotes is preserved as-is.
  * Numeric names get an 'm' prefix (e.g., `$3` → `var(--m3)`).
+ * Variable names may include dashes (e.g., `$primary-color` → `var(--primary-color)`).
  */
 function cssVarRef(value: string): string {
 	if (value.indexOf('$') < 0) return value;
