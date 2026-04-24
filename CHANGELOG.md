@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.12.1 (2026-04-24)
+
+**Fixes:**
+- Minified versions were causing problems (duplicate loading of core library), so I ditched them. Minification is up to the app-level bundler.
+
 ### 1.12.0 (2026-04-24)
 
 **Enhancements:**

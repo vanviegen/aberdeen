@@ -1,8 +1,8 @@
 {
   "name": "aberdeen",
-  "version": "1.12.0",
+  "version": "1.12.1",
   "author": "Frank van Viegen",
-  "main": "dist/src/aberdeen.min.js",
+  "main": "dist/src/aberdeen.js",
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/bun": "^1.3.12",
@@ -13,27 +13,27 @@
   "exports": {
     ".": {
       "development": "./dist/src/aberdeen.js",
-      "default": "./dist/src/aberdeen.min.js",
+      "default": "./dist/src/aberdeen.js",
       "types": "./dist/src/aberdeen.d.ts"
     },
     "./route": {
       "development": "./dist/src/route.js",
-      "default": "./dist/src/route.min.js",
+      "default": "./dist/src/route.js",
       "types": "./dist/src/route.d.ts"
     },
     "./transitions": {
       "development": "./dist/src/transitions.js",
-      "default": "./dist/src/transitions.min.js",
+      "default": "./dist/src/transitions.js",
       "types": "./dist/src/transitions.d.ts"
     },
     "./prediction": {
       "development": "./dist/src/prediction.js",
-      "default": "./dist/src/prediction.min.js",
+      "default": "./dist/src/prediction.js",
       "types": "./dist/src/prediction.d.ts"
     },
     "./dispatcher": {
       "development": "./dist/src/dispatcher.js",
-      "default": "./dist/src/dispatcher.min.js",
+      "default": "./dist/src/dispatcher.js",
       "types": "./dist/src/dispatcher.d.ts"
     },
     "./test-helpers": {
@@ -55,10 +55,9 @@
   },
   "license": "MIT",
   "scripts": {
-    "build": "bun run build:clean && bun run build:src && bun run build:min && bun run build:types && bun run build:tests && bun run build:docs && bun run build:skill",
+    "build": "bun run build:clean && bun run build:src && bun run build:types && bun run build:tests && bun run build:docs && bun run build:skill",
     "build:clean": "rm -rf dist dist-docs",
     "build:src": "bun build src/aberdeen.ts src/dispatcher.ts src/prediction.ts src/route.ts src/transitions.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/src/",
-    "build:min": "for f in dist/src/*.js; do base=$(basename \"$f\" .js); bun build \"$f\" --minify --sourcemap --external './*.js' --outdir /tmp/aberdeen-min/ && mv /tmp/aberdeen-min/\"$(basename $f)\" \"dist/src/${base}.min.js\" && mv /tmp/aberdeen-min/\"$(basename $f).map\" \"dist/src/${base}.min.js.map\"; done && rm -rf /tmp/aberdeen-min",
     "build:types": "tsc",
     "build:tests": "bun build tests/helpers.ts tests/fakedom.ts --sourcemap --target bun --external 'aberdeen' --outdir dist/tests/",
     "build:docs": "typedoc && rm -rf dist-docs/assets/aberdeen && cp -r dist/src dist-docs/assets/aberdeen",
