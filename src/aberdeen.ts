@@ -2563,7 +2563,7 @@ function styleStringToCss(styleStr: string, selector: string): string {
 		if (pos >= len) break;
 		
 		const colon = styleStr.indexOf(':', pos);
-		if (colon === -1) break;
+		if (colon === -1) throw new Error(`Trailing data in style string: "${styleStr.substring(pos)}"`);
 		const key = styleStr.substring(pos, colon);
 		if (!VALID_CSS_KEY.test(key)) throw new Error(`Invalid CSS key: "${key}" in style string: "${styleStr}"`);
 		pos = colon + 1;
