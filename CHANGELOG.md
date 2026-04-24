@@ -1,5 +1,11 @@
 # Changelog
 
+### 1.12.0 (2026-04-24)
+
+**Enhancements:**
+- Added conventions throughout the docs for prefixing variables holding proxies with `$` and for naming reusable UI components with `draw...`. Should be helpful for AIs and humans alike.
+- Throw an error when CSS strings contain trailing garbage.
+
 ### 1.11.2 (2026-04-22)
 
 **Enhancements:**

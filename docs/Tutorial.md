@@ -152,70 +152,72 @@ Why are we passing in a function instead of just, say, an array of children? I'm
 ## Observable objects
 Aberdeen's reactivity system is built around observable objects. These are created using the {@link aberdeen.proxy | A.proxy} function:
 
+By convention variables that hold proxied values are prefixed with `$` so reactive reads stand out.
+
 When you access properties of a proxied object within an observer function (the function passed to {@link aberdeen.A}), Aberdeen automatically tracks these dependencies. If the values change later, the observer function will re-run, updating only the affected parts of the DOM.
 
 ```javascript
 import A from 'aberdeen';
 
-const user = A.proxy({
+const $user = A.proxy({
     name: 'Alice',
     age: 28,
     city: 'Aberdeen',
 });
 
 A('div', () => {
-    A(`h3#Hello, ${user.name}!`);
-    A(`p#You are ${user.age} years old.`);
+    A(`h3#Hello, ${$user.name}!`);
+    A(`p#You are ${$user.age} years old.`);
 });
 
 setInterval(() => {
-    user.name = 'Bob';
-    user.age++;
+    $user.name = 'Bob';
+    $user.age++;
 }, 2000);
 ```
 
-As the content function of our `div` is subscribed to both `user.name` and `user.age`, modifying either of these would trigger a re-run of that function, first undoing any side-effects (most notably: inserting DOM elements) of the earlier run. If, however `user.city` is changed, no re-run would be triggered as the function is not subscribed to that property.
+As the content function of our `div` is subscribed to both `$user.name` and `$user.age`, modifying either of these would trigger a re-run of that function, first undoing any side-effects (most notably: inserting DOM elements) of the earlier run. If, however `$user.city` is changed, no re-run would be triggered as the function is not subscribed to that property.
 
 So if either property changes, both the `<h3>` and `<p>` are recreated as the inner most observer function tracking the changes is re-run. If you want to redraw on an even granular level, you can of course:
 
 ```javascript
-const user = A.proxy({
+const $user = A.proxy({
     name: 'Alice',
     age: 28,
 });
 
 A('div', () => {
     A(`h3`, () => {
-        console.log('Name draws:', user.name)
-        A(`#Hello, ${user.name}!`);
+        console.log('Name draws:', $user.name)
+        A(`#Hello, ${$user.name}!`);
     });
     A(`p`, () => {
-        console.log('Age draws:', user.age)
-        A(`#You are ${user.age} years old.`);
+        console.log('Age draws:', $user.age)
+        A(`#You are ${$user.age} years old.`);
     });
 });
 
 setInterval(() => {
-    user.age++;
+    $user.age++;
 }, 2000);
 ```
 
-Now, updating `user.name` would only cause the *Hello* text node to be replaced, leaving the `<div>`, `<h3>` and `<p>` elements as they were.
+Now, updating `$user.name` would only cause the *Hello* text node to be replaced, leaving the `<div>`, `<h3>` and `<p>` elements as they were.
 
 ## Conditional rendering
 
 Within an observer function (such as created by passing a function to {@link aberdeen.A}), you can use regular JavaScript logic. Like `if` and `else`, for instance:
 
 ```javascript
-const user = A.proxy({
+const $user = A.proxy({
     loggedIn: false
 });
 
 A('div', () => {
-    if (user.loggedIn) {
-        A('button.outline text=Logout click=', () => user.loggedIn = false);
+    if ($user.loggedIn) {
+        A('button.outline text=Logout click=', () => $user.loggedIn = false);
     } else {
-        A('button text=Login click=', () => user.loggedIn = true);
+        A('button text=Login click=', () => $user.loggedIn = true);
     }
 });
 ```
@@ -225,32 +227,32 @@ A('div', () => {
 The {@link aberdeen.proxy | A.proxy} method wraps an object in a JavaScript [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy). As this doesn't work for primitive values (like numbers, strings and booleans), the method will *create* an object in order to make it observable. The observable value is made available as its `.value` property.
 
 ```javascript
-const cnt = A.proxy(42);
+const $count = A.proxy(42);
 A('div.row', () => {
     // This scope will not have to redraw
-    A('button text=- click=', () => cnt.value--);
-    A('div text=', cnt);
-    A('button text=+ click=', () => cnt.value++);
+    A('button text=- click=', () => $count.value--);
+    A('div text=', $count);
+    A('button text=+ click=', () => $count.value++);
 });
 ```
 
-The reason the `div.row` scope doesn't redraw when `cnt.value` changes is that we're passing the entire `cnt` observable object to the `text:` property. Aberdeen then internally subscribes to `cnt.value` for just that text node, ensuring minimal updates.
+The reason the `div.row` scope doesn't redraw when `$count.value` changes is that we're passing the entire `$count` observable object to the `text:` property. Aberdeen then internally subscribes to `$count.value` for just that text node, ensuring minimal updates.
 
-If we would have done `A('div', {text: count.value});` instead, we *would* have subscribed to `count.value` within the `div.row` scope, meaning we'd be redrawing the two buttons and the div every time the count changes.
+If we would have done `A('div', {text: $count.value});` instead, we *would* have subscribed to `$count.value` within the `div.row` scope, meaning we'd be redrawing the two buttons and the div every time the count changes.
 
 This also works for other properties, such as inline styles:
 
 ```javascript
 import A from 'aberdeen';
 
-const textColor = A.proxy('blue');
+const $textColor = A.proxy('blue');
 
-A('div.box color:', textColor, '#Click me to change color', 'click=', () => {
-    textColor.value = textColor.value === 'blue' ? 'red' : 'blue';
+A('div.box color:', $textColor, '#Click me to change color', 'click=', () => {
+    $textColor.value = $textColor.value === 'blue' ? 'red' : 'blue';
 });
 ```
 
-This way, when `textColor.value` changes, only the style is updated without recreating the element.
+This way, when `$textColor.value` changes, only the style is updated without recreating the element.
 
 
 ## Observable arrays and sets
@@ -258,40 +260,40 @@ This way, when `textColor.value` changes, only the style is updated without recr
 You can create observable arrays too. They work just like regular arrays, apart from being observable.
 
 ```javascript
-const items = A.proxy([1, 2, 3]);
+const $items = A.proxy([1, 2, 3]);
 
 A('h3', () => {
-    // This subscribes to the length of the array and to the value at `items.length-1` in the array.
-    A('#Last item: '+items[items.length-1]);
+    // This subscribes to the length of the array and to the value at `$items.length-1` in the array.
+    A('#Last item: '+$items[$items.length-1]);
 })
 
 A('ul', () => {
     // This subscribes to the entire array, and thus redraws all <li>s when any item changes.
     // In the next section, we'll learn about a better way.
-    for (const item of items) {
+    for (const item of $items) {
         A(`li#Item ${item}`);
     }
 });
 
-A('button text=Add click=', () => items.push(items.length+1));
+A('button text=Add click=', () => $items.push($items.length+1));
 ```
 
 Observable `Set`s work too. They preserve normal Set semantics, including `.size`. When you iterate them with `A.onEach()`, by default they are sorted by value (or an error is thrown if the value is not a number, string or an array of those).
 
 ```javascript
-const tags = A.proxy(new Set(['ui', 'tiny']));
+const $tags = A.proxy(new Set(['ui', 'tiny']));
 
 A('div', () => {
-    A(`#Tag count: ${tags.size}`);
+    A(`#Tag count: ${$tags.size}`);
 });
 
 A('ul', () => {
-    A.onEach(tags, tag => { // Ordered by tag
+    A.onEach($tags, tag => { // Ordered by tag
         A(`li#${tag}`);
     });
 });
 
-A('button text=Add fast click=', () => tags.add('fast'));
+A('button text=Add fast click=', () => $tags.add('fast'));
 ```
 
 ## TypeScript and classes
@@ -307,10 +309,10 @@ class Widget {
     toString() { return `${this.name}Widget (${this.width}x${this.height})`; }
 }
 
-let graph: Widget = A.proxy(new Widget('Graph', 200, 100));
+let $graph: Widget = A.proxy(new Widget('Graph', 200, 100));
 
-A('h3', () => A('#'+graph));
-A('button text=Grow click=', () => graph.grow());
+A('h3', () => A('#'+$graph));
+A('button text=Grow click=', () => $graph.grow());
 ```
 
 The type returned by {@link aberdeen.proxy | A.proxy} matches the input type, meaning the type system does not distinguish proxied and unproxied objects. That makes sense, as they have the exact same methods and properties (though proxied objects may have additional side effects).
@@ -325,33 +327,33 @@ For rendering lists efficiently, Aberdeen provides the {@link aberdeen.onEach | 
 ```javascript
 import A from 'aberdeen';
 
-const items = A.proxy([]);
+const $items = A.proxy([]);
 
 const randomInt = (max) => parseInt(Math.random() * max);
 const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0-9]+/g, '').replace(/^\w/, c => c.toUpperCase());
 
 // Make random mutations
 setInterval(() => {
-    if (randomInt(3)) items[randomInt(7)] = {label: randomWord(), prio: randomInt(4)};
-    else delete items[randomInt(7)];
+    if (randomInt(3)) $items[randomInt(7)] = {label: randomWord(), prio: randomInt(4)};
+    else delete $items[randomInt(7)];
 }, 500);
 
 A('div.row.wide height:250px', () => {
     A('div.box#By index', () => {
-        A.onEach(items, (item, index) => {
+        A.onEach($items, ($item, index) => {
             // Called only for items that are created/updated
-            A(`li#${item.label} (prio ${item.prio})`)
+            A(`li#${$item.label} (prio ${$item.prio})`)
         });
     })
     A('div.box#By label', () => {
-        A.onEach(items, (item, index) => {
-            A(`li#${item.label} (prio ${item.prio})`)
-        }, item => item.label);
+        A.onEach($items, ($item, index) => {
+            A(`li#${$item.label} (prio ${$item.prio})`)
+        }, $item => $item.label);
     })
     A('div.box#By desc prio, then label', () => {
-        A.onEach(items, (item, index) => {
-            A(`li#${item.label} (prio ${item.prio})`)
-        }, item => [-item.prio, item.label]);
+        A.onEach($items, ($item, index) => {
+            A(`li#${$item.label} (prio ${$item.prio})`)
+        }, $item => [-$item.prio, $item.label]);
     })
 })
 ```
@@ -359,20 +361,20 @@ A('div.row.wide height:250px', () => {
 We can also use {@link aberdeen.onEach | A.onEach} to reactively iterate over *objects*, arrays, `Map`s and `Set`s. For objects and `Map`s, the render and order functions receive `(value, key)` instead of `(value, index)`. For `Set`s, they receive only the value. By default, Sets are ordered by that value, which only works for numbers, strings and arrays of those, so Sets of objects need an explicit order function.
 
 ```javascript
-const pairs = A.proxy({A: 'Y', B: 'X',});
+const $pairs = A.proxy({A: 'Y', B: 'X',});
 
 const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0-9]+/g, '').replace(/^\w/, c => c.toUpperCase());
 
-A('button text="Add item" click=', () => pairs[randomWord()] = randomWord());
+A('button text="Add item" click=', () => $pairs[randomWord()] = randomWord());
 
 A('div.row.wide margin-top:1em', () => {
     A('div.box#By key', () => {
-        A.onEach(pairs, (value, key) => {
+        A.onEach($pairs, (value, key) => {
             A(`li#${key}: ${value}`)
         });
     })
     A('div.box#By desc value', () => {
-        A.onEach(pairs, (value, key) => {
+        A.onEach($pairs, (value, key) => {
             A(`li#${key}: ${value}`)
         }, value => A.invertString(value));
     })
@@ -384,33 +386,33 @@ Note the use of the provided {@link aberdeen.invertString | A.invertString} func
 ## Two-way binding
 Aberdeen makes it easy to create two-way bindings between form elements (the various `<input>` types, `<textarea>` and `<select>`) and your data, by passing an observable object with a `.value` as `bind:` property to {@link aberdeen.A}.
 
-To bind to object properties not named .value (e.g., user.name), use {@link aberdeen.ref | A.ref}. This creates a new observable A.proxy whose .value property directly maps to the specified property (e.g., name) on your original observable object (e.g., user).
+To bind to object properties not named `.value` (e.g., `$user.name`), use {@link aberdeen.ref | A.ref}. This creates a new observable A.proxy whose `.value` property directly maps to the specified property (e.g., `name`) on your original observable object (e.g., `$user`).
 
 ```javascript
 import A from 'aberdeen';
 
-const user = A.proxy({
+const $user = A.proxy({
     name: 'Alice',
     active: false
 });
 
 // Text input binding
-A('input placeholder=Name bind=', A.ref(user, 'name'));
+A('input placeholder=Name bind=', A.ref($user, 'name'));
 
 // Checkbox binding
 A('label', () => {
-    A('input type=checkbox bind=', A.ref(user, 'active'));
+    A('input type=checkbox bind=', A.ref($user, 'active'));
 }, '#Active');
 
 // Display the current state
 A('div.box', () => {
-    A(`p#Name: ${user.name} `, () => {
+    A(`p#Name: ${$user.name} `, () => {
         // Binding works both ways
         A('button.outline.secondary#!', {
-            click: () => user.name += '!'
+            click: () => $user.name += '!'
         });
     });
-    A(`p#Status: ${user.active ? 'Active' : 'Inactive'}`);
+    A(`p#Status: ${$user.active ? 'Active' : 'Inactive'}`);
 });
 ```
 
@@ -472,13 +474,13 @@ let titleStyle = A.insertCss({
     "&.exploded": "transform:scale(5)"
 });
 
-const show = A.proxy(true);
+const $show = A.proxy(true);
 A('label', () => {
-    A('input type=checkbox bind=', show);
+    A('input type=checkbox bind=', $show);
     A('#Show title');
 });
 A(() => {
-    if (!show.value) return;
+    if (!$show.value) return;
     A('h2#(Dis)appearing text', titleStyle, 'create=faded.imploded destroy=faded.exploded');
 });
 ```
@@ -492,32 +494,32 @@ Though this approach is easy (you just need to provide some CSS), you may requir
 import A from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 
-const items = A.proxy([]);
+const $items = A.proxy([]);
 
 const randomInt = (max) => parseInt(Math.random() * max);
 const randomWord = () => Math.random().toString(36).substring(2, 12).replace(/[0-9]+/g, '').replace(/^\w/, c => c.toUpperCase());
 
 // Make random mutations
 setInterval(() => {
-    if (randomInt(3)) items[randomInt(7)] = {label: randomWord(), prio: randomInt(4)};
-    else delete items[randomInt(7)];
+    if (randomInt(3)) $items[randomInt(7)] = {label: randomWord(), prio: randomInt(4)};
+    else delete $items[randomInt(7)];
 }, 500);
 
 A('div.row.wide height:250px', () => {
     A('div.box#By index', () => {
-        A.onEach(items, (item, index) => {
-            A(`li#${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
+        A.onEach($items, ($item, index) => {
+            A(`li#${$item.label} (prio ${$item.prio})`, {create: grow, destroy: shrink})
         });
     })
     A('div.box#By label', () => {
-        A.onEach(items, (item, index) => {
-            A(`li#${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
-        }, item => item.label);
+        A.onEach($items, ($item, index) => {
+            A(`li#${$item.label} (prio ${$item.prio})`, {create: grow, destroy: shrink})
+        }, $item => $item.label);
     })
     A('div.box#By desc prio, then label', () => {
-        A.onEach(items, (item, index) => {
-            A(`li#${item.label} (prio ${item.prio})`, {create: grow, destroy: shrink})
-        }, item => [-item.prio, item.label]);
+        A.onEach($items, ($item, index) => {
+            A(`li#${$item.label} (prio ${$item.prio})`, {create: grow, destroy: shrink})
+        }, $item => [-$item.prio, $item.label]);
     })
 });
 ```
@@ -529,26 +531,26 @@ Sometimes you need to read reactive data inside an observer scope without creati
 ```javascript
 import A from 'aberdeen';
 
-const data = A.proxy({ a: 1, b: 2 });
+const $data = A.proxy({ a: 1, b: 2 });
 
 A(() => {
-    // This scope only re-runs when data.a changes
-    // Changes to data.b won't trigger a re-render
-    A(`h2#a == ${data.a} && b == ${A.peek(data, 'b')}`);
+    // This scope only re-runs when $data.a changes
+    // Changes to $data.b won't trigger a re-render
+    A(`h2#a == ${$data.a} && b == ${A.peek($data, 'b')}`);
 });
 
-A(`button text="a++ (will update)" click=`, () => data.a++);
-A(`button ml:1rem text="b++ (won't update)" click=`, () => data.b++);
+A(`button text="a++ (will update)" click=`, () => $data.a++);
+A(`button ml:1rem text="b++ (won't update)" click=`, () => $data.b++);
 ```
 
 You can also pass a function to `A.peek()` to execute it without any subscriptions:
 
 ```javascript
-const a = A.proxy(42);
-const b = A.proxy(7);
-const sum = A.peek(() => a.value + b.value); // Reads both without subscribing
+const $a = A.proxy(42);
+const $b = A.proxy(7);
+const sum = A.peek(() => $a.value + $b.value); // Reads both without subscribing
 A('#Sum is: '+sum);
-setInterval(() => a.value++, 1000); // Won't update
+setInterval(() => $a.value++, 1000); // Won't update
 ```
 
 This can be useful to avoid rerenders (of even rerender loops) when you only need a point-in-time snapshot of some reactive data.
@@ -558,62 +560,81 @@ An observer scope doesn't *need* to create DOM elements. It may also perform oth
 
 ```javascript
 // NOTE: See below for a better way.
-const original = A.proxy(1);
-const derived = A.proxy();
+const $original = A.proxy(1);
+const $derived = A.proxy();
 A(() => {
-    derived.value = original.value * 42;
+    $derived.value = $original.value * 42;
 });
 
-A('h3 text=', derived);
-A('button text=Increment click=', () => original.value++);
+A('h3 text=', $derived);
+A('button text=Increment click=', () => $original.value++);
 ```
 
 The {@link aberdeen.derive | A.derive} function makes the above a little easier. It works just like passing a function to {@link aberdeen.A}, creating an observer, the only difference being that the value returned by the function is reactively assigned to the `value` property of the observable object returned by `derive`. So the above could also be written as:
 
 ```javascript
-const original = A.proxy(1);
-const derived = A.derive(() => original.value * 42);
+const $original = A.proxy(1);
+const $derived = A.derive(() => $original.value * 42);
 
-A('h3 text=', derived);
-A('button text=Increment click=', () => original.value++);
+A('h3 text=', $derived);
+A('button text=Increment click=', () => $original.value++);
 ```
 
 For deriving values from (possibly large) arrays, objects, Maps or Sets, Aberdeen provides specialized functions that enable fast, incremental updates to derived data: {@link aberdeen.map | A.map} (each item becomes zero or one derived item), {@link aberdeen.multiMap | A.multiMap} (each item becomes any number of derived items), {@link aberdeen.count | A.count} (reactively counts the number of object properties or collection items), {@link aberdeen.isEmpty | A.isEmpty} (true when the object/array/Map/Set has no items) and {@link aberdeen.partition | A.partition} (sorts each item into one or more buckets). An example:
 
 ```javascript
 import A from 'aberdeen';
-const {$, A.proxy} = aberdeen;
 
 // Create some random data
-const people = A.proxy({});
+const $people = A.proxy({});
 const randomInt = (max) => parseInt(Math.random() * max);
 setInterval(() => {
-    people[randomInt(250)] = {height: 150+randomInt(60), weight: 45+randomInt(90)};
+    $people[randomInt(250)] = {height: 150+randomInt(60), weight: 45+randomInt(90)};
 }, 250);
 
 // Do some mapping, counting and observing
-const totalCount = A.count(people);
-const bmis = A.map(people,
-    person => Math.round(person.weight / ((person.height/100) ** 2))
+const $totalCount = A.count($people);
+const $bmis = A.map($people,
+    $person => Math.round($person.weight / (($person.height/100) ** 2))
 );
-const overweightBmis = A.map(bmis, // Use A.map() as a filter
+const $overweightBmis = A.map($bmis, // Use A.map() as a filter
     bmi => bmi > 25 ? bmi : undefined
 ); 
-const overweightCount = A.count(overweightBmis);
-const message = A.derive(
-    () => `There are ${totalCount.value} people, of which ${overweightCount.value} are overweight.`
+const $overweightCount = A.count($overweightBmis);
+const $message = A.derive(
+    () => `There are ${$totalCount.value} people, of which ${$overweightCount.value} are overweight.`
 );
 
 // Show the results
-A('p text=', message);
+A('p text=', $message);
 A(() => {
     // isEmpty only causes a re-run when the count changes between zero and non-zero
-    if (A.isEmpty(overweightBmis)) return;
+    if (A.isEmpty($overweightBmis)) return;
     A('p#These are their BMIs:', () => {
-        A.onEach(overweightBmis, bmi => A('# '+bmi), bmi => -bmi);
+        A.onEach($overweightBmis, bmi => A('# '+bmi), bmi => -bmi);
         // Sort by descending BMI
     });
 })
+```
+
+## UI Components
+
+UI Components in Aberdeen are just functions, named `draw<Something>` by convention, that use {@link aberdeen.A} to create some DOM structure. They can accept arguments, return (proxied) values and create local (proxied) state just like any other function.
+
+```javascript
+function drawCounter(initialValue = 0) {
+    const $count = A.proxy(initialValue);
+    A('div.row', () => {
+        A('button text=- click=', () => $count.value--);
+        A('div text=', $count);
+        A('button text=+ click=', () => $count.value++);
+    });
+    return $count; // Return the reactive count value for external use
+}
+// Create multiple independent instances:
+drawCounter();
+const $second = drawCounter(42);
+A('input value=', $second); // Bind the second counter to an input field
 ```
 
 ## Debugging with A.dump()
@@ -623,18 +644,18 @@ The {@link aberdeen.dump | A.dump} function creates a live, interactive tree vie
 ```javascript
 import A from 'aberdeen';
 
-const state = A.proxy({
+const $state = A.proxy({
     user: { name: 'Frank', kids: 1 },
     items: ['a', 'b']
 });
 
 A('h2#Live State Dump');
-A.dump(state);
+A.dump($state);
 
-// The A.dump updates automatically as state changes
+// The A.dump updates automatically as $state changes
 A('button text="Update state" click=', () => {
-    state.user.kids++;
-    state.items.push('new');
+    $state.user.kids++;
+    $state.items.push('new');
 });
 ```
 
@@ -768,7 +789,7 @@ A.insertGlobalCss({
 });
 
 // Application state
-const contacts = A.proxy([
+const $contacts = A.proxy([
     new Contact(1, 'Emma', 'Wilson', 'emma.wilson@email.com', '555-0101'),
     new Contact(2, 'James', 'Anderson', 'j.anderson@email.com', '555-0102'),
     new Contact(3, 'Sofia', 'Martinez', 'sofia.m@email.com', '555-0103'),
@@ -824,26 +845,26 @@ function drawContactList() {
     A('div', () => {
         const sortBy = route.current.search.sort || 'firstName';
 
-        const filtered = A.map(contacts, contact => {
+        const $filtered = A.map($contacts, $contact => {
             const query = route.current.search.q;
             if (query) {
-                const info = `${contact.firstName} ${contact.lastName} ${contact.email}`;
+                const info = `${$contact.firstName} ${$contact.lastName} ${$contact.email}`;
                 if (!info.toLowerCase().includes(query.toLowerCase())) return; // Skip!
             }
-            return contact;
+            return $contact;
         });
         
-        A.onEach(filtered, contact => {
-            A('a', cardStyle, 'create=', grow, 'destroy=', shrink, `href=/contacts/${contact.id}`, () => {
+        A.onEach($filtered, $contact => {
+            A('a', cardStyle, 'create=', grow, 'destroy=', shrink, `href=/contacts/${$contact.id}`, () => {
                 A('h2', () => {
-                    A('span font-weight:normal text=', contact.firstName+" ");
-                    A('span text=', contact.lastName);
+                    A('span font-weight:normal text=', $contact.firstName+" ");
+                    A('span text=', $contact.lastName);
                 });
-                A('div text=', contact.email);
+                A('div text=', $contact.email);
             });
-        }, contact => contact[sortBy].toLowerCase());
+        }, $contact => $contact[sortBy].toLowerCase());
 
-        A(`a role=button mt:$3 text="Add new contact" href=/contacts/${contacts.length}`);
+        A(`a role=button mt:$3 text="Add new contact" href=/contacts/${$contacts.length}`);
     });
 }
 
@@ -855,16 +876,17 @@ const detailStyle = A.insertCss({
 });
 
 function drawContactDetail(id: number) {
-    const contact = contacts[id] ||= {};
+    $contacts[id] ||= new Contact(id, '', '', '', '');
+    const $contact = $contacts[id];
     
     A('a role=button href=/contacts #← Back');
     
     A('div mt:$3', detailStyle, () => {
-        A('h2 mb:$2 text=', A.ref(contact, 'firstName'), 'text=', ' ', 'text=', A.ref(contact, 'lastName'));
-        A('label text="First Name" input bind=', A.ref(contact, 'firstName'));
-        A('label text="Last Name" input bind=', A.ref(contact, 'lastName'));
-        A('label text="Email" input type=email bind=', A.ref(contact, 'email'));     
-        A('label text="Phone" input type=tel bind=', A.ref(contact, 'phone'));
+        A('h2 mb:$2 text=', A.ref($contact, 'firstName'), 'text=', ' ', 'text=', A.ref($contact, 'lastName'));
+        A('label text="First Name" input bind=', A.ref($contact, 'firstName'));
+        A('label text="Last Name" input bind=', A.ref($contact, 'lastName'));
+        A('label text="Email" input type=email bind=', A.ref($contact, 'email'));     
+        A('label text="Phone" input type=tel bind=', A.ref($contact, 'phone'));
     });
 }
 ```

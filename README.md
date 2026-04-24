@@ -33,21 +33,22 @@ First, let's start with the obligatory reactive counter example. If you're readi
 import A from 'aberdeen';
 
 // Define some state as a proxied (observable) object
-const state = A.proxy({question: "How many roads must a man walk down?", answer: 42});
+// The '$' prefix is just a convention to make reactive objects stand out
+const $state = A.proxy({question: "How many roads must a man walk down?", answer: 42});
 
 A('h3', () => {
     // This function reruns whenever the question or the answer changes
-    A('text=', `${state.question} ↪ ${state.answer || 'Blowing in the wind'}`)
+    A('text=', `${$state.question} ↪ ${$state.answer || 'Blowing in the wind'}`)
 });
 
-// Two-way bind state.question to an <input>
-A('input placeholder=Question bind=', A.ref(state, 'question'))
+// Two-way bind $state.question to an <input>
+A('input placeholder=Question bind=', A.ref($state, 'question'))
 
-// Allow state.answer to be modified using both an <input> and buttons
+// Allow $state.answer to be modified using both an <input> and buttons
 A('div.row margin-top:1em', () => {
-    A('button text=- click=', () => state.answer--);
-    A('input type=number bind=', A.ref(state, 'answer'))
-    A('button text=+ click=', () => state.answer++);
+    A('button text=- click=', () => $state.answer--);
+    A('input type=number bind=', A.ref($state, 'answer'))
+    A('button text=+ click=', () => $state.answer++);
 });
 ```
 
@@ -75,64 +76,64 @@ class TodoItem {
 // The top-level user interface.
 function drawMain() {
     // Add some initial items. We'll wrap a A.proxy() around it!
-    let items: TodoItem[] = A.proxy([
+    let $items: TodoItem[] = A.proxy([
         new TodoItem('Make todo-list demo', true),
         new TodoItem('Learn Aberdeen', false),
     ]);
     
     // Draw the list, ordered by label.
-    A.onEach(items, drawItem, item => item.label);
+    A.onEach($items, drawItem, $item => $item.label);
 
     // Add item and delete checked buttons.
     A('div.row', () => {
-        A('button text=+ click=', () => items.push(new TodoItem("")));
+        A('button text=+ click=', () => $items.push(new TodoItem("")));
         A('button.outline text="Delete checked" click=', () => {
-            for(let idx in items) {
-                if (items[idx].done) delete items[idx];
+            for(let idx in $items) {
+                if ($items[idx].done) delete $items[idx];
             }
         });
     });
 };
 
 // Called for each todo list item.
-function drawItem(item) {
+function drawItem($item) {
     // Items without a label open in editing state.
     // Note that we're creating this A.proxy outside the `div.row` scope
     // create below, so that it will persist when that state reruns.
-    let editing: {value: boolean} = A.proxy(item.label == '');
+    let $editing: {value: boolean} = A.proxy($item.label == '');
 
     A('div.row', todoItemStyle, 'create=', grow, 'destroy=', shrink, () => {
         // Conditionally add a class to `div.row`, based on item.done
-        A({".done": A.ref(item,'done')});
+        A({".done": A.ref($item,'done')});
 
         // The checkmark is hidden using CSS
         A('div.checkmark text=✅');
 
-        if (editing.value) {
+        if ($editing.value) {
             // Proxied string to hold label while being edited.
-            const labelCopy = A.proxy(item.label);
+            const $labelCopy = A.proxy($item.label);
             function save() {
-                editing.value = false;
-                item.label = labelCopy.value;
+                $editing.value = false;
+                $item.label = $labelCopy.value;
             }
             // Label <input>. Save using enter or button.
-            A('input placeholder=Label bind=', labelCopy, 'keydown=', e => e.key==='Enter' && save());
-            A('button.outline text=Cancel click=', () => editing.value = false);
+            A('input placeholder=Label bind=', $labelCopy, 'keydown=', e => e.key==='Enter' && save());
+            A('button.outline text=Cancel click=', () => $editing.value = false);
             A('button text=Save click=', save);
         } else {
             // Label as text. 
-            A('p text=', item.label);
+            A('p text=', $item.label);
 
             // Edit icon, if not done.
-            if (!item.done) {
+            if (!$item.done) {
                 A('a text=Edit click=', e => {
-                    editing.value = true;
+                    $editing.value = true;
                     e.stopPropagation(); // We don't want to toggle as well.
                 });
             }
             
             // Clicking a row toggles done.
-            A('cursor:pointer click=', () => item.done = !item.done);
+            A('cursor:pointer click=', () => $item.done = !$item.done);
         }
     });
 }

@@ -51,13 +51,13 @@ function queue(runner: QueueRunner) {
  *
  * @example
  * ```typescript
- * const data = A.proxy("before");
+ * const $data = A.proxy("before");
  *
- * A('#', data);
+ * A('#', $data);
  * console.log(1, document.body.innerHTML); // before
  *
  * // Make an update that should cause the DOM to change.
- * data.value = "after";
+ * $data.value = "after";
  *
  * // Normally, the DOM update would happen after a timeout.
  * // But this causes an immediate update:
@@ -136,15 +136,15 @@ function arrayToStr(parts: (number | string)[]): string {
  *
  * @example
  * ```typescript
- * const users = A.proxy([
+ * const $users = A.proxy([
  *     { id: 1, name: 'Charlie', score: 95 },
  *     { id: 2, name: 'Alice', score: 100 },
  *     { id: 3, name: 'Bob', score: 90 },
  * ]);
  *
- * A.onEach(users, (user) => {
- *     A(`p#${user.name}: ${user.score}`);
- * }, (user) => A.invertString(user.name)); // Reverse alphabetic order
+ * A.onEach($users, ($user) => {
+ *     A(`p#${$user.name}: ${$user.score}`);
+ * }, ($user) => A.invertString($user.name)); // Reverse alphabetic order
  * ```
  *
  * @param input The string whose sort order needs to be inverted.
@@ -909,39 +909,39 @@ export function onEach<K extends string | number | symbol, T>(
  *
  * @example Iterating an array
  * ```typescript
- * const items = A.proxy(['apple', 'banana', 'cherry']);
+ * const $items = A.proxy(['apple', 'banana', 'cherry']);
  *
  * // Basic iteration
- * A.onEach(items, (item, index) => A(`li#${item} (#${index})`));
+ * A.onEach($items, (item, index) => A(`li#${item} (#${index})`));
  *
  * // Add a new item - the list updates automatically
- * setTimeout(() => items.push('durian'), 2000);
+ * setTimeout(() => $items.push('durian'), 2000);
  * // Same for updates and deletes
- * setTimeout(() => items[1] = 'berry', 4000);
- * setTimeout(() => delete items[2], 6000);
+ * setTimeout(() => $items[1] = 'berry', 4000);
+ * setTimeout(() => delete $items[2], 6000);
  * ```
  *
  * @example Iterating an array with custom ordering
  * ```typescript
- * const users = A.proxy([
+ * const $users = A.proxy([
  *     { id: 3, group: 1, name: 'Charlie' },
  *     { id: 1, group: 1, name: 'Alice' },
  *     { id: 2, group: 2, name: 'Bob' },
  * ]);
  *
  * // Sort by name alphabetically
- * A.onEach(users, (user) => {
- *     A(`p#${user.name} (id=${user.id})`);
- * }, (user) => [user.group, user.name]); // Sort by group, and within each group sort by name
+ * A.onEach($users, ($user) => {
+ *     A(`p#${$user.name} (id=${$user.id})`);
+ * }, ($user) => [$user.group, $user.name]); // Sort by group, and within each group sort by name
  * ```
  *
  *  @example Iterating an object
  * ```javascript
- * const config = A.proxy({ theme: 'dark', fontSize: 14, showTips: true });
+ * const $config = A.proxy({ theme: 'dark', fontSize: 14, showTips: true });
  *
  * // Display configuration options
  * A('dl', () => {
- *     A.onEach(config, (value, key) => {
+ *     A.onEach($config, (value, key) => {
  *         if (key === 'showTips') return; // Don't render this one
  *         A('dt#'+key);
  *         A('dd#'+value);
@@ -949,20 +949,20 @@ export function onEach<K extends string | number | symbol, T>(
  * });
  *
  * // Change a value - the display updates automatically
- * setTimeout(() => config.fontSize = 16, 2000);
+ * setTimeout(() => $config.fontSize = 16, 2000);
  * ```
  *
  * @example Iterating a Set
  * ```javascript
- * const tags = A.proxy(new Set(['ui', 'fast', 'tiny']));
+ * const $tags = A.proxy(new Set(['ui', 'fast', 'tiny']));
  *
  * A('ul', () => {
- *     A.onEach(tags, (tag) => { // Defaults to alphabetically ordering by tag
+ *     A.onEach($tags, (tag) => { // Defaults to alphabetically ordering by tag
  *         A(`li#${tag}`);
  *     });
  * });
  *
- * setTimeout(() => tags.add('reactive'), 2000);
+ * setTimeout(() => $tags.add('reactive'), 2000);
  * ```
  * @see {@link invertString} To easily create keys for reverse sorting.
  */
@@ -1000,21 +1000,21 @@ export const EMPTY = Symbol("empty");
  *
  * @example
  * ```typescript
- * const items = A.proxy([]);
+ * const $items = A.proxy([]);
  *
  * // Reactively display a message if the items array is empty
  * A('div', () => {
- *     if (A.isEmpty(items)) {
+ *     if (A.isEmpty($items)) {
  *         A('p i#No items yet!');
  *     } else {
- *         A.onEach(items, item => A('p#'+item));
+ *         A.onEach($items, item => A('p#'+item));
  *     }
  * });
  *
  * // Adding an item will automatically remove the "No items yet!" message
  * setInterval(() => {
- *   if (!items.length || Math.random()>0.5) items.push('Item');
- *   else items.length = 0;
+ *   if (!$items.length || Math.random()>0.5) $items.push('Item');
+ *   else $items.length = 0;
  * }, 1000)
  * ```
  */
@@ -1060,19 +1060,19 @@ export interface ValueRef<T> {
  * 
  * @example
  * ```typescript
- * const items = A.proxy({x: 3, y: 7} as any);
- * const cnt = A.count(items);
+ * const $items = A.proxy({x: 3, y: 7} as any);
+ * const $count = A.count($items);
  *
  * // Create a DOM text node for the count:
- * A('div text=', cnt);
+ * A('div text=', $count);
  * // <div>2</div>
 
  * // Or we can use it in an {@link derive} function:
- * A(() => console.log("The count is now", cnt.value));
+ * A(() => console.log("The count is now", $count.value));
  * // The count is now 2
  * 
  * // Adding/removing items will update the count
- * items.z = 12;
+ * $items.z = 12;
  * // Asynchronously, after 0ms:
  * // <div>3</div>
  * // The count is now 3
@@ -1486,6 +1486,7 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  *   set to `false`.
  *
  * Use {@link unproxy} to get the original underlying data back.
+ * By convention in the examples below, local variables that hold proxied values are prefixed with `$`.
  *
  * @param target - The object, array, Map, Set, or primitive value to make reactive.
  * @returns A reactive proxy wrapping the target data.
@@ -1493,31 +1494,31 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  *
  * @example Object
  * ```javascript
- * const state = A.proxy({ count: 0, message: 'Hello' });
- * A(() => console.log(state.message)); // Subscribes to message
- * setTimeout(() => state.message = 'World', 1000); // Triggers the observing function
- * setTimeout(() => state.count++, 2000); // Triggers nothing
+ * const $state = A.proxy({ count: 0, message: 'Hello' });
+ * A(() => console.log($state.message)); // Subscribes to message
+ * setTimeout(() => $state.message = 'World', 1000); // Triggers the observing function
+ * setTimeout(() => $state.count++, 2000); // Triggers nothing
  * ```
  *
  * @example Array
  * ```javascript
- * const items = A.proxy(['a', 'b']);
- * A(() => console.log(items.length)); // Subscribes to length
- * setTimeout(() => items.push('c'), 2000); // Triggers the observing function
+ * const $items = A.proxy(['a', 'b']);
+ * A(() => console.log($items.length)); // Subscribes to length
+ * setTimeout(() => $items.push('c'), 2000); // Triggers the observing function
  * ```
  *
  * @example Primitive
  * ```javascript
- * const name = A.proxy('Aberdeen');
- * A(() => console.log(name.value)); // Subscribes to value
- * setTimeout(() => name.value = 'UI', 2000); // Triggers the observing function
+ * const $name = A.proxy('Aberdeen');
+ * A(() => console.log($name.value)); // Subscribes to value
+ * setTimeout(() => $name.value = 'UI', 2000); // Triggers the observing function
  * ```
  *
  * @example Set
  * ```javascript
- * const tags = A.proxy(new Set(['ui', 'tiny']));
- * A(() => console.log(tags.has('ui'), tags.size));
- * setTimeout(() => tags.add('fast'), 1000);
+ * const $tags = A.proxy(new Set(['ui', 'tiny']));
+ * A(() => console.log($tags.has('ui'), $tags.size));
+ * setTimeout(() => $tags.add('fast'), 1000);
  * ```
  *
  * @example Class instance
@@ -1527,10 +1528,10 @@ export function proxy<T extends any>(target: T): ValueRef<T extends number ? num
  *   grow() { this.width *= 2; }
  *   toString() { return `${this.name}Widget (${this.width}x${this.height})`; }
  * }
- * let graph: Widget = A.proxy(new Widget('Graph', 200, 100));
- * A(() => console.log(''+graph));
- * setTimeout(() => graph.grow(), 2000);
- * setTimeout(() => graph.grow(), 4000);
+ * let $graph: Widget = A.proxy(new Widget('Graph', 200, 100));
+ * A(() => console.log(''+$graph));
+ * setTimeout(() => $graph.grow(), 2000);
+ * setTimeout(() => $graph.grow(), 4000);
  * ```
  */
 export function proxy(target: TargetType): TargetType {
@@ -1567,23 +1568,23 @@ export function proxy(target: TargetType): TargetType {
  *
  * @example
  * ```typescript
- * const userProxy = A.proxy({ name: 'Frank' });
- * const rawUser = A.unproxy(userProxy);
+ * const $user = A.proxy({ name: 'Frank' });
+ * const rawUser = A.unproxy($user);
  *
  * // Log reactively
- * A(() => console.log('proxied', userProxy.name));
+ * A(() => console.log('proxied', $user.name));
  * // The following will only ever log once, as we're not subscribing to any observable
  * A(() => console.log('unproxied', rawUser.name));
  *
  * // This cause the first log to run again:
- * setTimeout(() => userProxy.name += '!', 1000);
+ * setTimeout(() => $user.name += '!', 1000);
  *
  * // This doesn't cause any new logs:
  * setTimeout(() => rawUser.name += '?', 2000);
  *
- * // Both userProxy and rawUser end up as `{name: 'Frank!?'}`
+ * // Both $user and rawUser end up as `{name: 'Frank!?'}`
  * setTimeout(() => {
- *   console.log('final proxied', userProxy)
+ *   console.log('final proxied', $user)
  *   console.log('final unproxied', rawUser)
  * }, 3000);
  * ```
@@ -1620,12 +1621,12 @@ function destroyWithClass(element: Element, cls: string) {
  *
  * @example Basic Copy
  * ```typescript
- * const source = A.proxy({ a: 1, b: { c: 2 } });
- * const dest = A.proxy({ b: { d: 3 } });
- * A.copy(dest, source);
- * console.log(dest); // proxy({ a: 1, b: { c: 2 } })
- * A.copy(dest, 'b', { e: 4 });
- * console.log(dest); // proxy({ a: 1, b: { e: 4 } })
+ * const $source = A.proxy({ a: 1, b: { c: 2 } });
+ * const $dest = A.proxy({ b: { d: 3 } });
+ * A.copy($dest, $source);
+ * console.log($dest); // proxy({ a: 1, b: { c: 2 } })
+ * A.copy($dest, 'b', { e: 4 });
+ * console.log($dest); // proxy({ a: 1, b: { e: 4 } })
  * ```
  */
 
@@ -1661,11 +1662,11 @@ function copySet(dst: any, dstKey: any, src: any, flags: number): boolean {
  * @example Basic merge
  * ```typescript
  * const source = { b: { c: 99 }, d: undefined }; // d: undefined will delete
- * const dest = A.proxy({ a: 1, b: { x: 5 }, d: 4 });
- * A.merge(dest, source);
- * A.merge(dest, 'b', { y: 6 }); // merge into dest.b
- * A.merge(dest, 'c', { z: 7 }); // merge.c doesn't exist yet, so it will just be assigned
- * console.log(dest); // proxy({ a: 1, b: { c: 99, x: 5, y: 6 }, c: { z: 7 } })
+ * const $dest = A.proxy({ a: 1, b: { x: 5 }, d: 4 });
+ * A.merge($dest, source);
+ * A.merge($dest, 'b', { y: 6 }); // merge into $dest.b
+ * A.merge($dest, 'c', { z: 7 }); // $dest.c doesn't exist yet, so it will just be assigned
+ * console.log($dest); // proxy({ a: 1, b: { c: 99, x: 5, y: 6 }, c: { z: 7 } })
  * ```
  *
  */
@@ -2037,16 +2038,16 @@ const refHandler: ProxyHandler<RefTarget> = {
  *
  * @example
  * ```javascript
- * const formData = A.proxy({ color: 'orange', velocity: 42 });
+ * const $formData = A.proxy({ color: 'orange', velocity: 42 });
  *
  * // Usage with `bind`
- * A('input type=text bind=', A.ref(formData, 'color'));
+ * A('input type=text bind=', A.ref($formData, 'color'));
  *
  * // Usage as a dynamic property, causes a TextNode with just the name to be created and live-updated
- * A('p text="Selected color: " text=', A.ref(formData, 'color'), 'color:', A.ref(formData, 'color'));
+ * A('p text="Selected color: " text=', A.ref($formData, 'color'), 'color:', A.ref($formData, 'color'));
  *
- * // Changes are actually stored in formData - this causes logs like `{color: "Blue", velocity 42}`
- * A(() => console.log(formData))
+ * // Changes are actually stored in $formData - this causes logs like `{color: "Blue", velocity 42}`
+ * A(() => console.log($formData))
  * ```
  */
 export function ref<T extends TargetType, K extends keyof T>(
@@ -2268,29 +2269,29 @@ export function disableCreateDestroy() {
  *
  * @example Content Functions & Reactive Scope
  * ```typescript
- * const state = A.proxy({ count: 0 });
+ * const $state = A.proxy({ count: 0 });
  * A('div', () => { // Outer element
- *   // This scope re-renders when state.count changes
- *   A(`p#Count is ${state.count}`);
- *   A('button text=Increment click=', () => state.count++);
+ *   // This scope re-renders when $state.count changes
+ *   A(`p#Count is ${$state.count}`);
+ *   A('button text=Increment click=', () => $state.count++);
  * });
  * ```
  *
  * @example Two-way Binding
  * ```typescript
- * const user = A.proxy({ name: '' });
- * A('input placeholder=Name bind=', A.ref(user, 'name'));
+ * const $user = A.proxy({ name: '' });
+ * A('input placeholder=Name bind=', A.ref($user, 'name'));
  * A('h3', () => { // Reactive scope
- *   A(`#Hello ${user.name || 'stranger'}`);
+ *   A(`#Hello ${$user.name || 'stranger'}`);
  * });
  * ```
  *
  * @example Conditional Rendering
  * ```typescript
- * const show = A.proxy(false);
- * A('button click=', () => show.value = !show.value, () => A(show.value ? '#Hide' : '#Show'));
+ * const $show = A.proxy(false);
+ * A('button click=', () => $show.value = !$show.value, () => A($show.value ? '#Hide' : '#Show'));
  * A(() => { // Reactive scope
- *   if (show.value) {
+ *   if ($show.value) {
  *     A('p#Details are visible!');
  *   }
  * });
@@ -2298,8 +2299,8 @@ export function disableCreateDestroy() {
  * 
  * @example Proxied objects as values
  * ```typescript
- * const myColor = A.proxy('red');
- * A('p text="The color is " text=', myColor, 'click=', () => myColor.value = 'yellow')
+ * const $myColor = A.proxy('red');
+ * A('p text="The color is " text=', $myColor, 'click=', () => $myColor.value = 'yellow')
  * // Clicking the text will cause it to change color without recreating the <p> itself
  * ```
  * This is often used together with {@link ref}, in order to use properties other than `.value`.
@@ -2797,27 +2798,27 @@ export function setErrorHandler(
  *
  * @example Maintaing a sum for a changing array
  * ```typescript
- * const myArray = A.proxy([3, 5, 10]);
- * let sum = A.proxy(0);
+ * const $numbers = A.proxy([3, 5, 10]);
+ * let $sum = A.proxy(0);
  *
  * // Show the array items and maintain the sum
- * A.onEach(myArray, (item, index) => {
+ * A.onEach($numbers, (item, index) => {
  *     A(`code#${index}→${item}`);
- *     // We'll update sum.value using peek, as += first does a read, but
+ *     // We'll update $sum.value using peek, as += first does a read, but
  *     // we don't want to subscribe.
- *     A.peek(() => sum.value += item);
+ *     A.peek(() => $sum.value += item);
  *     // Clean gets called before each rerun for a certain item index
  *     // No need for peek here, as the clean code doesn't run in an
  *     // observer scope.
- *     A.clean(() => sum.value -= item);
+ *     A.clean(() => $sum.value -= item);
  * })
  *
  * // Show the sum
- * A('h1 text=', sum);
+ * A('h1 text=', $sum);
  *
  * // Make random changes to the array
  * const rnd = () => 0|(Math.random()*20);
- * setInterval(() => myArray[rnd()] = rnd(), 1000);
+ * setInterval(() => $numbers[rnd()] = rnd(), 1000);
  * ```
  */
 
@@ -2839,20 +2840,20 @@ export function clean(cleaner: () => void) {
  *   observable returned by the `derive()` function.
  * @returns An observable object, with its `value` property containing whatever the last run of `func` returned.
  *
- * @example Observation creating a UI components
+ * @example Observation creating UI components
  * ```typescript
- * const data = A.proxy({ user: 'Frank', notifications: 42 });
+ * const $data = A.proxy({ user: 'Frank', notifications: 42 });
  *
  * A('main', () => {
  *   console.log('Welcome');
- *   A('h3#Welcome, ' + data.user); // Reactive text
+ *   A('h3#Welcome, ' + $data.user); // Reactive text
  *
  *   A.derive(() => {
- *     // When data.notifications changes, only this inner scope reruns,
+ *     // When $data.notifications changes, only this inner scope reruns,
  *     // leaving the `<p>Welcome, ..</p>` untouched.
  *     console.log('Notifications');
- *     A('code.notification-badge text=', data.notifications);
- *     A('a text=Notify! click=', () => data.notifications++);
+ *     A('code.notification-badge text=', $data.notifications);
+ *     A('a text=Notify! click=', () => $data.notifications++);
  *   });
  * });
  * ```
@@ -2861,12 +2862,12 @@ export function clean(cleaner: () => void) {
  *
  * @example Observation with return value
  * ```typescript
- * const counter = A.proxy(0);
- * setInterval(() => counter.value++, 1000);
- * const double = A.derive(() => counter.value * 2);
+ * const $counter = A.proxy(0);
+ * setInterval(() => $counter.value++, 1000);
+ * const $double = A.derive(() => $counter.value * 2);
  *
  * A('h3', () => {
- *     A(`#counter=${counter.value} double=${double.value}`);
+ *     A(`#counter=${$counter.value} double=${$double.value}`);
  * })
  * ```
  *
@@ -2902,16 +2903,16 @@ export function derive<T>(func: () => T): ValueRef<T> {
  *
  * import A from 'aberdeen';
  *
- * const runTime = A.proxy(0);
- * setInterval(() => runTime.value++, 1000);
+ * const $runTime = A.proxy(0);
+ * setInterval(() => $runTime.value++, 1000);
  *
  * A.mount(document.getElementById('app-root'), () => {
  *   A('h4#Aberdeen App');
- *   A(`p#Run time: ${runTime.value}s`);
+ *   A(`p#Run time: ${$runTime.value}s`);
  *   // Conditionally render some content somewhere else in the static page
- *   if (runTime.value&1) {
+ *   if ($runTime.value&1) {
  *     A.mount(document.getElementById('title-extra'), () =>
- *       A(`i#(${runTime.value}s)`)
+ *       A(`i#(${$runTime.value}s)`)
  *     );
  *   }
  * });
@@ -2950,14 +2951,14 @@ export function unmountAll() {
  *
  * @example Peeking within observer
  * ```typescript
- * const data = A.proxy({ a: 1, b: 2 });
+ * const $data = A.proxy({ a: 1, b: 2 });
  * A(() => {
- *   // re-executes only when data.a changes, because data.b is peeked.
- *   const b = A.peek(() => data.b);
- *   console.log(`A is ${data.a}, B was ${b} when A changed.`);
+ *   // re-executes only when $data.a changes, because $data.b is peeked.
+ *   const b = A.peek(() => $data.b);
+ *   console.log(`A is ${$data.a}, B was ${b} when A changed.`);
  * });
- * data.b = 3; // Does not trigger console.log
- * data.a = 2; // Triggers console.log (logs "A is 2, B was 3 when A changed.")
+ * $data.b = 3; // Does not trigger console.log
+ * $data.a = 2; // Triggers console.log (logs "A is 2, B was 3 when A changed.")
  * ```
  *
  */
@@ -3014,28 +3015,28 @@ export function map<IN, const IN_KEY extends string | number | symbol, OUT>(
  *
  * @example Map array values
  * ```typescript
- * const numbers = A.proxy([1, 2, 3]);
- * const doubled = A.map(numbers, (n) => n * 2);
- * // doubled is proxy([2, 4, 6])
+ * const $numbers = A.proxy([1, 2, 3]);
+ * const $doubled = A.map($numbers, (n) => n * 2);
+ * // $doubled is proxy([2, 4, 6])
  *
- * A(() => console.log(doubled)); // Logs updates
- * numbers.push(4); // doubled becomes proxy([2, 4, 6, 8])
+ * A(() => console.log($doubled)); // Logs updates
+ * $numbers.push(4); // $doubled becomes proxy([2, 4, 6, 8])
  * ```
  *
  * @example Filter and map object properties
  * ```typescript
- * const users = A.proxy({
+ * const $users = A.proxy({
  *   'u1': { name: 'Alice', active: true },
  *   'u2': { name: 'Bob', active: false },
  *   'u3': { name: 'Charlie', active: true }
  * });
  *
- * const activeUserNames = A.map(users, (user) => user.active ? user.name : undefined);
- * // activeUserNames is proxy({ u1: 'Alice', u3: 'Charlie' })
- * A(() => console.log(Object.values(activeUserNames)));
+ * const $activeUserNames = A.map($users, ($user) => $user.active ? $user.name : undefined);
+ * // $activeUserNames is proxy({ u1: 'Alice', u3: 'Charlie' })
+ * A(() => console.log(Object.values($activeUserNames)));
  *
- * users.u2.active = true;
- * // activeUserNames becomes proxy({ u1: 'Alice', u2: 'Bob', u3: 'Charlie' })
+ * $users.u2.active = true;
+ * // $activeUserNames becomes proxy({ u1: 'Alice', u2: 'Bob', u3: 'Charlie' })
  * ```
  */
 export function map(
@@ -3112,20 +3113,20 @@ export function multiMap<
  *
  * @example Creating an index from an array
  * ```typescript
- * const items = A.proxy([
+ * const $items = A.proxy([
  *   { id: 'a', value: 10 },
  *   { id: 'b', value: 20 },
  * ]);
- * const itemsById = A.multiMap(items, (item) => ({
- *   [item.id]: item.value,
- *   [item.id+item.id]: item.value*10,
+ * const $itemsById = A.multiMap($items, ($item) => ({
+ *   [$item.id]: $item.value,
+ *   [$item.id+$item.id]: $item.value*10,
  * }));
- * // itemsById is proxy({ a: 10, aa: 100, b: 20, bb: 200 })
+ * // $itemsById is proxy({ a: 10, aa: 100, b: 20, bb: 200 })
  *
- * A(() => console.log(itemsById));
+ * A(() => console.log($itemsById));
  *
- * items.push({ id: 'c', value: 30 });
- * // itemsById becomes proxy({ a: 10, aa: 100, b: 20, bb: 200, c: 30, cc: 300 })
+ * $items.push({ id: 'c', value: 30 });
+ * // $itemsById becomes proxy({ a: 10, aa: 100, b: 20, bb: 200, c: 30, cc: 300 })
  * ```
  */
 export function multiMap(
@@ -3204,7 +3205,7 @@ export function partition<
  * @example Grouping items by a property
  * ```typescript
  * interface Product { id: string; category: string; name: string; }
- * const products = A.proxy<Product[]>([
+ * const $products = A.proxy<Product[]>([
  *   { id: 'p1', category: 'Fruit', name: 'Apple' },
  *   { id: 'p2', category: 'Veg', name: 'Carrot' },
  *   { id: 'p3', category: 'Fruit', name: 'Banana' },
@@ -3212,28 +3213,28 @@ export function partition<
  *
  * // Partition products by category. Output keys are categories (string).
  * // Inner keys are original array indices (number).
- * const productsByCategory = A.partition(products, (product) => product.category);
+ * const $productsByCategory = A.partition($products, ($product) => $product.category);
  *
  * // Reactively show the data structure
- * A.dump(productsByCategory);
+ * A.dump($productsByCategory);
  *
  * // Make random changes to the categories, to show reactiveness
- * setInterval(() => products[0|(Math.random()*3)].category = ['Snack','Fruit','Veg'][0|(Math.random()*3)], 2000);
+ * setInterval(() => $products[0|(Math.random()*3)].category = ['Snack','Fruit','Veg'][0|(Math.random()*3)], 2000);
  * ```
  *
  * @example Item in multiple buckets
  * ```typescript
  * interface User { id: number; tags: string[]; name: string; }
- * const users = A.proxy({
+ * const $users = A.proxy({
  *   'u1': { name: 'Alice', tags: ['active', 'new'] },
  *   'u2': { name: 'Bob', tags: ['active'] }
  * });
  *
  * // Partition users by tag. Output keys are tags (string).
  * // Inner keys are original object keys (string: 'u1', 'u2').
- * const usersByTag = A.partition(users, (user) => user.tags);
+ * const $usersByTag = A.partition($users, ($user) => $user.tags);
  *
- * console.log(usersByTag);
+ * console.log($usersByTag);
  * ```
  */
 export function partition<
@@ -3282,16 +3283,16 @@ export function partition<
  * ```typescript
  * import A from 'aberdeen';
  *
- * const state = A.proxy({
+ * const $state = A.proxy({
  *   user: { name: 'Frank', kids: 1 },
  *   items: ['a', 'b']
  * });
  *
  * A('h2#Live State Dump');
- * A.dump(state);
+ * A.dump($state);
  *
  * // Change state later, the dump in the DOM will update
- * setTimeout(() => { state.user.kids++; state.items.push('c'); }, 2000);
+ * setTimeout(() => { $state.user.kids++; $state.items.push('c'); }, 2000);
  * ```
  */
 export function dump<T>(data: T): T {
@@ -3396,10 +3397,10 @@ if (typeof document !== "undefined") {
  * ```typescript
  * import A from 'aberdeen';
  *
- * const state = A.proxy({ count: 0 });
+ * const $state = A.proxy({ count: 0 });
  * A('div', () => {
- *   A(`p#Count: ${state.count}`);
- *   A('button text=+ click=', () => state.count++);
+ *   A(`p#Count: ${$state.count}`);
+ *   A('button text=+ click=', () => $state.count++);
  * });
  * ```
  */
