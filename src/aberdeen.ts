@@ -1423,7 +1423,7 @@ function optProxy(value: any): any {
 		typeof value !== "object" ||
 		!value ||
 		value[TARGET_SYMBOL] !== undefined ||
-		NO_COPY in value
+		value[OPAQUE]
 	) {
 		return value;
 	}
@@ -1721,7 +1721,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 			}
 			else if (dstValue !== srcValue) {
 				if (typeof srcValue === "object" && srcValue !== null) {
-					if (typeof dstValue === "object" && dstValue !== null && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
+					if (typeof dstValue === "object" && dstValue !== null && srcValue.constructor === dstValue.constructor && !(OPAQUE in srcValue)) {
 						changed = copyRecursive(dstValue, srcValue, flags) || changed;
 						continue;
 					}
@@ -1757,7 +1757,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 			if (dstValue === undefined && !dst.has(key)) dstValue = EMPTY;
 			if (dstValue !== srcValue) {
 				if (typeof srcValue === "object" && srcValue !== null) {
-					if (typeof dstValue === "object" && dstValue !== null && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
+					if (typeof dstValue === "object" && dstValue !== null && srcValue.constructor === dstValue.constructor && !(OPAQUE in srcValue)) {
 						changed = copyRecursive(dstValue, srcValue, flags) || changed;
 						continue;
 					}
@@ -1789,7 +1789,7 @@ function copyRecursive<T extends object>(dst: T, src: T, flags: number): boolean
 			const dstValue = dst.hasOwnProperty(key) ? dst[key] : EMPTY;
 			if (dstValue !== srcValue) {
 				if (typeof srcValue === "object" && srcValue !== null) {
-					if (typeof dstValue === "object" && dstValue !== null && srcValue.constructor === dstValue.constructor && !(NO_COPY in srcValue)) {
+					if (typeof dstValue === "object" && dstValue !== null && srcValue.constructor === dstValue.constructor && !(OPAQUE in srcValue)) {
 						changed = copyRecursive(dstValue as typeof srcValue, srcValue, flags) || changed;
 						continue;
 					}
@@ -1826,14 +1826,29 @@ const COPY_SUBSCRIBE = 32;
 const COPY_EMIT = 64;
 
 /**
- * A symbol that can be added to an object to prevent it from being cloned by {@link clone} or {@link copy}.
- * This is useful for objects that should be shared by reference. That also mean that their contents won't
- * be observed for changes.
+ * A symbol that controls how Aberdeen handles an object in copy operations and proxy wrapping.
+ *
+ * The **presence** of this symbol (regardless of its value) prevents deep-copying: the object is
+ * stored and passed by reference in {@link clone} and {@link copy}.
+ *
+ * The **value** of the symbol controls proxy wrapping when the object is read from reactive state:
+ * - **Truthy** (e.g. `true`): the object is fully opaque — it is not wrapped in a proxy, so its
+ *   properties are not observable. Use this for objects that break when proxied (e.g. class instances
+ *   with internal slots, Promises) or that must be invisible to Aberdeen's reactive system.
+ * - **Falsy** (e.g. `false`): the object is still wrapped in a proxy, so reads on its properties
+ *   create reactive dependencies as normal — only deep-copying is suppressed.
  */
-export const NO_COPY = Symbol("NO_COPY");
+export const OPAQUE = Symbol("OPAQUE");
 
-// Promises break when proxied, so we'll just mark them as NO_COPY
-(Promise.prototype as any)[NO_COPY] = true;
+/**
+ * Use {@link OPAQUE} instead. This is an alias kept for backward compatibility.
+ * 
+ * @deprecated
+ */
+export const NO_COPY = OPAQUE;
+
+// Promises break when proxied, so mark them as fully opaque
+(Promise.prototype as any)[OPAQUE] = true;
 
 /**
  * A reactive object containing CSS variable definitions.
@@ -1961,7 +1976,7 @@ export function darkMode(): boolean {
 
 // Simple recursive clone - no destination checking needed
 function cloneRecursive<T extends object>(src: T, flags: number): T {
-	if (NO_COPY in src) return src;
+	if (OPAQUE in src) return src;
 	if (flags & COPY_SUBSCRIBE) subscribe(src, ANY_SYMBOL);
 	
 	if (src instanceof Array) {
@@ -3299,8 +3314,8 @@ export function dump<T>(data: T): T {
 	if (data && typeof data === "object") {
 		const name = data.constructor.name.toLowerCase() || "unknown object";
 		A(`#<${name}>`);
-		if (NO_COPY in data ) {
-			A("# [NO_COPY]");
+		if (OPAQUE in data) {
+			A("# [OPAQUE]");
 		} else {
 			A("ul", () => {
 				onEach(data as any, (value, key) => {
@@ -3422,6 +3437,7 @@ export default Object.assign(A, {
 	/** {@inheritDoc merge} */ merge,
 	/** {@inheritDoc mount} */ mount,
 	/** {@inheritDoc multiMap} */ multiMap,
+	/** {@inheritDoc OPAQUE} */ OPAQUE,
 	/** {@inheritDoc NO_COPY} */ NO_COPY,
 	/** {@inheritDoc onEach} */ onEach,
 	/** {@inheritDoc partition} */ partition,

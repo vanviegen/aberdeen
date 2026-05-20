@@ -1,5 +1,11 @@
 # Changelog
 
+### 1.13.0 (2026-05-20)
+
+**New features:**
+- Added `OPAQUE` symbol. Set to `true` to make an object fully opaque (not proxied, not deep-copied); set to `false` to suppress deep-copying while still allowing reactive observation.
+- `NO_COPY` is now a deprecated alias for `OPAQUE`.
+
 ### 1.12.1 (2026-04-24)
 
 **Fixes:**

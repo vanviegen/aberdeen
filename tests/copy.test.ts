@@ -137,3 +137,47 @@ test('A.clone subscribes to all deeply nested values', async () => {
     expect(cnt).toBe(2); // Should have re-run because we subscribed to the nested value
 });
 
+test('OPAQUE=true prevents proxying and reactive tracking', async () => {
+    const inner = { x: 1 } as any;
+    inner[A.OPAQUE] = true;
+    const state = A.proxy({ obj: inner });
+
+    // state.obj should be the raw object — not wrapped in a proxy
+    expect(state.obj).toBe(inner);
+
+    // Reading state.obj.x should NOT create a reactive dependency
+    let cnt = 0;
+    A(() => { (state.obj as any).x; cnt++; });
+    expect(cnt).toBe(1);
+    inner.x = 2;
+    await passTime();
+    expect(cnt).toBe(1); // scope did not re-run
+
+    // A.clone returns the same reference, not a deep copy
+    expect((A.clone(state) as any).obj).toBe(inner);
+});
+
+test('OPAQUE=false prevents deep-copy but still allows reactive tracking', async () => {
+    const inner = { x: 1 } as any;
+    inner[A.OPAQUE] = false;
+    const state = A.proxy({ obj: inner });
+
+    // state.obj should be a proxy wrapping inner
+    expect(A.unproxy(state.obj)).toBe(inner);
+
+    // Reading state.obj.x SHOULD create a reactive dependency
+    let result = 0;
+    let cnt = 0;
+    A(() => { result = (state.obj as any).x; cnt++; });
+    expect(cnt).toBe(1);
+    expect(result).toBe(1);
+
+    (state.obj as any).x = 2;
+    await passTime();
+    expect(cnt).toBe(2); // scope re-ran
+    expect(result).toBe(2);
+
+    // A.clone still returns the inner object by reference (not deep-copied)
+    expect((A.clone(state) as any).obj).toBe(inner);
+});
+
