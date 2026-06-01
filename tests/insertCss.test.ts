@@ -12,7 +12,7 @@ test('Complex selectors', async () => {
   let cls = A.insertCss({
     '&': 'margin:5',
     ".x .y": 'font-weight:bold',
-    "&:before": 'content: "BEFORE";',
+    "&:before": 'content: "BEFORE" ; ',
     "body > &": 'margin-bottom:20px',
     "body > & span": 'font-size:20',
   })

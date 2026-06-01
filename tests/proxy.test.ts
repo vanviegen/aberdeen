@@ -264,10 +264,10 @@ test('A.proxy Promise reject', async () => {
     A.dump(data);
   });
 
-  assertBody(`"<object>" ul{li{"\\"busy\\": " "true"}}`);
+  assertBody(`"<Object>" ul{li{"\\"busy\\": " "true"}}`);
   
   await passTime(20);
   expect(data.error).toBeInstanceOf(Error);
   expect(data.value).toBeUndefined();
-  assertBody(`"<object>" ul{li{"\\"busy\\": " "false"} li{"\\"error\\": " "<error>" ul}}`);
+  assertBody(`"<Object>" ul{li{"\\"busy\\": " "false"} li{"\\"error\\": " "<Error>" ul}}`);
 });

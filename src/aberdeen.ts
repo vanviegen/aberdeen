@@ -1423,7 +1423,8 @@ function optProxy(value: any): any {
 		typeof value !== "object" ||
 		!value ||
 		value[TARGET_SYMBOL] !== undefined ||
-		value[OPAQUE]
+		value[OPAQUE] ||
+		value instanceof Date
 	) {
 		return value;
 	}
@@ -3310,28 +3311,70 @@ export function partition<
  * setTimeout(() => { $state.user.kids++; $state.items.push('c'); }, 2000);
  * ```
  */
-export function dump<T>(data: T): T {
-	if (data && typeof data === "object") {
-		const name = data.constructor.name.toLowerCase() || "unknown object";
-		A(`#<${name}>`);
-		if (OPAQUE in data) {
-			A("# [OPAQUE]");
-		} else {
-			A("ul", () => {
-				onEach(data as any, (value, key) => {
-					A("li", () => {
-						A(`#${JSON.stringify(key)}: `);
-						dump(value);
-					});
-				});
-			});
-		}
-	} else if (data !== undefined) {
-		A("#" + JSON.stringify(data));
+export function dump<T>(data: T) {
+	const org = dumpSeen;
+	dumpSeen ||= new Set();
+	try {
+		rawDump(data, dumpSeen);
+	} finally {
+		dumpSeen = org;
 	}
 	return data;
 }
 
+let dumpSeen : undefined | Set<any>;
+
+function rawDump<T>(data: T, seen: Set<any>) {
+	if (data && typeof data === "object") {
+		const name = data.constructor.name || "unknown object";
+		if (seen.has(data)) {
+			A(`#<${name}: circular reference>`);
+			return;
+		}
+		seen.add(data);
+		clean(() => seen.delete(data));
+
+		const customDump = (data as any)[CUSTOM_DUMP];
+		if (customDump !== undefined) {
+			if (typeof customDump === 'function') customDump.call(data);
+			else A(`#${customDump}`);
+		} else {
+			A(`#<${name}>`, "ul", () => {
+				onEach(data as any, (value, key) => {
+					A("li", () => {
+						if (!(data instanceof Array)) A(`#${JSON.stringify(key)}: `);
+						rawDump(value, seen);
+					});
+				});
+			});
+		}
+	} else if (data === undefined) {
+		A("#undefined");
+	} else {
+		A("#" + JSON.stringify(data));
+	}
+}
+
+/**
+ * When set on an object or its prototype chain, {@link dump} calls this as a render function
+ * (with the object as `this`) instead of its default recursive rendering. If the value is not 
+ * a function, it's treated as a string to display. 
+ *
+ * @example
+ * ```typescript
+ * class Color {
+ *   constructor(public r: number, public g: number, public b: number) {}
+ *   [CUSTOM_DUMP]() { A(`#rgb(${this.r}, ${this.g}, ${this.b})`); }
+ * }
+ * ```
+ */
+export const CUSTOM_DUMP = Symbol("CUSTOM_DUMP");
+
+(Date.prototype as any)[CUSTOM_DUMP] = function(this: Date) {
+	A("#<Date> " + this.toISOString());
+};
+
+		
 /*
  * Helper functions
  */
@@ -3425,6 +3468,7 @@ export default Object.assign(A, {
 	/** {@inheritDoc copy} */ copy,
 	/** {@inheritDoc count} */ count,
 	/** {@inheritDoc cssVars} */ cssVars,
+	/** {@inheritDoc CUSTOM_DUMP} */ CUSTOM_DUMP,
 	/** {@inheritDoc darkMode} */ darkMode,
 	/** {@inheritDoc derive} */ derive,
 	/** {@inheritDoc disableCreateDestroy} */ disableCreateDestroy,

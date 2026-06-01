@@ -472,7 +472,7 @@ export const resetBrowserState = function(): void {
 };
 
 type TimeoutItem = {
-  func: () => void;
+  func: () => void | Promise<void>;
   time: number;
   realId: ReturnType<typeof global.setTimeout>;
 };
@@ -510,11 +510,11 @@ const queueMicrotask = function(func: () => void): void {
   timeouts.push(item);
 };
 
-// Fast-forward fake time, firing all timeouts up to `ms` ms ahead.
-// Without arguments, fires all pending timeouts regardless of scheduled time.
+// Fast-forward fake time, firing all timeouts up to `ms` ms ahead (default 0).
+// Awaits async timer callbacks so microtasks and chained timers complete too.
 // Rethrows any errors from timeouts that fired via real timers in the background.
-export const passTime = async function(ms?: number): Promise<void> {
-  let targetTime = ms == null ? undefined : currentTime + ms;
+export const passTime = async function(ms: number = 0): Promise<void> {
+  let targetTime = currentTime + ms;
   while(true) {
     await new Promise(resolve => realSetTimeout(resolve, 0));
 
@@ -542,15 +542,15 @@ export const passTime = async function(ms?: number): Promise<void> {
     }
     let item = timeouts[smallestIdx];
 
-    if (targetTime != null && item.time > targetTime) break;
+    if (item.time > targetTime) break;
 
     // Fire early, cancel real timer
     timeouts.splice(smallestIdx, 1);
     realClearTimeout(item.realId);
     if (item.time > currentTime) currentTime = item.time;
-    item.func();
+    await item.func();
   }
-  currentTime = targetTime == null ? 0 : targetTime;
+  currentTime = targetTime;
 };
 
 const IGNORE_OUTPUT = new Set("tagName-> attrs-> events-> childNodes-> parentNode-> class= namespaceURI->".split(" "));

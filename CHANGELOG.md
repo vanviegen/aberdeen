@@ -1,5 +1,12 @@
 # Changelog
 
+### 1.15.0 (2026-06-01)
+
+**Enhancements:**
+- Improved `dump()` to dive into `OPAQUE` objects, but supporting `CUSTOM_DUMP` renderers and circular reference protection.
+- More readable `dump()` output for arrays.
+- Handle `Date` objects as `OPAQUE` by default.
+
 ### 1.13.0 (2026-05-20)
 
 **New features:**

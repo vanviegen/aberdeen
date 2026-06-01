@@ -143,13 +143,13 @@ test('handles nontypical options well', () => {
 test('dumps all basic values', () => {
   let data = A.proxy([true, false, null, undefined, -12, 3.14, "test", '"quote"']);
   A.mount(document.body, () => A.dump(data));
-  assertBody(`"<array>" ul{li{"0: " "true"} li{"1: " "false"} li{"2: " "null"} li{"3: "} li{"4: " "-12"} li{"5: " "3.14"} li{"6: " "\\"test\\""} li{"7: " "\\"\\\\\\"quote\\\\\\"\\""}}`);
+  assertBody(`"<Array>" ul{li{"true"} li{"false"} li{"null"} li{"undefined"} li{"-12"} li{"3.14"} li{"\\"test\\""} li{"\\"\\\\\\"quote\\\\\\"\\""}}`);
 });
 
 test('dumps objects and arrays', async () => {
   let data = A.proxy({3: 4, a: 'b', d: [4, undefined, 'b']} as any);
   A.mount(document.body, () => A.dump(data));
-  assertBody(`"<object>" ul{li{"\\"3\\": " "4"} li{"\\"a\\": " "\\"b\\""} li{"\\"d\\": " "<array>" ul{li{"0: " "4"} li{"1: "} li{"2: " "\\"b\\""}}}}`);
+  assertBody(`"<Object>" ul{li{"\\"3\\": " "4"} li{"\\"a\\": " "\\"b\\""} li{"\\"d\\": " "<Array>" ul{li{"4"} li{"undefined"} li{"\\"b\\""}}}}`);
 });
 
 test('adds html', async () => {
