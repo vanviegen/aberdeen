@@ -393,7 +393,10 @@ class MountScope extends ContentScope {
 		super();
 		this.svg = el.namespaceURI === 'http://www.w3.org/2000/svg';
 		
+		const oldTopRedrawScope = topRedrawScope;
+		topRedrawScope = this;
 		this.redraw();
+		topRedrawScope = oldTopRedrawScope;
 		currentScope.cleaners.push(this);
 	}
 
