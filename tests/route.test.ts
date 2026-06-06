@@ -450,7 +450,38 @@ test('interceptLinks handles Enter key on links', async () => {
     expect(route.current.path).toEqual('/test/keyboard');
 });
 
-test('interceptLinks ignores hash-only links', async () => {
+test('matchCurrent matches path', async () => {
+    route.go('/users/123');
+    await passTime(1);
+
+    expect(route.matchCurrent('/users/123')).toBe(true);
+    expect(route.matchCurrent('/users')).toBe(false);
+    expect(route.matchCurrent('/users/456')).toBe(false);
+    expect(route.matchCurrent(['users', '123'])).toBe(true);
+});
+
+test('matchCurrent matches path and search params', async () => {
+    route.go({path: '/users', search: {tab: 'profile', page: '2'}});
+    await passTime(1);
+
+    expect(route.matchCurrent('/users')).toBe(true);
+    expect(route.matchCurrent({path: '/users', search: {tab: 'profile'}})).toBe(true);
+    expect(route.matchCurrent({path: '/users', search: {tab: 'profile', page: '2'}})).toBe(true);
+    expect(route.matchCurrent({path: '/users', search: {tab: 'other'}})).toBe(false);
+    expect(route.matchCurrent({path: '/users', search: {missing: 'key'}})).toBe(false);
+});
+
+test('matchCurrent ignores hash and extra current search params', async () => {
+    route.go({path: '/page', search: {a: '1', b: '2'}, hash: '#top'});
+    await passTime(1);
+
+    // Extra search params in current URL are fine
+    expect(route.matchCurrent({path: '/page', search: {a: '1'}})).toBe(true);
+    // Hash is not checked
+    expect(route.matchCurrent('/page')).toBe(true);
+});
+
+test('matchCurrent interceptLinks ignores hash-only links', async () => {
     route.go('/current-page');
     await passTime(1);
     

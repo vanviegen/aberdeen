@@ -116,7 +116,14 @@ type RouteTarget = string | (string|number)[] | Partial<Omit<Omit<Route,"p">,"se
 function targetToPartial(target: RouteTarget) {
 	// Convert shortcut values to objects
 	if (typeof target === 'string') {
-		target = {path: target};
+		// Parse using URL to handle both absolute and relative paths correctly		
+		const url = new URL(target, locationE.href);
+		if (url.host !== locationE.host) throw new Error(`Unexpected external URL: ${url.host} != ${locationE.host}`);
+		target = {
+			path: url.pathname,
+			search: Object.fromEntries(url.searchParams),
+			hash: url.hash,
+		};
 	} else if (target instanceof Array) {
 		target = {p: target};
 	}
@@ -166,6 +173,44 @@ export function go(target: RouteTarget, nav: NavType = "go"): void {
 	historyE.pushState({state: newRoute.state, stack: prevStack}, "", getUrl(newRoute));
 	
 	A.runQueue();
+}
+
+/**
+ * Returns `true` if the current route matches `target`.
+ *
+ * Path must match exactly. Any search params specified in `target` must be present
+ * in the current URL, but extra params in the current URL are allowed.
+ *
+ * Reactive: only reevaluates when the path changes to/from the target path, and
+ * when target k/v search pairs are (un)set.
+ * 
+ * Primary usage: 'active' status for menu items.
+ *
+ * @example
+ * ```js
+ * // This example assumes interceptLinks() has been called
+ * A('a.my-button text=Users href=/users .is-active=', route.matchCurrent('/users'));
+ * 
+ * // Alternatively a route object can be given
+ * route.matchCurrent({path: '/users', search: {tab: 'profile'}});
+ * ```
+ */
+export function matchCurrent(target: RouteTarget): boolean {
+	const partial = targetToPartial(target);
+
+	if (partial.path != null || partial.p != null) {
+		let path = partial.path || (partial.p || []).join("/") || "/";
+		path = (""+path).replace(/\/+$/, "");
+		if (!path.startsWith("/")) path = `/${path}`;
+		if (!currentRouteParts[path]) return false;
+	}
+
+	if (partial.search) {
+		for(const [k,v] of Object.entries(partial.search)) {
+			if (!currentRouteParts[`${k}=${v}`]) return false;
+		}
+	}
+	return true;
 }
 
 /**
@@ -258,6 +303,10 @@ function scheduleHistoryGo(delta: number) {
 */
 export const current: Route = A.proxy({}) as Route;
 
+// Proxied object with keys for the current path and "k=v" search pairs.
+// Used by matchCurrent to subscribe only to relevant route changes.
+const currentRouteParts = A.proxy({} as Record<string,true>);
+
 /**
  * Reset the router to its initial state, based on the current browser state. Intended for testing purposes only.
  * @internal
@@ -315,6 +364,16 @@ leakScope(() => {
 			log('replaceState', newRoute, state, url);
 			historyE.replaceState(state, "", url);
 		}
+	});
+
+	// Keep currentRouteParts in sync with the current path and search params.
+	A(() => {
+		const n = {} as Record<string,true>;
+		n[current.path] = true;
+		for(const [k,v] of Object.entries(current.search)) {
+			n[`${k}=${v}`] = true;
+		}
+		A.copy(currentRouteParts, n);
 	});
 });
 
@@ -401,13 +460,6 @@ export function interceptLinks() {
 		if (typeof MouseEvent !== 'undefined' && e instanceof MouseEvent && (e.ctrlKey || e.metaKey || e.shiftKey)) return;
 		
 		e.preventDefault();
-		
-		// Parse using URL to handle both absolute and relative paths correctly
-		const url = new URL(href, locationE.href);
-		go({
-			path: url.pathname,
-			search: Object.fromEntries(url.searchParams),
-			hash: url.hash,
-		});
+		go(href);
 	}
 }

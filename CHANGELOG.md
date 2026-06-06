@@ -1,5 +1,13 @@
 # Changelog
 
+### 1.16.0 (2026-06-08)
+
+**New feature:**
+- Added `matchCurrent(target)` to `route`: returns `true` if the current URL matches the given target path and search params. Re-evaluates selectively on route changes.
+
+**Fixes:**
+- `route.go()` now handles search queries and hashes in string paths properly.
+
 ### 1.15.0 (2026-06-01)
 
 **Enhancements:**

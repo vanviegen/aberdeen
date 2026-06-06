@@ -312,6 +312,11 @@ class FakeLocation {
       this._href = value;
     }
   }
+
+  get host(): string {
+    const url = new URL(this._href);
+    return url.host;
+  }
   
   get pathname(): string { 
     const url = new URL(this._href);
