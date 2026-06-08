@@ -113,12 +113,19 @@ type RouteTarget = string | (string|number)[] | Partial<Omit<Omit<Route,"p">,"se
 	search: Record<string,string|number>,
 }>;
 
-function targetToPartial(target: RouteTarget) {
+function targetToPartial(target: RouteTarget, undefinedOnExternal: true): Partial<Route> | undefined;
+function targetToPartial(target: RouteTarget): Partial<Route>;
+
+
+function targetToPartial(target: RouteTarget, undefinedOnExternal: boolean=false) {
 	// Convert shortcut values to objects
 	if (typeof target === 'string') {
 		// Parse using URL to handle both absolute and relative paths correctly		
 		const url = new URL(target, locationE.href);
-		if (url.host !== locationE.host) throw new Error(`Unexpected external URL: ${url.host} != ${locationE.host}`);
+		if (url.host !== locationE.host) {
+			if (undefinedOnExternal) return;
+			throw new Error(`Unexpected external URL: ${url.host} != ${locationE.host}`);
+		}
 		target = {
 			path: url.pathname,
 			search: Object.fromEntries(url.searchParams),
@@ -196,7 +203,8 @@ export function go(target: RouteTarget, nav: NavType = "go"): void {
  * ```
  */
 export function matchCurrent(target: RouteTarget): boolean {
-	const partial = targetToPartial(target);
+	const partial = targetToPartial(target, true);
+	if (!partial) return false; // External link
 
 	if (partial.path != null || partial.p != null) {
 		let path = partial.path || (partial.p || []).join("/") || "/";

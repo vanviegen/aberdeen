@@ -1,6 +1,6 @@
 # Changelog
 
-### 1.16.0 (2026-06-08)
+### 1.16.1 (2026-06-08)
 
 **New feature:**
 - Added `matchCurrent(target)` to `route`: returns `true` if the current URL matches the given target path and search params. Re-evaluates selectively on route changes.
