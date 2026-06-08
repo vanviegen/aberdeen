@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.17.0 (2026-06-08)
+
+**Breaking changes:**
+- Attributes, properties, classes and styles that an element receives from within a reactive scope are now automatically undone when that scope re-runs or is cleaned, restoring the element to its earlier state, *iff* that element is not being removed. While this comes at a tiny performance cost, it reduces surprises significantly.
+
 ### 1.16.1 (2026-06-08)
 
 **New feature:**

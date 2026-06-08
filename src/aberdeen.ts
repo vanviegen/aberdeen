@@ -17,6 +17,44 @@ interface QueueRunner {
 let sortedQueue: ReverseSortedSet<QueueRunner, "prio"> | undefined; // When set, a runQueue is scheduled or currently running.
 let runQueueDepth = 0; // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
 let topRedrawScope: Scope | undefined; // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
+// During a teardown (a scope being cleaned), this holds the element that *survives* that teardown:
+// the element whose child content is being removed, but which itself stays in the DOM. Value-restoring
+// cleaners (attributes/classes/styles/properties/event listeners) only need to run for this element;
+// for any element nested below it, the element itself is being removed from the DOM, so reverting its
+// attributes would be wasted work. Analogous to how `removeNodes` only detaches the top-level node.
+let survivingEl: Element | undefined;
+
+// Side-effects that a scope applied to its *own* element and that must be undone when the scope is
+// cleaned (so the element returns to its pre-scope state before a re-render, or stays clean when the
+// scope goes away). Rather than allocating a capturing closure per side-effect, each ContentScope
+// keeps a single flat `sideEffects` array of (type, key, value) triplets. All entries target the
+// scope's own element, so whether they need undoing can be decided once per scope (see `delete`).
+const enum SideEffect {
+	Class = 0, // key: class name           value: whether the class was present before (boolean)
+	Style = 1, // key: camelCase style prop  value: previous style value (string)
+	Prop = 2,  // key: DOM property name     value: previous property value
+	Attr = 3,  // key: attribute name        value: previous attribute value (string | null)
+	Event = 4, // key: event name            value: the listener function to remove
+}
+
+function recordSideEffect(scope: ContentScope, type: SideEffect, key: any, value: any) {
+	(scope.sideEffects ||= []).push(type, key, value);
+}
+
+// Undo the side-effects in reverse (LIFO) order, restoring the element to its pre-scope state.
+function undoSideEffects(el: any, se: any[]) {
+	for (let i = se.length - 3; i >= 0; i -= 3) {
+		const key = se[i + 1];
+		const value = se[i + 2];
+		switch (se[i] as SideEffect) {
+			case SideEffect.Class: value ? el.classList.add(key) : el.classList.remove(key); break;
+			case SideEffect.Style: el.style[key] = value == null ? "" : value; break;
+			case SideEffect.Prop: el[key] = value; break;
+			case SideEffect.Attr: value == null ? el.removeAttribute(key) : el.setAttribute(key, value); break;
+			case SideEffect.Event: el.removeEventListener(key, value); break;
+		}
+	}
+}
 
 /** @internal */
 export type TargetType = any[] | { [key: string | symbol]: any } | Map<any, any> | Set<any>;
@@ -183,8 +221,12 @@ abstract class Scope implements QueueRunner {
 		const lastNode = this.getLastNode();
 		if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
 
-		// Run any cleaners
+		// Run any cleaners. Our own element survives this teardown (we only removed our child
+		// content above), so value-restoring cleaners registered for it should still run.
+		const savedSurvivingEl = survivingEl;
+		survivingEl = (this as any).el;
 		this.delete();
+		survivingEl = savedSurvivingEl;
 	}
 
 	// toString(): string {
@@ -216,6 +258,8 @@ abstract class ContentScope extends Scope {
 
 	abstract svg: boolean;
 	abstract el: Element;
+	// Flat (type, key, value) triplets describing side-effects applied to our own element; see SideEffect.
+	sideEffects: any[] | undefined;
 	private changes: undefined | Map<TargetType, Map<any, any>>; // target => (index => oldData)
 
 	constructor(
@@ -239,11 +283,25 @@ abstract class ContentScope extends Scope {
 	 * It is called `delete`, so that the list of cleaners can also contain `Set`s.
 	 */
 	delete(/* ignore observer argument */) {
-		for (const cleaner of this.cleaners) {
+		// Run cleaners in reverse (LIFO) order. Child scopes live here too, so a nested scope that
+		// shares our element gets to undo its (more recent) side-effects before we undo ours below.
+		const cleaners = this.cleaners;
+		for (let i = cleaners.length - 1; i >= 0; i--) {
+			const cleaner = cleaners[i];
 			if (typeof cleaner === "function") cleaner();
 			else cleaner.delete(this); // pass in observer argument, in case `cleaner` is a `Set`
 		}
 		this.cleaners.length = 0;
+
+		// Undo the side-effects we applied to our own element, in reverse (LIFO) order so the original
+		// pre-scope value is restored. Only do this when our element survives the teardown; if it's
+		// being removed from the DOM, reverting its attributes/classes/etc would be wasted work.
+		const se = this.sideEffects;
+		if (se) {
+			if (this.el === survivingEl) undoSideEffects(this.el, se);
+			this.sideEffects = undefined;
+		}
+
 		sortedQueue?.remove(this); // This is very fast and O(1) when not queued
 
 		// To prepare for a redraw or to help GC when we're being removed:
@@ -413,7 +471,12 @@ class MountScope extends ContentScope {
 		// probably has a totally different `parentElement`. Therefore, our `delete()` does
 		// what `_remove()` does for regular scopes.
 		removeNodes(this.getLastNode(), this.getPrecedingNode());
+		// Our mount element survives; reset the surviving element to it for our subtree's cleaners,
+		// as our `el` differs from that of the (possibly removing) parent scope cascade.
+		const savedSurvivingEl = survivingEl;
+		survivingEl = this.el;
 		super.delete();
+		survivingEl = savedSurvivingEl;
 	}
 
 	remove() {
@@ -691,7 +754,11 @@ class OnEachItemScope extends ContentScope {
 			if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
 		}
 
+		// Our `el` (the list's parent element) survives; restore its value-restoring cleaners.
+		const savedSurvivingEl = survivingEl;
+		survivingEl = this.el;
 		this.delete();
+		survivingEl = savedSurvivingEl;
 		this.lastChild = this; // apply the hack (see constructor) again
 
 		topRedrawScope = this;
@@ -769,7 +836,11 @@ class OnEachItemScope extends ContentScope {
 			this.sortKey = undefined;
 		}
 
+		// Our `el` (the list's parent element) survives the removal of just this item.
+		const savedSurvivingEl = survivingEl;
+		survivingEl = this.el;
 		this.delete();
+		survivingEl = savedSurvivingEl;
 	}
 }
 
@@ -2405,7 +2476,12 @@ export function A(...args: any[]): undefined | Element {
 						} else {
 							// An unconditional class name
 							let className: any = arg.substring(nextPos + 1, classEnd);
-							el.classList.add(className || args[++argIndex]);
+							const cls = className || args[++argIndex];
+							// Only undo on clean if we actually added it (don't clobber a pre-existing class).
+							if (!el.classList.contains(cls)) {
+								if (el === currentScope.el) recordSideEffect(currentScope, SideEffect.Class, cls, false);
+								el.classList.add(cls);
+							}
 							nextPos = classEnd - 1;
 						}
 					}
@@ -2713,17 +2789,30 @@ function applyArg(el: Element, key: string, value: any) {
 	} else if (key[0] === ".") {
 		// CSS class(es)
 		const classes = key.substring(1).split(".");
-		if (value) el.classList.add(...classes);
-		else el.classList.remove(...classes);
+		const list = el.classList;
+		const desired = !!value;
+		if (el === currentScope.el) {
+			// Record each class's pre-scope presence so it can be restored when the scope is cleaned.
+			for (const cls of classes) {
+				const had = list.contains(cls);
+				if (had !== desired) recordSideEffect(currentScope, SideEffect.Class, cls, had);
+			}
+		}
+		if (desired) list.add(...classes);
+		else list.remove(...classes);
 	} else if (key[0] === "$") {
 		// Style (with shortcuts)
 		key = key.substring(1);
 		const val = value == null || value === false ? "" : typeof value === 'string' ? cssVarRef(value) : String(value);
 		const expanded = CSS_SHORT[key] || key;
-		if (typeof expanded === "string") {
-			(el as any).style[toCamel(expanded)] = val;
-		} else {
-			for (const prop of expanded) (el as any).style[toCamel(prop)] = val;
+		const style = (el as any).style;
+		const setOwn = el === currentScope.el;
+		const props = typeof expanded === "string" ? [expanded] : expanded;
+		for (const prop of props) {
+			const cm = toCamel(prop);
+			// Record the style property's pre-scope value so it can be restored when the scope is cleaned.
+			if (setOwn) recordSideEffect(currentScope, SideEffect.Style, cm, style[cm]);
+			style[cm] = val;
 		}
 	} else if (value == null) {
 		// Value left empty
@@ -2734,7 +2823,7 @@ function applyArg(el: Element, key: string, value: any) {
 	} else if (typeof value === "function") {
 		// Event listener
 		el.addEventListener(key, value);
-		if (el === currentScope.el) clean(() => el.removeEventListener(key, value));
+		if (el === currentScope.el) recordSideEffect(currentScope, SideEffect.Event, key, value);
 	} else if (
 		value === true ||
 		value === false ||
@@ -2742,9 +2831,11 @@ function applyArg(el: Element, key: string, value: any) {
 		key === "selectedIndex"
 	) {
 		// DOM property
+		if (el === currentScope.el) recordSideEffect(currentScope, SideEffect.Prop, key, (el as any)[key]);
 		(el as any)[key] = value;
 	} else {
 		// HTML attribute
+		if (el === currentScope.el) recordSideEffect(currentScope, SideEffect.Attr, key, el.getAttribute(key));
 		el.setAttribute(key, value);
 	}
 }

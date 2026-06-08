@@ -38,6 +38,7 @@ class Element extends Node {
     add: (...names: string[]) => void;
     remove: (...names: string[]) => void;
     toggle: (name: string, force?: boolean) => void;
+    contains: (name: string) => boolean;
   };
 
   constructor(tag: string, namespaceURI?: string) {
@@ -101,6 +102,7 @@ class Element extends Node {
     add: (...names: string[]) => void;
     remove: (...names: string[]) => void;
     toggle: (name: string, force?: boolean) => void;
+    contains: (name: string) => boolean;
   } {
     return this._classList || (this._classList = {
       add: (...names: string[]) => {
@@ -116,7 +118,8 @@ class Element extends Node {
       toggle: (name: string, force?: boolean) => {
         if (force === true || (force !== false && !this._getClassSet().has(name))) this._classList!.add(name);
         else this._classList!.remove(name);
-      }
+      },
+      contains: (name: string) => this._getClassSet().has(name),
     });
   }
 

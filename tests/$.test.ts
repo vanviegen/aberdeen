@@ -55,7 +55,9 @@ test('reacts to conditions', async () => {
 
 	assertBody(`div{span.z} input{value->abc}`)
 	expect(cnt).toEqual(1)
-	assertDomUpdates({new: 3, changed: 5+2})
+	// +3: the bound `.y` class is now restored (removed) before being re-applied,
+	// just like the bound `value` property and the (re-applied) `.z` class.
+	assertDomUpdates({new: 3, changed: 5+3})
 
 	data.yes = "def"
 	await passTime()
