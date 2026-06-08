@@ -1,9 +1,12 @@
 # Changelog
 
-### 1.17.0 (2026-06-08)
+### 1.17.1 (2026-06-08)
 
 **Breaking changes:**
 - Attributes, properties, classes and styles that an element receives from within a reactive scope are now automatically undone when that scope re-runs or is cleaned, restoring the element to its earlier state, *iff* that element is not being removed. While this comes at a tiny performance cost, it reduces surprises significantly.
+
+**Enhancements:**
+- DOM nodes are now marked OPAQUE, so they can be referenced from Aberdeen proxies.
 
 ### 1.16.1 (2026-06-08)
 

@@ -1925,6 +1925,9 @@ export const NO_COPY = OPAQUE;
 // Promises break when proxied, so mark them as fully opaque
 (Promise.prototype as any)[OPAQUE] = true;
 
+// Also, DOM should not be proxied
+(Node.prototype as any)[OPAQUE] = true;
+
 /**
  * A reactive object containing CSS variable definitions.
  *
