@@ -72,7 +72,7 @@ test('A.copy and A.clone preserve types', () => {
 });
 
 test('A.copy refuses to work between different types', () => {
-    // Unfortinately TypeScript thinks this is ok..
+    // Unfortunately TypeScript thinks this is ok..
     expect(() => A.copy({}, [3])).toThrow();
     // // @ts-expect-error
     expect(() => A.copy([], {})).toThrow();
@@ -86,6 +86,7 @@ test('A.copy refuses to work between different types', () => {
     expect(obj.x).toEqual([3,4]);
     // @ts-expect-error -- typescript should complain, but runtime should work
     A.copy(obj, 'x', {y: 4});
+    // @ts-expect-error -- typescript should complain, but runtime should work
     expect(obj.x).toEqual({y: 4});
     // @ts-expect-error -- typescript should complain, but runtime should work
     A.copy(obj, 'x', new Map());
@@ -155,6 +156,27 @@ test('OPAQUE=true prevents proxying and reactive tracking', async () => {
 
     // A.clone returns the same reference, not a deep copy
     expect((A.clone(state) as any).obj).toBe(inner);
+});
+
+test('Temporal types are marked OPAQUE and not proxied', async () => {
+    // Bun lacks a real Temporal; tests/setup.ts installs a brand-checking mock.
+    const Temporal = (globalThis as any).Temporal;
+    const dur = new Temporal.Duration(10);
+
+    // Proxying a Temporal value returns the raw object, not a proxy. Without the
+    // opaque marking this would be a proxy, and calling a method on it would
+    // throw (the proxy doesn't carry the type's internal brand/slots).
+    const $x = A.proxy(dur);
+    expect($x).toBe(dur);
+    expect($x.toString()).toBe('[Temporal.Duration]');
+
+    // The same holds when nested inside a reactive object...
+    const state = A.proxy({ when: dur });
+    expect(state.when).toBe(dur);
+    expect(state.when.toString()).toBe('[Temporal.Duration]');
+
+    // ...and clone returns it by reference rather than deep-copying.
+    expect((A.clone(state) as any).when).toBe(dur);
 });
 
 test('OPAQUE=false prevents deep-copy but still allows reactive tracking', async () => {

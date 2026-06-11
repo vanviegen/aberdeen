@@ -1495,10 +1495,9 @@ function optProxy(value: any): any {
 	// If value is a primitive type or already proxied, just return it
 	if (
 		typeof value !== "object" ||
-		!value ||
+		value === null ||
 		value[TARGET_SYMBOL] !== undefined ||
-		value[OPAQUE] ||
-		value instanceof Date
+		value[OPAQUE]
 	) {
 		return value;
 	}
@@ -1922,11 +1921,20 @@ export const OPAQUE = Symbol("OPAQUE");
  */
 export const NO_COPY = OPAQUE;
 
-// Promises break when proxied, so mark them as fully opaque
+// Built-in types with 'internal slots' break when proxied. So we'll treat them
+// as primitive values.
 (Promise.prototype as any)[OPAQUE] = true;
-
-// Also, DOM should not be proxied
+(Date.prototype as any)[OPAQUE] = true;
 (Node.prototype as any)[OPAQUE] = true;
+
+// Same for Temporal types
+declare const Temporal: any;
+if (typeof Temporal !== 'undefined') {
+	for(const name of 'Duration Instant PlainDate PlainDateTime PlainMonthDay PlainTime PlainYearMonth ZonedDateTime'.split(' ')) {
+		const cls = Temporal[name];
+		if (cls) cls.prototype[OPAQUE] = true;
+	}
+}
 
 /**
  * A reactive object containing CSS variable definitions.

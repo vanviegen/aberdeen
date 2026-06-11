@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.18.0 (2026-06-11)
+
+**Enhancements:**
+- Treat TC39 Temporal types as primitive values, as they don't like being proxied and are immutable anyway.
+
 ### 1.17.1 (2026-06-08)
 
 **Breaking changes:**
