@@ -695,7 +695,8 @@ To navigate programmatically, use {@link route.go}:
 ```javascript
 import A from 'aberdeen';
 import * as route from 'aberdeen/route';
-console.log('pn', location.protocol, location.host, location.hostname, location.pathname);
+
+A('h2', () => A('#', route.current.path));
 
 A('button#Go to settings', {
     click: () => route.go('/settings')
@@ -713,7 +714,9 @@ For convenience, you can call {@link route.interceptLinks} once to automatically
 import A from 'aberdeen';
 import * as route from 'aberdeen/route';
 
-route.interceptLinks(); // Just once on startup:
+route.interceptLinks(); // Just once on startup
+
+A('h2', () => A('#', route.current.path));
 
 A('a role=button href=/settings #Go to settings')
 ```
