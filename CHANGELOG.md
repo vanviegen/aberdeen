@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.18.1 (2026-06-14)
+
+**Fixed:**
+- Fixed spurious `isEmpty()` triggers for keys in objects.
+
 ### 1.18.0 (2026-06-11)
 
 **Enhancements:**

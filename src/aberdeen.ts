@@ -1114,8 +1114,10 @@ export function isEmpty(proxied: TargetType): boolean {
 	subscribe(target, ANY_SYMBOL, (index: any, newData: any, oldData: any) => {
 		if ((newData === EMPTY) !== (oldData === EMPTY)) {
 			const newEmpty = isObjEmpty(target);
-			scope.onChange(target, EMPTY, newEmpty, oldEmpty);
-			oldEmpty = newEmpty;
+			if (newEmpty !== oldEmpty) {
+				scope.onChange(target, EMPTY, newEmpty, oldEmpty);
+				oldEmpty = newEmpty;
+			}
 		}
 	});
 	return oldEmpty;

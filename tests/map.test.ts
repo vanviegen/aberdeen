@@ -236,6 +236,41 @@ test('A.isEmpty does not fire events when array state is changed back immediatel
     expect(cnt).toBe(2); // not triggered
 });
 
+test('A.isEmpty does not fire when adding a key to an already non-empty object', async () => {
+    let data = A.proxy({} as Record<string,number>);
+    let cnt = 0;
+    A(() => {
+        cnt++;
+        A(A.isEmpty(data) ? "#empty" : "#not empty");
+    })
+    assertBody(`"empty"`);
+    expect(cnt).toBe(1);
+
+    data.x = 1;
+    await passTime();
+    assertBody(`"not empty"`);
+    expect(cnt).toBe(2); // emptiness changed: fired once
+
+    data.y = 2; // non-empty → non-empty: should NOT fire
+    await passTime();
+    assertBody(`"not empty"`);
+    expect(cnt).toBe(2);
+
+    data.z = 3; // still non-empty: should NOT fire
+    await passTime();
+    expect(cnt).toBe(2);
+
+    delete data.x; // still non-empty (y, z remain): should NOT fire
+    await passTime();
+    expect(cnt).toBe(2);
+
+    delete data.y;
+    delete data.z; // now empty: should fire
+    await passTime();
+    assertBody(`"empty"`);
+    expect(cnt).toBe(3);
+});
+
 test('A.isEmpty does not fire events when object state is changed back immediately', async () => {
     let data = A.proxy({} as Record<string,number|undefined>);
     let cnt = 0;
