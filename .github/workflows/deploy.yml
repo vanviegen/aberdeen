@@ -1,13 +1,9 @@
-name: Build, test and deploy
+name: Deploy redirect
 
 on:
   push:
     branches:
       - master
-
-env:
-  NODE_VERSION: 20.x
-  ENTRY_FILE: 'src/aberdeen.ts'
 
 permissions:
   contents: read
@@ -22,19 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-      - name: Install dependencies
-        run: bun install
-      - name: Build docs
-        run: npm run build && cp -ra examples dist dist-docs/
-      - name: Upload docs artifact
+      - name: Upload redirect artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist-docs'
-      - name: Deploy docs to GitHub Pages
+          path: './gh-pages'
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
-      - name: Test, build and deploy code to NPM
-        run: bun publish --access=public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
