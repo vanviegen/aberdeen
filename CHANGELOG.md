@@ -1,5 +1,11 @@
 # Changelog
 
+### 1.18.2 (2026-06-16)
+
+**Fixed:**
+- `$var` references in CSS values now expand when directly following a `(` or `,` (e.g. `linear-gradient($a, $b)`).
+- Setting CSS custom properties inline now works correctly (via `--name:` or `$name:`), going through `setProperty` instead of being mangled by camel-casing.
+
 ### 1.18.1 (2026-06-14)
 
 **Fixed:**

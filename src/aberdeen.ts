@@ -31,7 +31,7 @@ let survivingEl: Element | undefined;
 // scope's own element, so whether they need undoing can be decided once per scope (see `delete`).
 const enum SideEffect {
 	Class = 0, // key: class name           value: whether the class was present before (boolean)
-	Style = 1, // key: camelCase style prop  value: previous style value (string)
+	Style = 1, // key: camelCase style prop or `--custom-prop`  value: previous style value (string)
 	Prop = 2,  // key: DOM property name     value: previous property value
 	Attr = 3,  // key: attribute name        value: previous attribute value (string | null)
 	Event = 4, // key: event name            value: the listener function to remove
@@ -48,7 +48,10 @@ function undoSideEffects(el: any, se: any[]) {
 		const value = se[i + 2];
 		switch (se[i] as SideEffect) {
 			case SideEffect.Class: value ? el.classList.add(key) : el.classList.remove(key); break;
-			case SideEffect.Style: el.style[key] = value == null ? "" : value; break;
+			case SideEffect.Style:
+				if (key[0] === "-" && key[1] === "-") value ? el.style.setProperty(key, value) : el.style.removeProperty(key);
+				else el.style[key] = value == null ? "" : value;
+				break;
 			case SideEffect.Prop: el[key] = value; break;
 			case SideEffect.Attr: value == null ? el.removeAttribute(key) : el.setAttribute(key, value); break;
 			case SideEffect.Event: el.removeEventListener(key, value); break;
@@ -2004,13 +2007,14 @@ export function setSpacingCssVars(base = 1, unit = 'rem'): void {
 }
 
 // Matches: (1) url() content, (2) quoted content, (3) $varName at start or after space
-const CSS_VAR_PATTERN = /(\burl\([^)]*\))|("[^"]*")|(^| )\$([\w-]+)/g;
+const CSS_VAR_PATTERN = /(\burl\([^)]*\))|("[^"]*")|(^|[\s(,])\$([\w-]+)/g;
 const DIGIT_FIRST = /^\d/;
 
 /**
  * Expands all `$varName` patterns in a CSS value to `var(--varName)`.
- * Only matches `$` at the start of the value or after a space.
- * Content inside parentheses or quotes is preserved as-is.
+ * Only matches `$` at the start of the value or after a space, `(` or `,`
+ * (so e.g. `linear-gradient($a, $b)` expands as expected).
+ * Content inside `url(...)` or quotes is preserved as-is.
  * Numeric names get an 'm' prefix (e.g., `$3` → `var(--m3)`).
  * Variable names may include dashes (e.g., `$primary-color` → `var(--primary-color)`).
  */
@@ -2351,6 +2355,8 @@ export function disableCreateDestroy() {
  * | `r` | `border-radius` |
  * 
  * Also, when the value is a string starting with `$`, it is treated as a reference to a CSS variable, expanding to `var(--variableName)`. For numeric variable names (which can't be used directly as CSS custom property names), Aberdeen prefixes them with `m`, so `$3` expands to `var(--m3)`. This is primarily intended for use with {@link setSpacingCssVars}, which initializes spacing variables named `0` through `12` with an exponential spacing scale.
+ *
+ * To *set* a CSS custom property inline on an element, use a `--name` or (symmetrically with the `$`-reference syntax above) a `$name` key. For example `A('div --primary:red')` and `A('div $primary:red')` both set `--primary` to `red`.
  * 
  * @returns The most inner DOM element that was created (not counting text nodes nor elements created by content functions), or the current element if no new element was created. You should normally not need to use the return value - use this function's DOM manipulation abilities instead. One valid use case is when integrating with non-Aberdeen code that requires a reference to a DOM element.
  *
@@ -2816,16 +2822,27 @@ function applyArg(el: Element, key: string, value: any) {
 	} else if (key[0] === "$") {
 		// Style (with shortcuts)
 		key = key.substring(1);
+		// A leading `$` denotes a custom property, for symmetry with `$var` value references
+		// (e.g. `$$primary: red` sets `--primary`). `--primary` works too.
+		if (key[0] === "$") key = "--" + key.substring(1);
 		const val = value == null || value === false ? "" : typeof value === 'string' ? cssVarRef(value) : String(value);
 		const expanded = CSS_SHORT[key] || key;
 		const style = (el as any).style;
 		const setOwn = el === currentScope.el;
 		const props = typeof expanded === "string" ? [expanded] : expanded;
 		for (const prop of props) {
-			const cm = toCamel(prop);
-			// Record the style property's pre-scope value so it can be restored when the scope is cleaned.
-			if (setOwn) recordSideEffect(currentScope, SideEffect.Style, cm, style[cm]);
-			style[cm] = val;
+			if (prop[0] === "-" && prop[1] === "-") {
+				// Custom property: must go through setProperty/removeProperty, as bracket
+				// assignment of `--*` names is a no-op on a real CSSStyleDeclaration.
+				if (setOwn) recordSideEffect(currentScope, SideEffect.Style, prop, style.getPropertyValue(prop));
+				if (val === "") style.removeProperty(prop);
+				else style.setProperty(prop, val);
+			} else {
+				const cm = toCamel(prop);
+				// Record the style property's pre-scope value so it can be restored when the scope is cleaned.
+				if (setOwn) recordSideEffect(currentScope, SideEffect.Style, cm, style[cm]);
+				style[cm] = val;
+			}
 		}
 	} else if (value == null) {
 		// Value left empty

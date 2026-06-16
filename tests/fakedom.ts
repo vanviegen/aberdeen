@@ -7,6 +7,19 @@ export const clearBody = function(): void {
     document.body.childNodes.length = 0;
 };
 
+// A minimal stand-in for CSSStyleDeclaration: a plain string bag (so `style[prop]` keeps working)
+// plus the setProperty/getPropertyValue/removeProperty methods needed for custom properties.
+// The methods are non-enumerable so they don't leak into `Object.keys()`/`for..in` iteration.
+function makeStyle(): Record<string, string> {
+    const s: Record<string, string> = {};
+    Object.defineProperties(s, {
+        setProperty: { value(k: string, v: string) { s[k] = v; changeCount++; } },
+        removeProperty: { value(k: string) { delete s[k]; changeCount++; } },
+        getPropertyValue: { value(k: string) { return s[k] ?? ""; } },
+    });
+    return s;
+}
+
 class Node {
     parentNode: Element | null = null;
     childNodes: Node[] = [];
@@ -31,7 +44,7 @@ class Node {
 class Element extends Node {
     tagName: string;
     namespaceURI?: string;
-    _style: Record<string, string> = {};
+    _style: Record<string, string> = makeStyle();
     attrs: Record<string, string> = {};
     events: Record<string, Set<Function>> = {};
     _classList?: {
@@ -186,10 +199,10 @@ class Element extends Node {
     
     set style(val: string) {
         if (val !== '') throw new Error("non-empty style string cannot be emulated");
-        this._style = {};
+        this._style = makeStyle();
         changeCount++;
     }
-    
+
     get style(): Record<string, string> {
         for(let k in this._style) {
             if (this._style[k] === '') delete this._style[k];

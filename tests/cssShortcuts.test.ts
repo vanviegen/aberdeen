@@ -73,6 +73,48 @@ test('numeric values without $ are not converted', () => {
 	assertBody(`div{margin-top:3}`);
 });
 
+test('$var expanded right after a parenthesis', () => {
+	A('div', 'background: linear-gradient($primary, $secondary);');
+	assertBody(`div{background:"linear-gradient(var(--primary), var(--secondary))"}`);
+});
+
+test('$var expanded right after a comma (no space)', () => {
+	A('div', 'background: linear-gradient($a,$b);');
+	assertBody(`div{background:linear-gradient(var(--a),var(--b))}`);
+});
+
+test('$var still not expanded inside url() even after a parenthesis', () => {
+	A('div', 'background: linear-gradient(url($path), $color);');
+	assertBody(`div{background:"linear-gradient(url($path), var(--color))"}`);
+});
+
+// Setting custom properties inline (must go through setProperty, not bracket assignment)
+test('setting a custom property with --name', () => {
+	A('div --primary:red');
+	assertBody(`div{--primary:red}`);
+});
+
+test('setting a custom property with $name in a tag string', () => {
+	A('div $primary:red');
+	assertBody(`div{--primary:red}`);
+});
+
+test('setting a custom property with $$name in object notation', () => {
+	A('div', {'$$primary': 'blue'});
+	assertBody(`div{--primary:blue}`);
+});
+
+test('custom property is restored when its scope is cleaned', () => {
+	const $show = A.proxy(true);
+	A('div --primary:red', () => {
+		if ($show.value) A('--primary:blue');
+	});
+	assertBody(`div{--primary:blue}`);
+	$show.value = false;
+	A.runQueue();
+	assertBody(`div{--primary:red}`);
+});
+
 // A.cssVars reactivity via :root style tag
 test('A.cssVars automatically creates :root style tag when not empty', async () => {
 	A.setSpacingCssVars(); // Initialize spacing scale
