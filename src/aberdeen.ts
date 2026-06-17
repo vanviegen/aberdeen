@@ -2565,6 +2565,10 @@ let cssCount = 0;
  * Both forms can be mixed: `'m:$3 box-shadow: 0 2px 4px rgba(0,0,0,0.2); bg:$cardBg'`
  * 
  * Supports the same CSS shortcuts as {@link A | A} and CSS variable references with `$` (e.g., `$primary`, `$3`).
+ * 
+ * CSS is inserted into the <head> in an order relative to other insert(Global)Css items that is consistent
+ * based on when the containing Aberdeen scope was first defined. This allows changing styles without changing
+ * order-based precedence.
  *
  * @param style - A concise style string or a style object.
  * @returns The unique class name prefix used for scoping (e.g., `.AbdStl1`). 
@@ -2617,13 +2621,87 @@ export function insertCss(style: string | object): string {
 	const prefix = `.AbdStl${++cssCount}`;
 	const css = typeof style === 'string' ? styleStringToCss(style, prefix) : objectToCss(style, prefix);
 	if (css) {
-		let cnt = cssSnippetCount++;
-		cssSnippets[cnt] = css;
-		clean(() => delete cssSnippets[cnt]);
+		const cnt = cssSnippetCount++;
+		const key = arrayToStr([currentScope.prio, cnt]);
+		cssSnippets[key] = css;
+		clean(() => delete cssSnippets[key]);
 	}
 	return prefix;
 }
-let cssSnippets = proxy({} as Record<number, string>);
+
+/**
+ * Inserts CSS rules globally (unscoped).
+ * 
+ * Works exactly like {@link insertCss}, but without prefixing selectors with a unique class name.
+ * This is useful for global resets, base styles, or styles that need to apply to the entire document.
+ * 
+ * Accepts the same concise style string syntax and CSS shortcuts as {@link insertCss}.
+ * See {@link insertCss} for detailed documentation on syntax and shortcuts.
+ * 
+ * @param style - Object with selectors as keys and concise CSS strings as values.
+ * 
+ * CSS is inserted into the <head> in an order relative to other insert(Global)Css items that is consistent
+ * based on when the containing Aberdeen scope was first defined. This allows changing styles without changing
+ * order-based precedence.
+ * 
+ * @example Global Reset and Base Styles
+ * ```typescript
+ * // Set up global styles using CSS shortcuts
+ * A.insertGlobalCss({
+ *   "*": "m:0 p:0 box-sizing:border-box",
+ *   "body": "font-family: system-ui, sans-serif; m:0 p:$3 bg:#434 fg:#d0dafa",
+ *   "a": "text-decoration:none fg:#57f",
+ *   "a:hover": "text-decoration:underline",
+ *   "code": "font-family:monospace bg:#222 fg:#afc p:4px r:3px"
+ * });
+ *
+ * A('h2#Title without margins');
+ * A('a#This is a link');
+ * A('code#const x = 42;');
+ * ```
+ *
+ * @example Responsive Global Styles
+ * ```typescript
+ * A.insertGlobalCss({
+ *   "html": "font-size:16px",
+ *   "body": "line-height:1.6",
+ *   "h1, h2, h3": "font-weight:600 mt:$4 mb:$2",
+ *   "@media (max-width: 768px)": {
+ *     "html": "font-size:14px",
+ *     "body": "p:$2"
+ *   },
+ *   "@media (prefers-color-scheme: dark)": {
+ *     "body": "bg:#1a1a1a fg:#e5e5e5",
+ *     "code": "bg:#2a2a2a"
+ *   }
+ * });
+ * ```
+ * At-rules such as `@media` and `@keyframes` should use nested objects. For keyframes,
+ * the step selectors (`0%`, `50%`, `100%`, etc.) become the nested keys and each value
+ * should be a concise CSS declaration string.
+ *
+ * @example Animation Keyframes
+ * ```typescript
+ * A.insertGlobalCss({
+ *   "@keyframes connection-pulse": {
+ *     "0%": "box-shadow: inset 0 0 0 0 rgba(255, 70, 70, 0.4);",
+ *     "50%": "box-shadow: inset 0 0 0 6px rgba(255, 70, 70, 0.08);",
+ *     "100%": "box-shadow: inset 0 0 0 0 rgba(255, 70, 70, 0.4);"
+ *   }
+ * });
+ * ```
+ */
+export function insertGlobalCss(style: object) {
+	const css = objectToCss(style, "");
+	if (css) {
+		const cnt = cssSnippetCount++;
+		const key = arrayToStr([currentScope.prio, cnt]);
+		cssSnippets[key] = css;
+		clean(() => delete cssSnippets[key]);
+	}
+}
+
+let cssSnippets = proxy({} as Record<string, string>);
 let cssSnippetCount = 0;
 
 function combinePrefixSelector(prefix: string, key: string): string {
@@ -2705,73 +2783,6 @@ function styleStringToCss(styleStr: string, selector: string): string {
 	}
 	
 	return props ? `${selector}{${props}}\n` : "";
-}
-
-/**
- * Inserts CSS rules globally (unscoped).
- * 
- * Works exactly like {@link insertCss}, but without prefixing selectors with a unique class name.
- * This is useful for global resets, base styles, or styles that need to apply to the entire document.
- * 
- * Accepts the same concise style string syntax and CSS shortcuts as {@link insertCss}.
- * See {@link insertCss} for detailed documentation on syntax and shortcuts.
- * 
- * @param style - Object with selectors as keys and concise CSS strings as values.
- * 
- * @example Global Reset and Base Styles
- * ```typescript
- * // Set up global styles using CSS shortcuts
- * A.insertGlobalCss({
- *   "*": "m:0 p:0 box-sizing:border-box",
- *   "body": "font-family: system-ui, sans-serif; m:0 p:$3 bg:#434 fg:#d0dafa",
- *   "a": "text-decoration:none fg:#57f",
- *   "a:hover": "text-decoration:underline",
- *   "code": "font-family:monospace bg:#222 fg:#afc p:4px r:3px"
- * });
- *
- * A('h2#Title without margins');
- * A('a#This is a link');
- * A('code#const x = 42;');
- * ```
- *
- * @example Responsive Global Styles
- * ```typescript
- * A.insertGlobalCss({
- *   "html": "font-size:16px",
- *   "body": "line-height:1.6",
- *   "h1, h2, h3": "font-weight:600 mt:$4 mb:$2",
- *   "@media (max-width: 768px)": {
- *     "html": "font-size:14px",
- *     "body": "p:$2"
- *   },
- *   "@media (prefers-color-scheme: dark)": {
- *     "body": "bg:#1a1a1a fg:#e5e5e5",
- *     "code": "bg:#2a2a2a"
- *   }
- * });
- * ```
- * At-rules such as `@media` and `@keyframes` should use nested objects. For keyframes,
- * the step selectors (`0%`, `50%`, `100%`, etc.) become the nested keys and each value
- * should be a concise CSS declaration string.
- *
- * @example Animation Keyframes
- * ```typescript
- * A.insertGlobalCss({
- *   "@keyframes connection-pulse": {
- *     "0%": "box-shadow: inset 0 0 0 0 rgba(255, 70, 70, 0.4);",
- *     "50%": "box-shadow: inset 0 0 0 6px rgba(255, 70, 70, 0.08);",
- *     "100%": "box-shadow: inset 0 0 0 0 rgba(255, 70, 70, 0.4);"
- *   }
- * });
- * ```
- */
-export function insertGlobalCss(style: object) {
-	const css = objectToCss(style, "");
-	if (css) {
-		let cnt = cssSnippetCount++;
-		cssSnippets[cnt] = css;
-		clean(() => delete cssSnippets[cnt]);
-	}
 }
 
 const CSS_SHORT: Record<string, string | string[]> = {

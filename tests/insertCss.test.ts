@@ -161,3 +161,19 @@ test('Handles unions combined with further nested selectors', async () => {
     `${cls} button:hover,${cls} button.active,${cls} a.link:hover,${cls} a.link.active{color:darkblue;}`,
   );
 });
+
+test('Maintains scope order when reinserting CSS', async () => {
+  const color = A.proxy('black');
+  A(() => {
+    A.insertGlobalCss({"body": `color:${color.value}`});
+  });
+  A.insertGlobalCss({"body": `color:purple`});
+
+  await passTime();
+  assertCss(`body{color:black;}`, `body{color:purple;}`);
+
+  color.value = 'red';
+  await passTime();
+  // These two must not be swapped
+  assertCss(`body{color:red;}`, `body{color:purple;}`);
+});
