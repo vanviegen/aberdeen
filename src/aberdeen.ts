@@ -922,7 +922,7 @@ let currentScope: ContentScope = ROOT_SCOPE;
 // === Developer tools instrumentation =======================================
 // The core emits events through `dev(type, ...args)` only when the dev tools are connected.
 // The tools — the scope tree, node→scope / element→scope maps, stack traces, the UI, and the
-// `?abdev=1` / Ctrl-Shift-D bootstrap — all live in `./devtools`, which *wraps* this module:
+// `?abdev=1` / Ctrl-Alt-A bootstrap — all live in `./devtools`, which *wraps* this module:
 // in a dev build the `aberdeen` entry point is that wrapper, and it installs the sink via
 // `A._setDev` synchronously at load (before the app's first `mount()`, so no buffering).
 //

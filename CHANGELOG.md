@@ -1,5 +1,14 @@
 # Changelog
 
+### 1.19.0 (2026-06-18)
+
+**Enhancements:**
+- Added in-browser developer tools: a live scope-tree inspector showing what re-rendered, when, why, and where each scope was created. Open with `Ctrl/Cmd+Alt+A` or `?abdev=1`. Included only in development builds; stripped from production.
+- Added `A.freeze()`, which pauses reactive re-renders until the returned function is called (freezes stack).
+
+**Fixed:**
+- `insertCss`/`insertGlobalCss` now keep their order across re-renders.
+
 ### 1.18.2 (2026-06-16)
 
 **Fixed:**

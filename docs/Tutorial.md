@@ -662,6 +662,30 @@ A('button text="Update state" click=', () => {
 The A.dump renders recursively using `<ul>` and `<li>` elements, showing all properties and their values. It updates reactively when any proxied data changes. It is intended for debugging, though with some CSS styling you may find it useful in some simple real-world scenarios as well.
 
 
+## Developer tools
+
+Aberdeen has an in-browser inspector for its reactive scope tree, and the live examples on this page support it. **Click inside an example's 'Browser' tab to focus it, then press `Ctrl/Cmd+Alt+A`** to open the tools (press again to close). Try it with this one:
+
+```typescript
+import A from 'aberdeen';
+
+const $state = A.proxy({fruits: ['apple', 'banana']});
+
+A('button text="Add cherry" click=', () => $state.fruits.push('cherry'));
+A('ul', () => {
+    A.onEach($state.fruits, fruit => A('li text=', fruit));
+});
+```
+
+A panel opens with two columns. The **left** is the live scope tree — every reactive block (the `<ul>`'s render function, the `onEach`, each of its items, ...), colour-coded by type and labelled with the `file:line` where it was created. The **right** shows details for the selected scope: its DOM nodes and child scopes, what it's observing, where it was created, and which change last triggered it to re-run.
+
+To use it:
+- **Click a scope** in the tree to select it. Its container element (which may contain more than one scope) is outlined in orange, the top-level elements it created in green.
+- **Hold `Alt` and hover** any element to select the scope that drew it.
+- Hit **Add cherry** and switch to the **Recent** tab to watch the re-render stream in, or toggle **Freeze** to pause re-renders while you look around.
+
+This is a development-only aid and is stripped from production builds. By default it's part of Aberdeen's **development** build, which bundlers like Vite select automatically in dev mode (via the `development` export condition) while production builds get the bare core. If you'd rather not rely on bundler settings, `import A from 'aberdeen/tooled'` to *always* include the dev tools, or `aberdeen/untooled` to *always* leave them out. Both expose the exact same API as `aberdeen`.
+
 ## html-to-aberdeen
 
 Sometimes, you want to just paste a largish block of HTML into your application (and then maybe modify it to bind some actual data). Having to translate HTML to `$` calls manually is little fun, so there's a tool for that:

@@ -19,6 +19,7 @@ Aberdeen wraps your state in ES6 `Proxy` objects for fine-grained property acces
   - SVG support
   - Helper functions for transforming reactive data (mapping, partitioning, filtering, etc)
   - Hide/unhide transition effects
+  - Developer tools
 
 ## Why *not* use Aberdeen?
 
@@ -177,6 +178,14 @@ To use this, it is recommended to symlink the skill into your project's `.claude
 mkdir -p .claude/skills
 ln -s ../../node_modules/aberdeen/skill .claude/skills/aberdeen
 ```
+
+## Developer tools
+
+Aberdeen ships with an in-browser inspector for its reactive scope tree: see what (re)rendered, when, which proxy change triggered it, and the `file:line` in your code where each scope was created. Hold `Alt` and hover any element to jump to the scope that drew it.
+
+Open it with **`Ctrl/Cmd+Alt+A`**, or by adding **`?abdev=1`** to the URL (which also captures the initial render). It lives in the development build of Aberdeen, selected automatically by the `development` export condition (e.g. by Vite's dev server), and is completely stripped from production bundles.
+
+![The Aberdeen developer tools inspecting an app](docs/devtools-screenshot.png)
 
 ## Changelog
 

@@ -19,7 +19,7 @@
  *   schedule scope, key, oldVal, newVal, Error — a change scheduled `scope` to re-render
  *   delete   scope                          — a scope was permanently removed
  *
- * Open with `?abdev=1` or Ctrl/Cmd+Shift+D.
+ * Open with `?abdev=1` or Ctrl/Cmd+Alt+A.
  */
 import A, { _setDev } from "./aberdeen.js";
 export * from "./aberdeen.js";
@@ -118,7 +118,7 @@ const STYLE = `
 	border-left: 2px solid #3a3450; padding-left: 6px; }
 .muted { color: #64748b; }
 .reads .key { color: #fbbf24; } .reads .val { color: #93c5fd; }
-.empty { color: #64748b; padding: 16px; text-align: center; }
+.empty { color: #64748b; padding: 16px; text-align: center; white-space: pre-line; line-height: 1.5; }
 `;
 
 // Remembered across close/open within a single pageview (not persisted across reloads).
@@ -164,6 +164,7 @@ class DevTools {
 		this.buildDialog();
 		document.body.appendChild(this.host);
 		this.positionDialog();
+		this.renderEmptyDetails();
 
 		window.addEventListener("keydown", this.onKeyDown, true);
 		window.addEventListener("keyup", this.onKeyUp, true);
@@ -332,11 +333,16 @@ class DevTools {
 			this.renderRecent();
 		}
 		this.treeEl.scrollTop = scrollTop;
-		if (this.selectedId != null) {
-			const d = this.findScope(this.selectedId);
-			if (d) { this.renderDetails(d); this.highlight(d); }
-			else { this.selectedId = undefined; this.clearBoxes(); this.rightEl.textContent = ""; }
-		}
+		const d = this.selectedId != null ? this.findScope(this.selectedId) : undefined;
+		if (d) { this.renderDetails(d); this.highlight(d); }
+		else { this.selectedId = undefined; this.clearBoxes(); this.renderEmptyDetails(); }
+	}
+
+	renderEmptyDetails() {
+		if (this.rightEl.firstElementChild?.classList.contains("empty")) return; // already shown
+		this.rightEl.textContent = "";
+		this.rightEl.appendChild(eln("div", "empty",
+			"No scope selected.\n\nClick a scope in the tree — or hold Alt and hover an element on the page to select the scope that drew it."));
 	}
 
 	renderRecent() {
@@ -400,7 +406,7 @@ class DevTools {
 	select(d: DevScope | undefined) {
 		this.selectedId = d ? d.id : undefined;
 		for (const el of this.treeEl.querySelectorAll(".node.sel")) el.classList.remove("sel");
-		if (!d) { this.rightEl.textContent = ""; this.clearBoxes(); return; }
+		if (!d) { this.renderEmptyDetails(); this.clearBoxes(); return; }
 		const row = this.treeEl.querySelector(`.node[data-id="${d.id}"]`);
 		if (row) { row.classList.add("sel"); (row as HTMLElement).scrollIntoView({ block: "nearest" }); }
 		this.renderDetails(d);
@@ -670,7 +676,8 @@ function formatStack(stack: string | undefined): string {
 if (typeof window !== "undefined" && typeof document !== "undefined") {
 	if (/[?&]abdev=1\b/.test(location.search)) activate();
 	window.addEventListener("keydown", (e) => {
-		if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "D" || e.key === "d")) {
+		// Ctrl/Cmd+Alt+A ("A" for Aberdeen). `e.code` so it's layout-independent.
+		if ((e.ctrlKey || e.metaKey) && e.altKey && e.code === "KeyA") {
 			e.preventDefault();
 			if (tool) tool.destroy(); else activate(); // toggle
 		}
