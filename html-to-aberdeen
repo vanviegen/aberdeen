@@ -281,7 +281,9 @@ function convertStyleToAberdeen(styleString) {
   handleGroup('padding-left', 'padding-right', 'ph');
 
   for (const [key, value] of Object.entries(props)) {
-    const shortcut = CSS_PROPERTY_TO_SHORTCUT[key] || key;
+    const shortcut = key.startsWith('--')
+      ? '$' + key.slice(2)
+      : (CSS_PROPERTY_TO_SHORTCUT[key] || key);
     addPart(shortcut, value);
   }
 
@@ -357,8 +359,9 @@ function processElement(node, indentLevel) {
       const textContent = element.children[0].content.trim();
       if (i === chain.length - 1) {
         // If it's the last element in the chain and there are no other children,
-        // use the '#' syntax for text
-        result += '#' + escapeString(textContent);
+        // use the '#' syntax for text. A space before '#' is required so it
+        // isn't parsed as part of the preceding attribute/style value.
+        result += ' #' + escapeString(textContent);
       } else {
         // Treat text like any other attribute
         const textAttr = { name: 'text', value: textContent };
