@@ -3,8 +3,8 @@
  * for pages as well as modal content. 
  */
 
-import A from '../../dist/aberdeen.js';
-import * as route from "../../dist/route.js";
+import A from '../../dist/src/aberdeen.dev.js';
+import * as route from "../../dist/src/route.js";
 
 // If opened directly from a file, fake the initial path as '/'
 if (route.current.p.indexOf('route') >= 0) {

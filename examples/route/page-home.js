@@ -1,5 +1,5 @@
 // import {$, mount, Store, text, router} from 'https://cdn.jsdelivr.net/npm/aberdeen/+esm';
-import A from '../../dist/aberdeen.js';
+import A from '../../dist/src/aberdeen.dev.js';
 
 export default function() {
     A('h3#Welcome home!!')

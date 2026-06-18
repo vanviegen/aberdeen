@@ -1,5 +1,5 @@
-import A from '../../dist/aberdeen.js';
-import * as route from "../../dist/route.js";
+import A from '../../dist/src/aberdeen.dev.js';
+import * as route from "../../dist/src/route.js";
 
 console.log(route);
 

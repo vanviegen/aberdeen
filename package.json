@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.18.2",
+  "version": "1.19.0",
   "author": "Frank van Viegen",
   "main": "dist/src/aberdeen.js",
   "devDependencies": {
@@ -12,7 +12,7 @@
   },
   "exports": {
     ".": {
-      "development": "./dist/src/aberdeen.js",
+      "development": "./dist/src/aberdeen.dev.js",
       "types": "./dist/src/aberdeen.d.ts",
       "default": "./dist/src/aberdeen.js"
     },
@@ -55,9 +55,10 @@
   },
   "license": "MIT",
   "scripts": {
-    "build": "bun run build:clean && bun run build:src && bun run build:types && bun run build:tests && bun run build:docs && bun run build:skill",
+    "build": "bun run build:clean && bun run build:src && bun run build:src:dev && bun run build:types && bun run build:tests && bun run build:docs && bun run build:skill",
     "build:clean": "rm -rf dist dist-docs",
     "build:src": "bun build src/aberdeen.ts src/dispatcher.ts src/prediction.ts src/route.ts src/transitions.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/src/",
+    "build:src:dev": "bun build src/devtools.ts --sourcemap --target browser --outdir dist/src --entry-naming 'aberdeen.dev.[ext]'",
     "build:types": "tsc",
     "build:tests": "bun build tests/helpers.ts tests/fakedom.ts --sourcemap --target bun --external 'aberdeen' --outdir dist/tests/",
     "build:docs": "typedoc && rm -rf dist-docs/assets/aberdeen && cp -r dist/src dist-docs/assets/aberdeen",

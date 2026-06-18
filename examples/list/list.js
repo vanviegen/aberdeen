@@ -1,4 +1,4 @@
-import A from '../../dist/aberdeen.js';
+import A from '../../dist/src/aberdeen.dev.js';
 
 // Create observable data structures using A.proxy
 const items = A.proxy([]);
@@ -33,22 +33,22 @@ A('label', () => {
 	A("#Animate");
 });
 
-const gameStyle = A.insertCss({
-	'&': 'display:grid gridTemplateColumns:repeat(6, 1fr)',
+const tableStyle = A.insertCss({
+	'&': 'display:grid grid-template-columns:repeat(6,1fr)',
 	".row": {
 		'&': 'display:contents',
-		"> *": 'transition:"height 1s, opacity 0.5s 1s" height:20px overflow:hidden',
+		"> *": 'transition: height 1s, opacity 0.5s 1s; height:20px overflow:hidden',
 		'&.hidden > *': 'display:none',
-		"&.header": 'fontWeight:bold',
+		"&.header": 'font-weight:bold',
 	}
 })
 
 const animateStyle = A.insertCss({
-	'.row.hidden > *': 'display:initial height:0 opacity:0.4 transition:"opacity 0.5s, height 1s 0.5s"',
+	'.row.hidden > *': 'display:initial height:0 opacity:0.4 transition: opacity 0.5s, height 1s 0.5s;',
 });
 
 
-A('div', gameStyle, {[animateStyle]: animate}, () => {
+A('div', tableStyle, {[animateStyle]: animate}, () => {
 	A('div.row.header', () => {
 		for (let i = 0; i < COLUMN_NAMES.length; i++) {
 			A('div', {click: () => orderIndex.value = i}, () => {

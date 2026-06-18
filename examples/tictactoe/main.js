@@ -1,42 +1,48 @@
-import A from '../../dist/aberdeen.js';
+import A from '../../dist/src/aberdeen.dev.js';
 
 // UI drawing functions.
 
 function drawMain() {
     // Define our state, wrapped by an observable A.proxy
-    const history = A.proxy({
+    const $history = A.proxy({
         boards: [[]], // eg. [[], [undefined, 'O', undefined, 'X'], ...]
         current: 0, // indicates which of the boards is currently showing
     });
 
     A('main.row', () => {
-        A('div.box', () => drawBoard(history));
-        A('div.box', {$flex: 1}, () => {
-            drawStatusMessage(history);
-            drawTurns(history);
+        A('div.box', () => drawBoard($history));
+        A('div.box flex:1', () => {
+            drawStatusMessage($history);
+            drawTurns($history);
         });
     });
 }
 
-function drawBoard(history) {
+function drawBoard($history) {
+    // We'll reactive sync $history.boards[$history.current]) to our local $board.
+    // That way only squares that actually changed will have to redraw.
+    const $board = A.proxy([]);
+    A(() => { // The copy gets its own update scope
+        A.copy($board, getBoard($history));
+    });
     A('div', boardStyle, () => {
         for(let pos=0; pos<9; pos++) {
             A('button.square', () => {
-                let marker = getBoard(history)[pos];
+                let marker = $board[pos];
                 if (marker) {
-                    A({ text: marker });
+                    A("text=", marker);
                 } else {
-                    A({ click: () => markSquare(history, pos) });
+                    A("click=", () => markSquare($history, pos));
                 }
             });
         }
-    })
+    });
 }
 
-function drawStatusMessage(history) {
+function drawStatusMessage($history) {
     A('h4', () => {
         // Reruns whenever observable data read by calculateWinner or getCurrentMarker changes
-        const board = getBoard(history);
+        const board = getBoard($history);
         const winner = calculateWinner(board);
         if (winner) {
             A(`#Winner: ${winner}!`);
@@ -48,21 +54,12 @@ function drawStatusMessage(history) {
     });
 }
 
-function drawTurns(history) {
+function drawTurns($history) {
     A('div#Select a turn:')
     // Reactively iterate all (historic) board versions
-    A.onEach(history.boards, (_, index) => {
-        A('button', {
-            // A text node:
-            text: index,
-            // Conditional css class:
-            ".outline": A.derive(() => history.current != index),
-            // Inline styles:
-            $marginRight: "0.5em",
-            $marginTop: "0.5em",
-            // Event listener:
-            click: () => history.current = index,
-        });
+    A.onEach($history.boards, (_, index) => {
+        const $outline = A.derive(() => $history.current != index);
+        A('button mr:0.5em mt:0.5em text=', index, ".outline=", $outline, "click=", () => $history.current = index);
     });
 }
 
@@ -85,12 +82,12 @@ function getCurrentMarker(board) {
 	return board.filter(v => v).length % 2 ? "O" : "X";
 }
 
-function getBoard(history) {
-    return history.boards[history.current];
+function getBoard($history) {
+    return $history.boards[$history.current];
 }
 
-function markSquare(history, position) {
-    const board = getBoard(history);
+function markSquare($history, position) {
+    const board = getBoard($history);
 
     // Don't allow markers when we already have a winner
     if (calculateWinner(board)) return;
@@ -100,16 +97,16 @@ function markSquare(history, position) {
     newBoard[position] = getCurrentMarker(board);
     
     // Truncate any future states, and write a new future
-    history.current++;
-    history.boards.length = history.current;
-    history.boards.push(newBoard);
+    $history.current++;
+    $history.boards.length = $history.current;
+    $history.boards.push(newBoard);
 }
 
 // Define component-local CSS, which we'll utilize in the drawBoard function.
 // Of course, you can use any other styling solution instead, if you prefer.
 
 const boardStyle = A.insertCss({
-    '&': 'display:grid gap:0.5em gridTemplateColumns:"1fr 1fr 1fr"',
+    '&': 'display:grid gap:0.5em grid-template-columns: 1fr 1fr 1fr;',
     '> *': 'width:2em height:2em padding:0',
 });
 

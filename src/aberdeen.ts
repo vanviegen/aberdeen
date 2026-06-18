@@ -16,6 +16,7 @@ interface QueueRunner {
 
 let sortedQueue: ReverseSortedSet<QueueRunner, "prio"> | undefined; // When set, a runQueue is scheduled or currently running.
 let runQueueDepth = 0; // Incremented when a queue event causes another queue event to be added. Reset when queue is empty. Throw when >= 42 to break (infinite) recursion.
+let freezeCount = 0; // While > 0 (see `freeze()`), `runQueue` is paused and updates accumulate.
 let topRedrawScope: Scope | undefined; // The scope that triggered the current redraw. Elements drawn at this scope level may trigger 'create' animations.
 // During a teardown (a scope being cleaned), this holds the element that *survives* that teardown:
 // the element whose child content is being removed, but which itself stays in the DOM. Value-restoring
@@ -108,6 +109,7 @@ function queue(runner: QueueRunner) {
  * ```
  */
 export function runQueue(): void {
+	if (freezeCount) return; // Paused by `freeze()`; updates stay queued until thawed.
 	let time = Date.now();
 	while (sortedQueue) {
 		const runner = sortedQueue.fetchLast();
@@ -119,6 +121,33 @@ export function runQueue(): void {
 	runQueueDepth = 0;
 	time = Date.now() - time;
 	if (time > 9) console.debug(`Aberdeen queue took ${time}ms`);
+}
+
+/**
+ * Pause processing of reactive updates until the returned *thaw* function is called.
+ *
+ * While frozen, changes to observed data still accumulate, but no re-renders run. Freezes
+ * stack: if there are multiple outstanding freezes, redraws resume only once the last one is
+ * thawed. This is useful to batch an async burst of changes into a single update pass, or to
+ * hold the UI steady (e.g. the dev tools use it for "freeze redraws").
+ *
+ * @returns A function that releases this freeze. Calling it more than once has no effect.
+ *
+ * @example
+ * ```typescript
+ * const thaw = A.freeze();
+ * // ...make many changes without intermediate redraws...
+ * thaw(); // redraws run now (if no other freezes remain)
+ * ```
+ */
+export function freeze(): () => void {
+	freezeCount++;
+	let released = false;
+	return () => {
+		if (released) return;
+		released = true;
+		if (!--freezeCount) runQueue();
+	};
 }
 
 /**
@@ -315,6 +344,7 @@ abstract class ContentScope extends Scope {
 		if (!this.changes) {
 			this.changes = new Map();
 			queue(this);
+			dev?.schedule(this, index, oldData, newData, new Error());
 		}
 
 		let targetDelta = this.changes.get(target);
@@ -388,6 +418,9 @@ class ChainedScope extends ContentScope {
 		// We're always adding ourselve as a cleaner, in order to run our own cleaners
 		// and to remove ourselve from the queue (if we happen to be in there).
 		if (!useParentCleaners) currentScope.cleaners.push(this);
+
+		// Covers RegularScope, ResultScope and SetArgScope; the enclosing render scope is the parent.
+		dev?.create(this, currentScope, new Error());
 	}
 
 	getPrecedingNode(): Node | undefined {
@@ -425,6 +458,7 @@ class RegularScope extends ChainedScope {
 	redraw() {
 		const savedScope = currentScope;
 		currentScope = this;
+		dev?.render(this);
 		try {
 			this.renderer();
 		} catch (e) {
@@ -453,7 +487,10 @@ class MountScope extends ContentScope {
 	) {
 		super();
 		this.svg = el.namespaceURI === 'http://www.w3.org/2000/svg';
-		
+
+		// Register before the first redraw so its render is attributed to this scope.
+		dev?.create(this, currentScope, new Error());
+
 		const oldTopRedrawScope = topRedrawScope;
 		topRedrawScope = this;
 		this.redraw();
@@ -604,6 +641,9 @@ class OnEachScope extends Scope {
 
 		currentScope.cleaners.push(this);
 
+		// Register before creating item scopes, so they can attach under this scope.
+		dev?.create(this, currentScope, new Error());
+
 		// Do _addChild() calls for initial items
 		if (target instanceof Array) {
 			for (let i = 0; i < target.length; i++) {
@@ -642,7 +682,12 @@ class OnEachScope extends Scope {
 		this.changedIndexes = new Map();
 		for (const index of indexes.keys()) {
 			const oldScope = this.byIndex.get(index);
-			if (oldScope) oldScope.remove();
+			if (oldScope) {
+				oldScope.remove();
+				// The old item scope is discarded here (recreated below if it survives), so drop it
+				// from the dev tree; a fresh OnEachItemScope re-attaches itself.
+				dev?.delete(oldScope);
+			}
 
 			if (this.target instanceof Set || this.target instanceof Map ? this.target.has(index) : index in this.target) {
 				// Item still exists
@@ -706,6 +751,9 @@ class OnEachItemScope extends ContentScope {
 		this.lastChild = this;
 
 		// Don't register to be cleaned by parent scope, as the OnEachScope will manage this for us (for efficiency)
+
+		// An onEach item is its own scope; its parent in the tree is the OnEachScope.
+		dev?.create(this, this.parent, new Error());
 
 		if (topRedraw) topRedrawScope = this;
 		this.redraw();
@@ -792,6 +840,7 @@ class OnEachItemScope extends ContentScope {
 		// Since makeSortKey may get() the Store, we'll need to set currentScope first.
 		const savedScope = currentScope;
 		currentScope = this;
+		dev?.render(this);
 
 		let sortKey: any;
 		try {
@@ -850,6 +899,7 @@ class OnEachItemScope extends ContentScope {
 function addNode(el: Element, node: Node) {
 	if (el !== currentScope.el) {
 		el.appendChild(node);
+		dev?.node(currentScope, node, false);
 		return;
 	}
 	const parentEl = currentScope.el;
@@ -859,6 +909,7 @@ function addNode(el: Element, node: Node) {
 		prevNode ? prevNode.nextSibling : parentEl.firstChild,
 	);
 	currentScope.lastChild = node;
+	dev?.node(currentScope, node, true);
 }
 
 /**
@@ -867,6 +918,62 @@ function addNode(el: Element, node: Node) {
  */
 const ROOT_SCOPE = new RootScope();
 let currentScope: ContentScope = ROOT_SCOPE;
+
+// === Developer tools instrumentation =======================================
+// The core emits events through `dev(type, ...args)` only when the dev tools are connected.
+// The tools — the scope tree, node→scope / element→scope maps, stack traces, the UI, and the
+// `?abdev=1` / Ctrl-Shift-D bootstrap — all live in `./devtools`, which *wraps* this module:
+// in a dev build the `aberdeen` entry point is that wrapper, and it installs the sink via
+// `A._setDev` synchronously at load (before the app's first `mount()`, so no buffering).
+//
+// There is deliberately no build-time flag: the hooks are always present, costing only a
+// nullish check (`dev?.x(…)` doesn't even evaluate its arguments — no `new Error()`) when no
+// tools are attached. Keeping them unconditional avoids the footgun of a stripped core being
+// paired with the wrapper, or vice-versa.
+
+/** @internal The instrumentation hooks the dev tools install via {@link _setDev}. Scopes are
+ * passed opaquely (`any`); the tools read `.constructor.name`, `.el`, etc. off them. */
+export interface DevHooks {
+	/** A scope was created under `parent` (its onEach scope, for items); `err` holds the creation
+	 * stack, or is `undefined` for scopes replayed on connect (they predate the tools). */
+	create(scope: any, parent: any, err: Error | undefined): void;
+	/** A scope is about to (re)render, replacing the DOM nodes and child scopes it last produced. */
+	render(scope: any): void;
+	/** A proxy change (`target[index]`, `oldData`→`newData`) scheduled `scope` to re-render; `err` holds the triggering stack. */
+	schedule(scope: any, index: any, oldData: any, newData: any, err: Error): void;
+	/** `scope` inserted DOM `node`; `top` marks a direct sibling at the scope's own level (vs. a descendant). */
+	node(scope: any, node: Node, top: boolean): void;
+	/** `scope` subscribed to `target[index]`. */
+	read(scope: any, target: any, index: any): void;
+	/** `scope` was permanently removed (an onEach item that no longer exists). */
+	delete(scope: any): void;
+}
+
+/** @internal Event sink, installed by the dev-tools wrapper via {@link _setDev}. */
+let dev: DevHooks | undefined;
+
+/** @internal Install (or, with `undefined`, remove) the dev-tools hooks. Used by the
+ * `./devtools` wrapper. A named `@internal` export (rather than an `A` member) so it is
+ * stripped from the public type declarations.
+ *
+ * On connect the *already existing* scope tree is replayed as `create` events (with no
+ * stack — those scopes predate the tools), so the tool shows the current tree immediately,
+ * not only what changes afterwards. Their child scopes live in `cleaners` (and onEach items
+ * in `byIndex`); nodes/reads/stacks for them fill in naturally as they re-render. */
+export function _setDev(hooks: DevHooks | undefined) {
+	dev = hooks;
+	if (!hooks) return;
+	const childScopes = (scope: any): Scope[] =>
+		scope instanceof OnEachScope
+			? [...scope.byIndex.values()]
+			: (scope.cleaners as any[]).filter((c): c is Scope => c instanceof Scope);
+	const replay = (scope: Scope, parent: Scope) => {
+		hooks.create(scope, parent, undefined);
+		for (const child of childScopes(scope)) replay(child, scope);
+	};
+	for (const child of childScopes(ROOT_SCOPE)) replay(child, ROOT_SCOPE);
+}
+// === End developer tools instrumentation ===================================
 
 /**
  * Execute a function in a never-cleaned root scope. Even {@link unmountAll} will not
@@ -924,6 +1031,8 @@ function subscribe(
 		  ) => void) = currentScope,
 ) {
 	if (observer === ROOT_SCOPE || peeking) return;
+
+	if (observer === currentScope) dev?.read(currentScope, target, index);
 
 	let byTarget = subscribers.get(target);
 	if (!byTarget) subscribers.set(target, (byTarget = new Map()));
@@ -3608,6 +3717,7 @@ export default Object.assign(A, {
 	/** {@inheritDoc derive} */ derive,
 	/** {@inheritDoc disableCreateDestroy} */ disableCreateDestroy,
 	/** {@inheritDoc dump} */ dump,
+	/** {@inheritDoc freeze} */ freeze,
 	/** {@inheritDoc insertCss} */ insertCss,
 	/** {@inheritDoc insertGlobalCss} */ insertGlobalCss,
 	/** {@inheritDoc invertString} */ invertString,

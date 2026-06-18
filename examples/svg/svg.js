@@ -1,4 +1,4 @@
-import A from '../../dist/aberdeen.js';
+import A from '../../dist/src/aberdeen.dev.js';
 
 const radius = A.proxy(20);
 

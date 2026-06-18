@@ -12,7 +12,7 @@
  * The idiomatic implementation (with very slow deletes) is in `idiomatic.js`.
  */
 
-import A from '../../dist/aberdeen.js';
+import A from '../../dist/src/aberdeen.js';
 import { buildData } from "./build-dummy-data.js";
 
 const unproxiedData = []; // [{id, label}, ...]
@@ -21,34 +21,25 @@ const selected = A.proxy({}); // {[selectedId]: true} or {}
 const sortByLabel = A.proxy(false);
 
 // Aberdeen mounts on document.body by default.
-A('div', {id: "main"}, 'div.container', () => {
+A('div id=main div.container', () => {
 
     // The buttons
-    A('div.jumbotron', 'div.row', () => {
+    A('div.jumbotron div.row', () => {
         A('div.col-md-6', () => {
-            A('h1:Aberdeen-"keyed"');
-            A('div.checkbox', 'label', () => {
-                A('input', {type: 'checkbox'}, {bind: sortByLabel})
-                A(":Sort by label");
+            A('h1#Aberdeen-"keyed"');
+            A('div.checkbox label #Sort by label', () => {
+                A('input type=checkbox bind=', sortByLabel);
             });
         })
-        A('div.col-md-6', 'div.row', () => {
-            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block:Create 1,000 rows', {
-                type: "button",
-                id: "run",
-                click: () => A.copy(data, buildData())
-            });
-            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block:Create 10,000 rows', {
-                type: "button",
-                id: "runlots",
-                click: () => A.copy(data, buildData(10000))
-            });
-            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block:Append 1,000 rows', {
+        A('div.col-md-6 div.row', () => {
+            A('div.col-sm-6.smallpad button.btn.btn-primary.btn-block type=button id=run text="Create 1,000 rows" click=', () => A.copy(data, buildData()))
+            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block type=button id=runlots text="Create 10,000 rows" click=', () => A.copy(data, buildData(10000)));
+            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block#Append 1,000 rows', {
                 type: "button",
                 id: "add",
                 click: () => data.push(...buildData())
             });
-            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block:Update every 10th row', {
+            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block#Update every 10th row', {
                 type: "button",
                 id: "update",
                 click: () => {
@@ -62,12 +53,12 @@ A('div', {id: "main"}, 'div.container', () => {
                     }
                 }
             });
-            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block:Clear', {
+            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block#Clear', {
                 type: "button",
                 id: "clear",
                 click: () => data.length = 0
             });
-            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block:Swap Rows', {
+            A('div.col-sm-6.smallpad', 'button.btn.btn-primary.btn-block#Swap Rows', {
                 type: "button",
                 id: "swaprows",
                 click: () => {
@@ -91,22 +82,17 @@ A('div', {id: "main"}, 'div.container', () => {
     });
 
     // The table
-    A('table.table.table-hover.table-striped.test-data', 'tbody', () => {
+    A('table.table.table-hover.table-striped.test-data tbody', () => {
         A.onEach(data, (item, index) => {
             A('tr', () => {
                 A(() => {
                     if (selected[item.id]) A('.danger');
                 })
-                A('td.col-md-1:'+item.id);
-                A('td.col-md-4', 'a', {text: A.ref(item,'label')}, {
-                    click: function() {
+                A('td.col-md-1#', item.id);
+                A('td.col-md-4 a #', A.ref(item,'label'), "click=", function() {
                         A.copy(selected, {[item.id]: true})
-                    }
                 });
-                A('td.col-md-1', 'a', 'span.glyphicon.glyphicon-remove', {
-                    "aria-hidden": "true",
-                    click: () => delete data[index]
-                });
+                A('td.col-md-1 a span.glyphicon.glyphicon-remove aria-hidden=tue click=', () => delete data[index]);
                 A('td.col-md-6');
             });
         }, sortByLabel.value ? item=>item.label : undefined);

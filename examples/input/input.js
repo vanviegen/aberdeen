@@ -1,5 +1,5 @@
-import A from '../../dist/aberdeen.js';
-import { grow, shrink } from '../../dist/transitions.js';
+import A from '../../dist/src/aberdeen.dev.js';
+import { grow, shrink } from '../../dist/src/transitions.js';
 
 // The `A.proxy` function makes the data structure observable.
 const data = A.proxy({
