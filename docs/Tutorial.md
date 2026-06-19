@@ -664,7 +664,7 @@ The A.dump renders recursively using `<ul>` and `<li>` elements, showing all pro
 
 ## Developer tools
 
-Aberdeen has an in-browser inspector for its reactive scope tree, and the live examples on this page support it. **Click inside an example's 'Browser' tab to focus it, then press `Ctrl/Cmd+Alt+A`** to open the tools (press again to close). Try it with this one:
+Aberdeen has an in-browser inspector for its reactive scope tree. The live examples on this page support it. **Click inside an example's 'Browser' tab to focus it, then press `Ctrl/Cmd+Alt+A`** to open the tools (press again to close). Try it with this one:
 
 ```typescript
 import A from 'aberdeen';
@@ -688,15 +688,13 @@ This is a development-only aid and is stripped from production builds. By defaul
 
 ## html-to-aberdeen
 
-Sometimes, you want to just paste a largish block of HTML into your application (and then maybe modify it to bind some actual data). Having to translate HTML to `$` calls manually is little fun, so there's a tool for that:
+This tool allows you to convert a block of HTML into Aberdeen syntax. 
 
 ```sh
 npx html-to-aberdeen
 ```
 
 It takes HTML on stdin (paste it and press `ctrl-d` for end-of-file), and outputs JavaScript on stdout.
-
-> Caveat: This tool has been vibe coded (thanks Claude!) with very little code review. As it doesn't use the filesystem nor the network, I'd say it's safe to use though! :-) Also, it happens to work pretty well.
 
 ## Routing
 

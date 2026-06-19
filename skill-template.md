@@ -17,13 +17,30 @@ Aberdeen is a reactive UI library using fine-grained reactivity via JavaScript P
 8. **Prefix proxied objects** - As a convention, prefix variable names that contain proxied objects with '$' (e.g. `$user`, `$settings`)
 9. **Think about rerenders** - When you read from a proxied object (like `let n = $user.name;`), the containing A(() => {..}) or A('div', () => {}) function will rerun on change - plan on which level you want updates to trigger
 
-# Obtaining info
+@@include skill/tutorial.md
 
-The complete tutorial follows below. For detailed API reference open these files within the skill directory:
+# API Reference
 
-- **[aberdeen](aberdeen.md)** - Core: `A`, `proxy`, `onEach`, `ref`, `derive`, `map`, `multiMap`, `partition`, `count`, `isEmpty`, `peek`, `dump`, `clean`, `insertCss`, `insertGlobalCss`, `mount`, `runQueue`, `darkMode`
-- **[route](route.md)** - Routing: `current`, `go`, `push`, `back`, `up`, `persistScroll`
-- **[dispatcher](dispatcher.md)** - Path matching: `Dispatcher`, `MATCH_REST`, `MATCH_FAILED`
-- **[transitions](transitions.md)** - Animations: `grow`, `shrink`
-- **[prediction](prediction.md)** - Optimistic UI: `applyPrediction`, `applyCanon`
+The sections below summarize each module's exports; the linked `.md` files within this skill directory contain detailed reference docs for individual symbols.
 
+## Core (aberdeen)
+
+Import as `import A from 'aberdeen'`. `A` is itself a callable function for building reactive DOM (creating elements, setting attributes, adding content); every other Aberdeen function is also available as a property on it (e.g. `A.proxy`, `A.onEach`).
+
+@@include skill/aberdeen.md
+
+## Routing (aberdeen/route)
+
+@@include skill/route.md
+
+## Path matching (aberdeen/dispatcher)
+
+@@include skill/dispatcher.md
+
+## Optimistic UI (aberdeen/prediction)
+
+@@include skill/prediction.md
+
+## Transitions (aberdeen/transitions)
+
+@@include skill/transitions.md

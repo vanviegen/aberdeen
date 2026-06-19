@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-// WARNING: This script was created by Claude Sonnet 3.7, and hasn't
-// received any human code review. It seems to do the job though!
+// NOTE: This script was created by Claude Sonnet 3.7, and hasn't
+// received any human code review. As it doesn't use the filesystem
+// nor the network, it should be safe enough. And it does the job!
 
 export function parseHTML(html) {
   const result = {
