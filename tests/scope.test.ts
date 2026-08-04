@@ -306,3 +306,34 @@ test('returns a reactive value when only a function is given', async () => {
   expect(plus2.value).toEqual(42)
   assertBody(`p{"42"}`)
 })
+
+test('scopes re-run by runQueue() from inside a peek still subscribe', async () => {
+  // `peek()` must only suppress subscriptions for the code it wraps. A flush
+  // triggered from within it (route.go() does exactly this) re-runs unrelated
+  // scopes, and those have to keep observing their own data — otherwise they
+  // silently stop updating forever.
+  const trigger = A.proxy('a');
+  const watched = A.proxy('one');
+  let renders = 0;
+
+  A(() => {
+    trigger.value; // re-render this scope when `trigger` changes
+    A('p', () => {
+      renders++;
+      A('#' + watched.value);
+    });
+  });
+  assertBody(`p{"one"}`);
+  expect(renders).toEqual(1);
+
+  // Change `trigger`, then flush from inside a peek — as route.go() would.
+  trigger.value = 'b';
+  A.peek(() => A.runQueue());
+  expect(renders).toEqual(2);
+
+  // The re-run scope must still be observing `watched`.
+  watched.value = 'two';
+  await passTime();
+  assertBody(`p{"two"}`);
+  expect(renders).toEqual(3);
+});

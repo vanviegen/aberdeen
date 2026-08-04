@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.19.2 (2026-08-04)
+
+**Fixed:**
+- `runQueue()` invoked from within a `peek()` no longer strips the subscriptions of the scopes it re-runs. Since `route.go()` flushes the queue synchronously, `peek(() => route.go(...))` would silently leave every scope re-rendered by that navigation observing nothing at all, so the UI froze from then on with no error.
+
 ### 1.19.1 (2026-08-04)
 
 **Fixed:**

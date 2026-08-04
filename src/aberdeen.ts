@@ -111,11 +111,22 @@ function queue(runner: QueueRunner) {
 export function runQueue(): void {
 	if (freezeCount) return; // Paused by `freeze()`; updates stay queued until thawed.
 	let time = Date.now();
-	while (sortedQueue) {
-		const runner = sortedQueue.fetchLast();
-		if (!runner) break;
-		if (runQueueDepth & 1) runQueueDepth++; // Make it even
-		runner.queueRun();
+	// Whoever triggered this flush may be inside a `peek()` — for instance
+	// `route.go()`, which runs the queue synchronously. That has nothing to do
+	// with the scopes we're about to re-run: if they were to observe `peeking`
+	// they would silently register no subscriptions at all and never update
+	// again. Suspend it for the duration of the flush.
+	const wasPeeking = peeking;
+	peeking = 0;
+	try {
+		while (sortedQueue) {
+			const runner = sortedQueue.fetchLast();
+			if (!runner) break;
+			if (runQueueDepth & 1) runQueueDepth++; // Make it even
+			runner.queueRun();
+		}
+	} finally {
+		peeking = wasPeeking;
 	}
 	sortedQueue = undefined;
 	runQueueDepth = 0;
