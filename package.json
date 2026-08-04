@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.19.0",
+  "version": "1.19.1",
   "author": "Frank van Viegen",
   "main": "dist/src/aberdeen.js",
   "devDependencies": {
@@ -65,7 +65,7 @@
     "build": "bun run build:clean && bun run build:src && bun run build:src:dev && bun run build:types && bun run build:tests && bun run build:skill",
     "build:clean": "rm -rf dist dist-docs",
     "build:src": "bun build src/aberdeen.ts src/dispatcher.ts src/prediction.ts src/route.ts src/transitions.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/src/",
-    "build:src:dev": "bun build src/devtools.ts --sourcemap --target browser --outdir dist/src --entry-naming 'aberdeen.dev.[ext]'",
+    "build:src:dev": "bun build src/devtools.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/src --entry-naming 'aberdeen.dev.[ext]'",
     "build:types": "tsc",
     "build:tests": "bun build tests/helpers.ts tests/fakedom.ts --sourcemap --target bun --external 'aberdeen' --outdir dist/tests/",
     "build:skill": "bash scripts/build-skill.sh",

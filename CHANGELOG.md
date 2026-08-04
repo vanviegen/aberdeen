@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.19.1 (2026-08-04)
+
+**Fixed:**
+- Fix for the development build of the submodules bundling their own copy of the core. This would wreck havoc due to multiple Aberdeen instances.
+
 ### 1.19.0 (2026-06-18)
 
 **Enhancements:**
