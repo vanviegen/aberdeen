@@ -44,6 +44,9 @@ class Node {
 class Element extends Node {
     tagName: string;
     namespaceURI?: string;
+    // Tag name of the element an `innerHTML` fragment was parsed against; `_`-prefixed so
+    // it stays out of `toString()`. Only set on emulated-html nodes.
+    _parseContext?: string;
     _style: Record<string, string> = makeStyle();
     attrs: Record<string, string> = {};
     events: Record<string, Set<Function>> = {};
@@ -191,7 +194,10 @@ class Element extends Node {
     set innerHTML(html: string) {
         this.childNodes = [];
         if (html) {
-            let n = new Element('fake-emulated-html');
+            // A real parser interprets the fragment relative to this element; we can't emulate that,
+            // but we do record the context (tag + namespace) so tests can assert it's the right one.
+            let n = new Element('fake-emulated-html', this.namespaceURI);
+            n._parseContext = this.tagName;
             n.textContent = html;
             this.appendChild(n);
         }

@@ -20,9 +20,9 @@ The {@link aberdeen.A} function accepts various forms of arguments, which can be
 When a string is passed:
 - The inital part (if any) is the name of the element to be created.
 - One or multiple CSS classes can be added to the 'current' element, by prefixing them with a `.`.
-- Content text can be added by prefixing it with a `#`.
+- Content text can be added by prefixing it with a `#`. This has to be the last thing in the string: the text runs on to the end of it, so anything written after the `#` becomes part of the text.
 
-Instead of the `#` prefix for text content, you can also use the `text=` property, like this: `A('h3 text="Hello world"')`. The double quotes are needed here only because our text contains a space.
+Instead of the `#` prefix for text content, you can also use the `text=` property, like this: `A('h3 text="Hello world"')`. The double quotes are needed here only because our text contains a space. This is also how to give an element text when more should follow in the same string, as `#` would swallow it: `A('button text=Undo click=', undo)` does what you'd expect, while `A('button #Undo click=', undo)` gives you a button labelled `Undo click=` — and, since nothing is left waiting for it, `undo` is taken as a content function and run right there.
 
 For simple formatting, use `rich=` which supports `*italic*`, `**bold**`, `` `code` ``, and `[links](url)`:
 

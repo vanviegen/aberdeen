@@ -172,6 +172,43 @@ test('adds html', async () => {
   assertBody(`main{hr fake-emulated-html{"123"} img}`);
 });
 
+test('replaces html added through the empty-element fast path', async () => {
+  let data = A.proxy('test' as string|number);
+  A.mount(document.body, () => {
+    A('main', () => {
+      A(() => {
+        A({html: data.value});
+      });
+      A('img');
+    });
+  });
+  assertBody(`main{fake-emulated-html{"test"} img}`);
+  data.value = 123;
+  await passTime();
+  assertBody(`main{fake-emulated-html{"123"} img}`);
+  data.value = "";
+  await passTime();
+  assertBody(`main{img}`);
+  data.value = "again";
+  await passTime();
+  assertBody(`main{fake-emulated-html{"again"} img}`);
+});
+
+test('parses html in the context of the element it lands in', async () => {
+  A.mount(document.body, () => {
+    // The element is created by this same A() call, so `html` takes the slow path, parsing
+    // into a temporary parent. That parent must mirror the target element: a `<tr>` is only
+    // kept when parsed against a table, and svg content only stays svg in an svg context.
+    A('table', {html: '<tr><td>x</td></tr>'});
+    A('svg', {html: '<circle r="1"/>'});
+  });
+  const table = document.body.childNodes[0] as any;
+  const svg = document.body.childNodes[1] as any;
+  expect(table.firstChild._parseContext).toBe('table');
+  expect(svg.firstChild._parseContext).toBe('svg');
+  expect(svg.firstChild.namespaceURI).toBe('http://www.w3.org/2000/svg');
+});
+
 test('renders rich text with markdown-like syntax', async () => {
   A.mount(document.body, () => {
     A('p rich="This is *italic* and **bold** and `some code` here."');

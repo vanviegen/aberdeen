@@ -1,5 +1,11 @@
 # Changelog
 
+### 1.19.3 (2026-08-05)
+
+**Fixed:**
+- The `html` property no longer duplicates its content when set through the fast path (a scope that owns an as-yet empty element). The nodes parsed straight into the element weren't registered as scope children, so a redraw left them in the DOM and appended a second copy, and any nodes added after them ended up in the wrong order.
+- `html` now parses its fragment in the context of the element it's added to, rather than that of the surrounding scope. Context-sensitive markup was silently dropped when the two differed (e.g. `A('table', {html: '<tr>…'})` lost its rows), and svg fragments came out as HTML elements.
+
 ### 1.19.2 (2026-08-04)
 
 **Fixed:**

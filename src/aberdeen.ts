@@ -2351,13 +2351,22 @@ const SPECIAL_PROPS: { [key: string]: (el: Element, value: any) => void } = {
 		onDestroyMap.set(el, value);
 	},
 	html: (el: Element, value: any) => {
-		if (el === currentScope.el && !el.firstChild) {
-			// Fast path: when el does not need reactivity and is empty
+		if (el === currentScope.el && !el.firstChild && !currentScope.lastChild) {
+			// Fast path: parse directly into the (empty) element. Register the
+			// resulting nodes as scope children, so a redraw of the scope (whose
+			// element may outlive it) removes them again instead of leaving them
+			// behind and appending a duplicate.
 			el.innerHTML = `${value}`;
+			if (el.lastChild) currentScope.lastChild = el.lastChild;
 		}
 		else {
-			// Slow path: create elements on tmp parent, and then move them into place
-			const tmpParent = document.createElement(currentScope.el.tagName);
+			// Slow path: create elements on a tmp parent, and then move them into place. The tmp
+			// parent mirrors `el` (both tag name and namespace), as the parser interprets a fragment
+			// relative to its context element: `<tr>` only survives inside a table, and SVG content
+			// needs an SVG context to not become HTML elements.
+			const tmpParent = el.namespaceURI === 'http://www.w3.org/2000/svg'
+				? document.createElementNS('http://www.w3.org/2000/svg', el.tagName)
+				: document.createElement(el.tagName);
 			tmpParent.innerHTML = `${value}`;
 			while (tmpParent.firstChild) addNode(el, tmpParent.firstChild);
 		}
