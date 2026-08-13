@@ -500,3 +500,438 @@ test('matchCurrent interceptLinks ignores hash-only links', async () => {
     // Path should not change for hash-only links
     expect(route.current.path).toEqual(initialPath);
 });
+// ─── setGuard() ──────────────────────────────────────────────────────────────
+
+test('setGuard: a synchronous veto stops go(), a pass lets it through', async () => {
+    route.go('/start');
+    await passTime(1);
+
+    let allow = false;
+    const seen: Array<{to: string, from: string}> = [];
+    route.setGuard((to, from) => {
+        seen.push({to: to.path, from: from.path});
+        return allow;
+    });
+
+    expect(route.go('/blocked')).toBe(false);
+    await passTime(1);
+    expect(route.current.path).toEqual('/start');
+    expect(location.pathname).toEqual('/start');
+    expect(seen).toEqual([{to: '/blocked', from: '/start'}]);
+
+    allow = true;
+    expect(route.go('/allowed')).toBe(true);
+    await passTime(1);
+    expect(route.current.path).toEqual('/allowed');
+    expect(seen[1]).toEqual({to: '/allowed', from: '/start'});
+});
+
+test('setGuard: an async guard defers go() and refuses concurrent changes', async () => {
+    route.go('/start');
+    await passTime(1);
+
+    let resolveVerdict: (ok: boolean) => void;
+    route.setGuard(() => new Promise((resolve) => { resolveVerdict = resolve; }));
+
+    const result = route.go('/slow') as Promise<boolean>;
+    expect(typeof (result as any).then).toBe('function');
+    await passTime(1);
+    // Nothing applied while the verdict is pending, and other changes are refused.
+    expect(route.current.path).toEqual('/start');
+    expect(route.go('/other')).toBe(false);
+
+    resolveVerdict!(true);
+    expect(await result).toBe(true);
+    await passTime(1);
+    expect(route.current.path).toEqual('/slow');
+    expect(location.pathname).toEqual('/slow');
+});
+
+test('setGuard: a vetoed browser back is undone, restoring the entry we were on', async () => {
+    route.go('/page1');
+    await passTime(1);
+    route.go('/page2');
+    await passTime(1);
+
+    let allow = false;
+    route.setGuard(() => allow);
+
+    history.back();
+    await passTime(10);
+    // The guard refused: we've travelled forward again, nothing changed.
+    expect(route.current.path).toEqual('/page2');
+    expect(location.pathname).toEqual('/page2');
+    expect(route.current.depth).toEqual(3);
+
+    allow = true;
+    history.back();
+    await passTime(10);
+    expect(route.current.path).toEqual('/page1');
+});
+
+test('setGuard: a vetoed multi-entry jump travels the exact distance back', async () => {
+    route.go('/page1');
+    await passTime(1);
+    route.go('/page2');
+    await passTime(1);
+    route.go('/page3');
+    await passTime(1);
+
+    route.setGuard(() => false);
+    history.go(-3); // long-press back: straight to the initial entry
+    await passTime(10);
+
+    expect(route.current.path).toEqual('/page3');
+    expect(location.pathname).toEqual('/page3');
+    expect(route.current.depth).toEqual(4);
+});
+
+test('setGuard: an async popstate verdict holds the route until it settles', async () => {
+    route.go('/page1');
+    await passTime(1);
+    route.go('/page2');
+    await passTime(1);
+
+    let resolveVerdict: (ok: boolean) => void;
+    route.setGuard(() => new Promise((resolve) => { resolveVerdict = resolve; }));
+
+    history.back();
+    await passTime(10);
+    // Browser already moved, but the route holds at the approved entry.
+    expect(route.current.path).toEqual('/page2');
+
+    resolveVerdict!(true);
+    await passTime(10);
+    expect(route.current.path).toEqual('/page1');
+    expect(route.current.nav).toEqual('back');
+});
+
+test('setGuard: a vetoed direct route.current mutation is reverted in place', async () => {
+    route.go('/keep');
+    await passTime(1);
+
+    route.setGuard(() => false);
+    route.current.path = '/changed';
+    await passTime(1);
+
+    expect(route.current.path).toEqual('/keep');
+    expect(location.pathname).toEqual('/keep');
+});
+
+test('setGuard: in-place state and hash tweaks are same-page changes that skip the guard', async () => {
+    route.go('/page');
+    await passTime(1);
+    let calls = 0;
+    route.setGuard(() => { calls++; return false; }); // vetoes everything...
+
+    route.current.state.selection = 'b7'; // ...but is never even asked
+    await passTime(1);
+    expect(route.current.state.selection).toEqual('b7');
+    expect(history.state.state.selection).toEqual('b7');
+
+    route.current.hash = '#section';
+    await passTime(1);
+    expect(route.current.hash).toEqual('#section');
+
+    expect(calls).toEqual(0);
+});
+
+test('setGuard: an in-place search change is a navigation and can be vetoed', async () => {
+    route.go({path: '/page', search: {tab: 'a'}});
+    await passTime(1);
+    route.setGuard(() => false);
+
+    route.current.search.tab = 'b';
+    await passTime(1);
+    expect(route.current.search).toEqual({tab: 'a'});
+});
+
+test('setGuard: an async verdict re-applies a direct mutation once it passes', async () => {
+    route.go('/from');
+    await passTime(1);
+    let resolveVerdict: (ok: boolean) => void;
+    route.setGuard(() => new Promise((resolve) => { resolveVerdict = resolve; }));
+
+    route.current.path = '/to';
+    await passTime(1);
+    expect(route.current.path).toEqual('/from'); // reverted while pending
+
+    resolveVerdict!(true);
+    await passTime(5);
+    expect(route.current.path).toEqual('/to');
+    expect(location.pathname).toEqual('/to');
+});
+
+test('setGuard: a guard can redirect by navigating itself and vetoing', async () => {
+    route.go('/start');
+    await passTime(1);
+    route.setGuard((to) => {
+        if (to.path === '/login') return true;
+        route.go('/login');
+        return false;
+    });
+
+    expect(route.go('/private')).toBe(false);
+    await passTime(1);
+    expect(route.current.path).toEqual('/login');
+    expect(location.pathname).toEqual('/login');
+});
+
+test('setGuard: an async popstate veto reverts once the verdict settles', async () => {
+    route.go('/page1');
+    await passTime(1);
+    route.go('/page2');
+    await passTime(1);
+
+    let resolveVerdict: (ok: boolean) => void;
+    route.setGuard(() => new Promise((resolve) => { resolveVerdict = resolve; }));
+
+    history.back();
+    await passTime(10);
+    expect(route.current.path).toEqual('/page2'); // held while pending
+
+    resolveVerdict!(false);
+    await passTime(10);
+    expect(route.current.path).toEqual('/page2');
+    expect(location.pathname).toEqual('/page2');
+    expect(route.current.depth).toEqual(3);
+});
+
+test('setGuard: a browser navigation supersedes a pending verdict, which is then re-examined', async () => {
+    route.go('/page1');
+    await passTime(1);
+    route.go('/page2');
+    await passTime(1);
+
+    const verdicts: Array<{to: string, resolve: (ok: boolean) => void}> = [];
+    route.setGuard((to) => new Promise((resolve) => { verdicts.push({to: to.path, resolve}); }));
+
+    const result = route.go('/page3') as Promise<boolean>;
+    await passTime(1);
+    history.back(); // the user presses back while the verdict is pending
+    await passTime(10);
+    expect(route.current.path).toEqual('/page2'); // still holding steady
+
+    verdicts[0].resolve(true); // approval comes too late: the back superseded it
+    expect(await result).toBe(false);
+    await passTime(10);
+
+    // The browser's position got its own guard consultation, and won.
+    expect(verdicts.length).toEqual(2);
+    expect(verdicts[1].to).toEqual('/page1');
+    verdicts[1].resolve(true);
+    await passTime(10);
+    expect(route.current.path).toEqual('/page1');
+    expect(route.current.nav).toEqual('back');
+});
+
+test('setGuard: a vetoed same-depth landing (entry created outside the router) is rewritten in place', async () => {
+    route.go('/ours');
+    await passTime(1);
+    route.setGuard(() => false);
+
+    // Some non-router code pushes an entry (carrying our state, like a
+    // fragment navigation would) and the browser lands on it.
+    history.pushState(history.state, '', '/foreign');
+    window.dispatchEvent({type: 'popstate', state: history.state});
+    await passTime(10);
+
+    expect(route.current.path).toEqual('/ours');
+    expect(location.pathname).toEqual('/ours');
+});
+
+test('setGuard: a fragment navigation is a same-page change that skips the guard', async () => {
+    route.go('/page');
+    await passTime(1);
+    let calls = 0;
+    route.setGuard(() => { calls++; return false; });
+
+    // The browser handles #fragment links itself: a new entry carrying the
+    // same state, announced by a popstate.
+    history.pushState(history.state, '', '/page#section');
+    window.dispatchEvent({type: 'popstate', state: history.state});
+    await passTime(10);
+
+    expect(calls).toEqual(0);
+    expect(route.current.hash).toEqual('#section');
+});
+
+test('setGuard: a throwing guard counts as a veto', async () => {
+    route.go('/safe');
+    await passTime(1);
+    route.setGuard(() => { throw new Error('nope'); });
+
+    expect(route.go('/danger')).toBe(false);
+    await passTime(1);
+    expect(route.current.path).toEqual('/safe');
+});
+
+// ─── back() reporting ────────────────────────────────────────────────────────
+
+test('back() resolves true once the travel lands', async () => {
+    route.go('/page1');
+    await passTime(1);
+    route.go('/page2');
+    await passTime(1);
+
+    const result = route.back('/page1');
+    await passTime(10);
+    expect(await result).toBe(true);
+    expect(route.current.path).toEqual('/page1');
+});
+
+test('back() applies fallback defaults when it replaces instead of travelling', async () => {
+    route.go('/somewhere');
+    await passTime(1);
+
+    const result = route.back({path: '/parent'}, {state: {stack: ['a', 'b']}});
+    expect(await result).toBe(true);
+    await passTime(1);
+
+    expect(route.current.path).toEqual('/parent');
+    expect(route.current.state).toEqual({stack: ['a', 'b']});
+    // The fallback is only a default for the replacement: the match spec wins.
+    route.go('/elsewhere');
+    await passTime(1);
+    await route.back({path: '/parent', state: {stack: ['x']}}, {state: {stack: ['y']}});
+    await passTime(10);
+    expect(route.current.state).toEqual({stack: ['x']});
+});
+
+test('back() resolves false when a guard vetoes the travel', async () => {
+    route.go('/page1');
+    await passTime(1);
+    route.go('/page2');
+    await passTime(1);
+
+    route.setGuard(() => false);
+    const result = route.back('/page1');
+    await passTime(10);
+    expect(await result).toBe(false);
+    expect(route.current.path).toEqual('/page2');
+});
+
+test('back() resolves false when a guard vetoes the replacement', async () => {
+    route.go('/only');
+    await passTime(1);
+    route.setGuard(() => false);
+
+    expect(await route.back('/nonexistent')).toBe(false);
+    await passTime(1);
+    expect(route.current.path).toEqual('/only');
+});
+
+test('back() resolves false when a go() supersedes the travel before it lands', async () => {
+    route.go('/page1');
+    await passTime(1);
+    route.go('/page2');
+    await passTime(1);
+
+    const result = route.back('/page1');
+    route.go('/page3'); // same tick: the scheduled travel never happens
+
+    expect(await result).toBe(false);
+    await passTime(10);
+    expect(route.current.path).toEqual('/page3');
+    expect(location.pathname).toEqual('/page3');
+});
+
+test('up() resolves true once its travel lands', async () => {
+    route.go('/users');
+    await passTime(1);
+    route.go('/users/123');
+    await passTime(1);
+
+    const result = route.up();
+    await passTime(10);
+    expect(await result).toBe(true);
+    expect(route.current.path).toEqual('/users');
+});
+
+test('push() merges into the current route and reports the guard verdict', async () => {
+    route.go({path: '/users', search: {tab: 'feed'}});
+    await passTime(1);
+
+    expect(route.push({search: {tab: 'feed', sort: 'new'}})).toBe(true);
+    await passTime(1);
+    expect(route.current.path).toEqual('/users');
+    expect(route.current.search).toEqual({tab: 'feed', sort: 'new'});
+    expect(route.current.depth).toEqual(3);
+
+    route.setGuard(() => false);
+    expect(route.push({search: {tab: 'other'}})).toBe(false);
+    await passTime(1);
+    expect(route.current.search).toEqual({tab: 'feed', sort: 'new'});
+});
+
+test('setGuard returns the previously registered guard', () => {
+    const first = () => true;
+    expect(route.setGuard(first)).toBe(null);
+    expect(route.setGuard(null)).toBe(first);
+});
+
+// ─── interceptLinks(handler) ─────────────────────────────────────────────────
+
+test('interceptLinks handler gets the URL and anchor, and defaults to go()', async () => {
+    let link: any;
+    const seen: Array<{path: string, anchor: any}> = [];
+    A.mount(document.body, () => {
+        route.interceptLinks((url, anchor) => {
+            seen.push({path: url.pathname, anchor});
+        });
+        link = A('a', {href: '/hooked?x=1'});
+    });
+    await passTime(1);
+
+    link.event('click');
+    await passTime(1);
+
+    expect(seen.length).toEqual(1);
+    expect(seen[0].path).toEqual('/hooked');
+    expect(seen[0].anchor).toBe(link);
+    expect(route.current.path).toEqual('/hooked');
+    expect(route.current.search).toEqual({x: '1'});
+});
+
+test('interceptLinks handler returning true claims the link without navigating', async () => {
+    let link: any;
+    A.mount(document.body, () => {
+        route.interceptLinks(() => true);
+        link = A('a', {href: '/claimed'});
+    });
+    await passTime(1);
+
+    const before = route.current.path;
+    link.event('click');
+    await passTime(1);
+    expect(route.current.path).toEqual(before);
+});
+
+test('interceptLinks handler returning false leaves the link to the browser', async () => {
+    let link: any;
+    A.mount(document.body, () => {
+        route.interceptLinks(() => false);
+        link = A('a', {href: '/declined'});
+    });
+    await passTime(1);
+
+    // No routing takes place; the browser would perform its own navigation.
+    const before = route.current.path;
+    link.event('click');
+    await passTime(1);
+    expect(route.current.path).toEqual(before);
+});
+
+test('interceptLinks skips events something else already handled', async () => {
+    let link: any;
+    A.mount(document.body, () => {
+        route.interceptLinks();
+        link = A('a', {href: '/somewhere'});
+    });
+    await passTime(1);
+
+    const before = route.current.path;
+    link.event({type: 'click', defaultPrevented: true});
+    await passTime(1);
+    expect(route.current.path).toEqual(before);
+});

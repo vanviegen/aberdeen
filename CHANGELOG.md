@@ -1,5 +1,16 @@
 # Changelog
 
+### 1.20.0 (2026-08-13)
+
+**Enhancements:**
+- Added `route.setGuard(guard)`: a navigation guard that can (asynchronously) veto any navigation before it's applied — including browser back/forward, which is undone by travelling back the exact number of history entries. Same-page tweaks (in-place `state`/`hash` changes) don't consult the guard.
+- `route.go()` and `route.push()` now report whether the navigation happened, and `route.back()` and `route.up()` return a `Promise<boolean>` resolving once the navigation has landed (or was vetoed/superseded).
+- `route.back()` now takes an optional `fallback` argument: defaults for the replacement route when no history entry matches.
+- `route.interceptLinks()` now accepts an optional handler, letting routing shells decide how (or whether) to handle each intercepted link.
+
+**Fixed:**
+- `interceptLinks()` now also leaves alt-clicks and non-primary-button clicks to the browser, and ignores events on which something else already called `preventDefault()`.
+
 ### 1.19.3 (2026-08-05)
 
 **Fixed:**

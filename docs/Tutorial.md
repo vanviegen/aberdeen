@@ -763,6 +763,22 @@ A(() => {
 });
 ```
 
+When some pages shouldn't be left without asking (think unsaved changes), register a navigation guard using {@link route.setGuard}. It's consulted before any navigation — including the browser's own back/forward buttons, which are undone when the guard answers `false`:
+
+```javascript
+import A from 'aberdeen';
+import * as route from 'aberdeen/route';
+
+const doc = A.proxy({dirty: true});
+route.setGuard(() => !doc.dirty || confirm('Discard unsaved changes?'));
+
+A('button#Go elsewhere', {
+    click: () => route.go('/elsewhere')
+});
+```
+
+Guards may be async, and navigation functions report whether the navigation actually happened — see the {@link route.setGuard} reference for details.
+
 Optionally, you can use the {@link dispatcher.Dispatcher} class for declarative routing. It allows you to register route patterns with associated handler functions, which are invoked when the current route matches the pattern. It can match typed parameters and rest parameters.
 
 ## Prediction
