@@ -142,7 +142,7 @@ test('Error handling - breaks up long update->observe recursions', async () => {
 test('Errors when using Map as onEach sort key', async () => {
     const data = A.proxy(new Map([[{ id: 1, name: 'first' }, 42]]));
     
-    await captureOnError('onEach() sort key must be a string, number or an array of such', async () => {
+    await captureOnError('onEach() sort key must be a finite number, string or an array of such', async () => {
         A.onEach(data, () => {});
         await passTime();
     });

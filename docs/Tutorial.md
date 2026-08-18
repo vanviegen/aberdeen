@@ -383,6 +383,8 @@ A('div.row.wide margin-top:1em', () => {
 
 Note the use of the provided {@link aberdeen.invertString | A.invertString} function to reverse-sort by a string value.
 
+The order function runs in a reactive scope of its own. When observable data that it reads changes the resulting sort key, the item's DOM elements are *moved* to their new position without being redrawn. State like `<input>` values survives such a move, and in browsers supporting the `moveBefore` API, so do focus, text selection and CSS animations. Of course, any parts of the item that reactively depend on the changed data will still update (in place), as usual.
+
 ## Two-way binding
 Aberdeen makes it easy to create two-way bindings between form elements (the various `<input>` types, `<textarea>` and `<select>`) and your data, by passing an observable object with a `.value` as `bind:` property to {@link aberdeen.A}.
 

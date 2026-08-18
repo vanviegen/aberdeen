@@ -79,10 +79,11 @@ export async function assertThrow(a: any, b?: any): Promise<void> {
 
 export const passTime = fakedom.passTime
 
-export function assertDomUpdates(expected: {new?: number, changed?: number}) {
+export function assertDomUpdates(expected: {new?: number, changed?: number, moved?: number}) {
 	const counts = fakedom.getCounts()
 	if (expected.new!=null) expect(counts.new).toEqual(expected.new)
 	if (expected.changed!=null) expect(counts.changed).toEqual(expected.changed)
+	if (expected.moved!=null) expect(counts.moved).toEqual(expected.moved)
 }
 
 export async function reset() {

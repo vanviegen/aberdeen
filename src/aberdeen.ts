@@ -171,27 +171,33 @@ export function freeze(): () => void {
 export type SortKeyType = number | string | Array<number | string> | undefined | void;
 
 /**
- * Given an array of integer numbers or strings, this function returns a string that sorts
- * by natural number ordering.
+ * Given an array of (possibly fractional) numbers or strings, this function returns a string
+ * that sorts by natural number ordering.
  */
 function arrayToStr(parts: (number | string)[]): string {
 	let result = '';
-	for(const part of parts) {
+	for (let i = 0; i < parts.length; i++) {
+		const part = parts[i];
 		if (typeof part === "string") {
 			result += `${part}\x01`; // end-of-string
 			continue;
 		}
-		if (typeof part !== "number") {
-			throw new Error("onEach() sort key must be a string, number or an array of such");
+		if (!Number.isFinite(part)) {
+			throw new Error("onEach() sort key must be a finite number, string or an array of such");
 		}
+		// Split the number into an integer part and a positive fraction. Rounding *down* makes
+		// the fraction positive for negative numbers as well (-2.5 becomes -3 + 0.5), which is
+		// what makes the lexicographic ordering below work out for both signs.
+		let num = Math.floor(part);
+		let frac = part - num;
+		const negative = num < 0;
+		if (negative) num = -num;
 		let digits = "";
-		let num = Math.abs(Math.round(part));
-		const negative = part < 0;
 		while (num > 0) {
 			/*
 			* We're reserving a few character codes:
 			* 0 - for compatibility
-			* 1 - separator between string array items
+			* 1 - separator between array items
 			* 65535 - for compatibility
 			*/
 			digits = String.fromCharCode(
@@ -201,8 +207,32 @@ function arrayToStr(parts: (number | string)[]): string {
 		}
 		// Prefix the number of digits, counting down from 128 for negative and up for positive
 		result += String.fromCharCode(128 + (negative ? -digits.length : digits.length)) + digits;
+		// Fraction digits, base 65533, most significant first. As an omitted digit sorts
+		// before any digit character, a whole number sorts before the same number with a
+		// fraction. Four digits (64 bits) exceed double precision; the clamp catches the
+		// rounding edge where a fraction that approaches 1 would yield digit 65533.
+		for (let j = 0; frac > 0 && j < 4; j++) {
+			frac *= 65533;
+			const digit = Math.min(Math.floor(frac), 65532);
+			frac -= digit;
+			result += String.fromCharCode(2 + digit);
+		}
+		// A number followed by another part gets terminated by \x01, sorting below any
+		// fraction digit, so that e.g. [2, "x"] sorts before [2.5, "x"].
+		if (i < parts.length - 1) result += "\x01";
 	}
 	return result;
+}
+
+/**
+ * Normalizes a sort key (as returned by a `makeSortKey` function, or an item's default key)
+ * to the string form used for ordering item scopes, or null/undefined when the item should
+ * not be shown.
+ */
+function normalizeSortKey(sortKey: SortKeyType | null): string | null | undefined {
+	if (sortKey instanceof Array) return arrayToStr(sortKey);
+	if (typeof sortKey !== "string" && sortKey != null) return arrayToStr([sortKey]);
+	return sortKey as string | null | undefined; // `void` only exists in the type declaration
 }
 
 /**
@@ -562,6 +592,36 @@ function removeNodes(
 	}
 }
 
+// Move `node` and all its preceding siblings (up to and excluding `preNode`) to just after
+// `afterNode` (or to the start of `parentEl` when `afterNode` is undefined), preserving their
+// order. Elements currently playing their destroy animation are left where they are, like
+// `removeNodes` does. Uses `moveBefore` when the browser supports it, which keeps state such
+// as focus, text selection, CSS animations and iframe documents intact. Otherwise
+// `insertBefore` is used, which preserves the elements themselves (and things like `<input>`
+// values), but resets such state.
+function moveNodes(
+	node: Node | undefined,
+	preNode: Node | undefined,
+	parentEl: Element,
+	afterNode: Node | undefined,
+) {
+	// `moveBefore` throws when the parent (and thus the nodes) are not connected to the
+	// document; `isConnected` is undefined in our fake test DOM, which is always "connected".
+	const method =
+		(parentEl as any).moveBefore && parentEl.isConnected !== false ? "moveBefore" : "insertBefore";
+	// Walk backwards, moving each node to right before the previously moved one. The previous
+	// sibling is captured before the move, as moving the node would upset our walk.
+	let ref: Node | null = afterNode ? afterNode.nextSibling : parentEl.firstChild;
+	while (node && node !== preNode) {
+		const prevNode: Node | null = node.previousSibling;
+		if (onDestroyMap.get(node) !== true) {
+			(parentEl as any)[method](node, ref);
+			ref = node;
+		}
+		node = prevNode || undefined;
+	}
+}
+
 // Get a reference to the last node within `sibling` or any of its preceding siblings.
 // If a `Node` is given, that node is returned.
 function findLastNodeInPrevSiblings(
@@ -738,7 +798,7 @@ class OnEachScope extends Scope {
 
 /** @internal */
 class OnEachItemScope extends ContentScope {
-	sortKey: string | number | undefined; // When undefined, this scope is currently not showing in the list
+	sortKey: string | null | undefined; // When null-ish, this scope is currently not showing in the list
 	public el: Element;
 	public svg: boolean;
 
@@ -806,12 +866,17 @@ class OnEachItemScope extends ContentScope {
 		if (currentScope !== ROOT_SCOPE) internalError(4);
 
 		if (!this.fetchHasChanges()) return;
+		this.fullRedraw();
+	}
 
+	/** Removes the item's rendered nodes, cleans its subscopes and subscriptions, and
+	 * renders it afresh (which may change or clear its position among its siblings). */
+	fullRedraw() {
 		// We're not calling `remove` here, as we don't want to remove ourselves from
 		// the sorted set. `redraw` will take care of that, if needed.
 		// Also, we can't use `getLastNode` here, as we've hacked it to return the
 		// preceding node instead.
-		if (this.sortKey !== undefined) {
+		if (this.sortKey != null) {
 			const lastNode = this.getActualLastNode();
 			if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
 		}
@@ -828,16 +893,12 @@ class OnEachItemScope extends ContentScope {
 		topRedrawScope = undefined;
 	}
 
-	redraw() {
-		// Have the makeSortKey function return an ordering int/string/array.
-
-		// Note that we're NOT subscribing on target[itemIndex], as the OnEachScope uses
-		// a wildcard subscription to delete/recreate any scopes when that changes.
-		// We ARE creating a proxy around the value though (in case its an object/array),
-		// so we'll have our own scope subscribe to changes on that.
-		let value: any;
+	/** Returns the (proxied) `[value, key]` pair for this item, as passed to the user's
+	 * `render` and `makeSortKey` functions. */
+	getValueAndIndex(): [any, any] {
 		const target = this.parent.target;
 		let itemIndex = this.itemIndex;
+		let value: any;
 		if (target instanceof Set) {
 			value = itemIndex = optProxy(itemIndex);
 		} else if (target instanceof Map) {
@@ -847,21 +908,31 @@ class OnEachItemScope extends ContentScope {
 		} else {
 			value = optProxy((target as any)[itemIndex]);
 		}
+		return [value, itemIndex];
+	}
+
+	redraw() {
+		// Note that we're NOT subscribing on target[itemIndex], as the OnEachScope uses
+		// a wildcard subscription to delete/recreate any scopes when that changes.
+		// We ARE creating a proxy around the value though (in case its an object/array),
+		// so we'll have our own scope subscribe to changes on that.
+		const [value, itemIndex] = this.getValueAndIndex();
 
 		// Since makeSortKey may get() the Store, we'll need to set currentScope first.
 		const savedScope = currentScope;
 		currentScope = this;
 		dev?.render(this);
 
-		let sortKey: any;
+		let sortKey: string | null | undefined;
 		try {
 			if (this.parent.makeSortKey) {
-				sortKey = this.parent.makeSortKey(value, itemIndex);
+				// The sort key is computed in a (sub)scope of its own, so that a change
+				// affecting only the key (and not the rendered content) can reposition
+				// the item without redrawing it.
+				sortKey = new SortKeyScope(this).compute(value, itemIndex);
 			} else {
-				sortKey = itemIndex;
+				sortKey = normalizeSortKey(itemIndex);
 			}
-			if (sortKey instanceof Array) sortKey = arrayToStr(sortKey);
-			else if (typeof sortKey !== "string" && sortKey != null) sortKey = arrayToStr([sortKey]);
 
 			if (this.sortKey !== sortKey) {
 				// If the sortKey is changed, make sure `this` is removed from the
@@ -888,10 +959,34 @@ class OnEachItemScope extends ContentScope {
 		return findLastNodeInPrevSiblings(this.lastChild);
 	}
 
+	/** Repositions this item to match a changed `newKey`, moving its DOM nodes to their new
+	 * position without redrawing them. Requires both the old and the new sort key to be
+	 * non-null (meaning the item stays visible, and its content is unaffected). */
+	move(newKey: string) {
+		// Determine the current node range before changing our position. An item that has
+		// rendered any nodes is always part of the sortedSet, as inserting a node requires
+		// looking up its position through getPrecedingNode().
+		const lastNode = this.getActualLastNode();
+		const precedingNode = lastNode && this.getPrecedingNode();
+
+		this.parent.sortedSet.remove(this);
+		this.sortKey = newKey;
+
+		// Without nodes there is nothing to move; we'll rejoin the sortedSet just-in-time
+		// (see getPrecedingNode), like after a redraw.
+		if (!lastNode) return;
+
+		// This re-adds us to the sortedSet (now at the new position), and returns the node
+		// after which our nodes should go from now on.
+		const afterNode = this.getPrecedingNode();
+
+		if (afterNode !== precedingNode) moveNodes(lastNode, precedingNode, this.el, afterNode);
+	}
+
 	remove() {
 		// We can't use getLastNode here, as we've hacked it to return the preceding
 		// node instead.
-		if (this.sortKey !== undefined) {
+		if (this.sortKey != null) {
 			const lastNode = this.getActualLastNode();
 			if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
 
@@ -904,6 +999,81 @@ class OnEachItemScope extends ContentScope {
 		survivingEl = this.el;
 		this.delete();
 		survivingEl = savedSurvivingEl;
+	}
+}
+
+/** @internal
+ * Computes an item's sort key within a scope of its own, so that a change to observable data
+ * read by `makeSortKey` (but not by the item's render function) can reposition the item
+ * without redrawing it. Created only when `onEach` was given a `makeSortKey` function. A full
+ * (re)render of the item deletes this scope (through the item's cleaners) and creates a
+ * fresh one.
+ */
+class SortKeyScope extends ContentScope {
+	el: Element;
+	svg: boolean;
+
+	constructor(public item: OnEachItemScope) {
+		super();
+		this.el = item.el;
+		this.svg = item.svg;
+
+		// Have the item scope clean us up when it redraws or is removed.
+		item.cleaners.push(this);
+
+		dev?.create(this, item, new Error());
+	}
+
+	/** Runs `makeSortKey` with `this` as the subscribing scope, returning the normalized
+	 * key. Exceptions propagate to the caller. */
+	compute(value: any, itemIndex: any): string | null | undefined {
+		const savedScope = currentScope;
+		currentScope = this;
+		dev?.render(this);
+		try {
+			return normalizeSortKey(this.item.parent.makeSortKey!(value, itemIndex));
+		} finally {
+			currentScope = savedScope;
+		}
+	}
+
+	queueRun() {
+		if (!this.fetchHasChanges()) return;
+
+		const item = this.item;
+		const oldKey = item.sortKey;
+
+		// Drop the subscriptions of the previous computation; compute() will re-establish them.
+		this.delete();
+
+		let newKey: string | null | undefined;
+		try {
+			newKey = this.compute(...item.getValueAndIndex());
+		} catch (e) {
+			handleError(e, false);
+			newKey = undefined;
+		}
+
+		if (newKey === oldKey || (newKey == null && oldKey == null)) return; // Position unaffected.
+
+		if (newKey == null || oldKey == null) {
+			// The item is toggling between shown and hidden, which changes what is rendered:
+			// fall back to a full redraw. (This also deletes `this`, creating a fresh
+			// SortKeyScope that recomputes the key.)
+			item.fullRedraw();
+		} else {
+			// Only the position changed: move the item's DOM nodes without redrawing them.
+			item.move(newKey);
+		}
+	}
+
+	/* c8 ignore next 3 -- satisfies the abstract contract; we hold no nodes, so it's never called */
+	getPrecedingNode(): undefined {
+		return undefined;
+	}
+
+	getInsertAfterNode(): Node | undefined {
+		throw new Error("makeSortKey must not create DOM nodes");
 	}
 }
 
@@ -1103,6 +1273,8 @@ export function onEach<K extends string | number | symbol, T>(
  * @param target The observable array, object, Map, or Set to iterate over. Values that are `undefined` are skipped.
  * @param render A function called for each item. It receives the item's (observable) value and its index/key. For Sets, only the value is provided. Any DOM elements created within this function will be associated with the item, placed at the right spot in the DOM, and cleaned up when redrawing/removing the item.
  * @param makeKey An optional function to generate a sort key for each item. This controls the order in which items are rendered in the DOM. If omitted, arrays use index order, Sets use the item value itself, and objects/Maps use their natural key order. The returned key can be a number, string, or an array of numbers/strings for composite sorting. Use {@link invertString} on string keys for descending order. Returning `null` or `undefined` from `makeKey` will prevent the item from being rendered.
+ *
+ * `makeKey` runs in a reactive scope of its own: when observable data it reads changes the resulting key, the item's DOM nodes are *moved* to their new position without being redrawn (so state like `<input>` values survives, and — in browsers supporting the `moveBefore` API — focus, text selection and CSS animations do too). Changes that switch the key between `null`-ish and an actual value show/hide the item, and therefore do cause a (re)render. `makeKey` must not create DOM nodes.
  *
  * @example Iterating an array
  * ```typescript

@@ -59,8 +59,8 @@ Okay, next up is a somewhat more complex app - a todo-list with the following be
 - Items that are in 'editing state' show a text input, a save button and a cancel button. Done status cannot be toggled while editing.
 - Pressing one of the buttons, or pressing enter will transition from 'editing state' to 'viewing state', saving the new label text unless cancel was pressed.
 - In 'viewing state', the label is shown as non-editable. There's an 'Edit' link, that will transition the item to 'editing state'. Clicking anywhere else will toggle the done status.
-- The list of items is sorted alphabetically by label. Items move when 'save' changes their label.
-- Items that are created, moved or deleted grow and shrink as appropriate.
+- The list of items is sorted alphabetically by label. Items move when 'save' changes their label, without being redrawn.
+- Items that are created or deleted grow and shrink as appropriate.
 
 Pfew.. now let's look at the code:
 

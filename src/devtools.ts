@@ -59,6 +59,7 @@ const TYPES: Record<string, { label: string; color: string }> = {
 	MountScope: { label: "mount", color: "#60a5fa" },
 	OnEachScope: { label: "onEach", color: "#c084fc" },
 	OnEachItemScope: { label: "item", color: "#f472b6" },
+	SortKeyScope: { label: "sortKey", color: "#a78bfa" },
 	ResultScope: { label: "derive", color: "#fbbf24" },
 	SetArgScope: { label: "attr", color: "#94a3b8" },
 	RootScope: { label: "root", color: "#64748b" },

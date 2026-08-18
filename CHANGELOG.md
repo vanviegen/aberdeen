@@ -1,5 +1,15 @@
 # Changelog
 
+### 1.21.0 (2026-08-18)
+
+**Enhancements:**
+- `onEach` items now *move* instead of being redrawn when data read by their `makeKey` function changes the sort key. Nodes are relocated using `moveBefore` where available (`insertBefore` elsewhere), so `<input>` values — and with `moveBefore` also focus, text selection and CSS animations — survive reordering. As items are no longer recreated, `create`/`destroy` transitions no longer fire for moves.
+- Changes to data read by `makeKey` that *don't* change the resulting sort key no longer redraw the item at all.
+- Sort keys can now be fractional numbers. Previously, numeric sort keys were silently rounded, making e.g. `2.5` sort as `3`.
+
+**Fixed:**
+- `makeKey` returning `Infinity` used to hang in an infinite loop.
+
 ### 1.20.0 (2026-08-13)
 
 **Enhancements:**

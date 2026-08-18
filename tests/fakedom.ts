@@ -1,7 +1,7 @@
-let newCount: number = 0, changeCount: number = 0;
-export const resetCounts = function(): void { newCount = changeCount = 0; };
-export const getCounts = function(): { new: number, changed: number } { 
-    return { new: newCount, changed: changeCount }; 
+let newCount: number = 0, changeCount: number = 0, moveCount: number = 0;
+export const resetCounts = function(): void { newCount = changeCount = moveCount = 0; };
+export const getCounts = function(): { new: number, changed: number, moved: number } {
+    return { new: newCount, changed: changeCount, moved: moveCount };
 };
 export const clearBody = function(): void {
     document.body.childNodes.length = 0;
@@ -88,6 +88,24 @@ class Element extends Node {
         this.childNodes.splice(idx, 1);
         node.parentNode = null;
         changeCount++;
+    }
+
+    // Atomic-move emulation. The real browser API also preserves element state (focus,
+    // selection, running animations); here we just reposition within childNodes and count
+    // the move. Stricter than the spec (which allows reparenting of connected nodes), so
+    // misuse in the library shows up as a test failure.
+    moveBefore(node: Node, ref: Node | null): void {
+        if (node.parentNode !== this) throw new Error("moveBefore: node is not a child");
+        if (node === ref) throw new Error("moveBefore: node and ref are the same");
+        this.childNodes.splice(this.childNodes.indexOf(node), 1);
+        if (ref) {
+            let idx = this.childNodes.indexOf(ref);
+            if (idx < 0) throw new Error("moveBefore: non-existing ref node");
+            this.childNodes.splice(idx, 0, node);
+        } else {
+            this.childNodes.push(node);
+        }
+        moveCount++;
     }
     
     remove(): void {

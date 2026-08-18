@@ -79,6 +79,70 @@ test('changes position when sort key changes', async () => {
   expect(c).toEqual(7);
 });
 
+test('supports fractional sort keys', async () => {
+  // Ascending expected order; k<N> is the position within it.
+  const values = [-2.5, -2, -1.75, -0.5, 0, 0.25, 1, 1.5, 2, 10.125];
+  const data: Record<string, number> = {};
+  for (const v of [1, 1.5, -2, 0.25, 10.125, -2.5, 0, 2, -0.5, -1.75]) {
+    data['k' + values.indexOf(v)] = v;
+  }
+  const $data = A.proxy(data);
+
+  A.onEach($data, (value, key) => {
+    A('p', { id: key });
+  }, value => value);
+
+  assertBody(values.map((v, i) => `p{id=k${i}}`).join(' '));
+
+  $data.k0 = 0.75; // -2.5 → 0.75: moves between k5 (0.25) and k6 (1)
+  await passTime();
+  assertBody(`p{id=k1} p{id=k2} p{id=k3} p{id=k4} p{id=k5} p{id=k0} p{id=k6} p{id=k7} p{id=k8} p{id=k9}`);
+
+  $data.k9 = 0.5; // 10.125 → 0.5: moves between k5 (0.25) and k0 (0.75)
+  await passTime();
+  assertBody(`p{id=k1} p{id=k2} p{id=k3} p{id=k4} p{id=k5} p{id=k9} p{id=k0} p{id=k6} p{id=k7} p{id=k8}`);
+});
+
+test('supports fractional numbers in composite sort keys', async () => {
+  const $data = A.proxy({
+    a: [2, 'x'],
+    b: [2.5, 'a'],
+    c: [2, 'a'],
+    d: [2.5],
+    e: [-2.5, 'q'],
+    f: [-2, 'q'],
+  } as Record<string, (number | string)[]>);
+
+  A.onEach($data, (value, key) => {
+    A(key);
+  }, value => value as any);
+
+  assertBody(`e f c a d b`);
+});
+
+test('distinguishes nearly-equal fractional sort keys', async () => {
+  const $data = A.proxy({ a: 3.1416, b: 3.14159, c: 3.141595 });
+  A.onEach($data, (value, key) => {
+    A(key);
+  }, value => value);
+  assertBody(`b c a`);
+});
+
+test('rejects non-finite sort keys', async () => {
+  let lastErr: Error | undefined;
+  A.setErrorHandler(err => { lastErr = err; return false; });
+  try {
+    A.onEach(A.proxy({ a: 1 }), (value, key) => A(key), value => value / 0);
+    expect(lastErr?.toString()).toContain('finite');
+
+    lastErr = undefined;
+    A.onEach(A.proxy({ a: 0 }), (value, key) => A(key), value => value / 0); // NaN
+    expect(lastErr?.toString()).toContain('finite');
+  } finally {
+    A.setErrorHandler();
+  }
+});
+
 test('have items disappear when the sort key is null', async () => {
   const data = A.proxy({a: true, b: false, c: true, d: false});
   let p = 0, c = 0;
