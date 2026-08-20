@@ -87,10 +87,11 @@ export function assertDomUpdates(expected: {new?: number, changed?: number, move
 }
 
 export async function reset() {
+	fakedom.mockAnimations();
 	A.copy(A.cssVars, {});
 	A.unmountAll();
 	try {
-		await fakedom.passTime(2001); // wait for deletion transitions
+		await fakedom.passTime(3001); // wait for deletion transitions
 		assertBody(``);
 	} finally {
 		// Force-clear DOM and state even if errors occurred

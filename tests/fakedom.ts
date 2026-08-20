@@ -111,7 +111,14 @@ class Element extends Node {
     remove(): void {
         this.parentNode?.removeChild(this);
     }
-    
+
+    getAnimations(_options?: {subtree?: boolean}): {finished: Promise<unknown>}[] {
+        // Without CSS we can't know whether a class change starts a transition. The
+        // default (one never-finishing animation) makes removal wait for aberdeen's
+        // 3-second backstop, the timing the pre-existing destroy tests assume.
+        return animationsMock ? animationsMock() : [{finished: new Promise(() => {})}];
+    }
+
     replaceChild(newNode: Node, oldNode: Node): void {
         this.insertBefore(newNode, oldNode);
         this.removeChild(oldNode);
@@ -515,6 +522,15 @@ export const resetBrowserState = function(): void {
     history._reset();
     // Don't reset window listeners as they're registered by the modules being tested
 };
+
+/**
+ * Override what `Element.getAnimations()` returns (only `finished` is consulted).
+ * Call without arguments to restore the never-finishing default.
+ */
+export function mockAnimations(mock?: () => {finished: Promise<unknown>}[]): void {
+    animationsMock = mock;
+}
+let animationsMock: (() => {finished: Promise<unknown>}[]) | undefined;
 
 type TimeoutItem = {
     func: () => void | Promise<void>;

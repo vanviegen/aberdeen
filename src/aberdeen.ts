@@ -1970,7 +1970,26 @@ const onDestroyMap: WeakMap<Node, string | ((...args: any[]) => void) | true> =
 function destroyWithClass(element: Element, cls: string) {
 	const classes = cls.split(".").filter((c) => c);
 	element.classList.add(...classes);
-	setTimeout(() => element.remove(), 2000);
+	// Backstop, covering animations that never finish and engines without `getAnimations`.
+	const timer = setTimeout(() => element.remove(), 3000);
+	if (!element.getAnimations) return;
+	// Defer to a microtask, so that destroying many elements at once triggers a single
+	// style flush (by `getAnimations`) instead of one per element.
+	queueMicrotask(() => {
+		const remove = () => {
+			clearTimeout(timer);
+			element.remove();
+		};
+		// This sees the transitions/animations the class change set in motion, delay
+		// phase and descendants included. If it started none (no transition defined,
+		// or none can run because the element is hidden), remove right away.
+		const animations = element.getAnimations({ subtree: true });
+		if (animations.length) {
+			Promise.allSettled(animations.map((a) => a.finished)).then(remove);
+		} else {
+			remove();
+		}
+	});
 }
 
 /**
@@ -2636,7 +2655,7 @@ export function disableCreateDestroy() {
  * - **DOM property:** When the value is a boolean, or the key is `"value"` or `"selectedIndex"`, it is set on the `current` element as a DOM property instead of an HTML attribute. For example `A('checked=', true)` would do `el.checked = true` for the *current* element.
  * - **Conditional CSS class:** If the key starts with a `.` character, its either added to or removed from the *current* element as a CSS class, based on the truthiness of the value. So `A('.hidden=', isHidden)` would toggle the `hidden` CSS class. This only works if the `=` is the last character of the string, and the next argument is the value. Its common for the value to be a proxied object, in which case its `.value` is reactively applied without needing to rerender the parent scope.
  * - **Create transition:** When the key is `"create"`, the value will be added as a CSS class to the *current* element immediately, and then removed right after the browser has finished doing a layout pass. This behavior only triggers when the scope setting the `create` is the top-level scope being (re-)run. This allows for creation transitions, without triggering the transitions for deeply nested elements being drawn as part of a larger component. The string may also contain multiple dot-separated CSS classes, such as `.fade.grow`. The initial dot is optional. Alternatively, to allow for more complex transitions, the value may be a function that receives the `HTMLElement` being created as its only argument. It is *only* called if this is the top-level element being created in this scope run. See `transitions.ts` in the Aberdeen source code for some examples.
- * - **Destroy transition:** When the key is `"destroy"` the value will be used to apply a CSS transition if the *current* element is later on removed from the DOM and is the top-level element to be removed. This happens as follows: actual removal from the DOM is delayed by 2 seconds, and in the mean-time the value string is added as a CSS class to the element, allowing for a deletion transition. The string may also contain multiple dot-separated CSS classes, such as `.fade.shrink`. The initial dot is optional. Alternatively, to allow for more complex transitions, the value may be a function that receives the `HTMLElement` to be removed from the DOM as its only argument. This function may perform any transitions and is then itself responsible for eventually removing the element from the DOM. See `transitions.ts` in the Aberdeen source code for some examples.
+ * - **Destroy transition:** When the key is `"destroy"` the value will be used to apply a CSS transition if the *current* element is later on removed from the DOM and is the top-level element to be removed. This happens as follows: the value string is added as a CSS class to the element, allowing for a deletion transition, and the element is actually removed from the DOM once the transitions/animations this started (anywhere in its subtree) have finished — immediately if there are none, and after at most 3 seconds in any case. The string may also contain multiple dot-separated CSS classes, such as `.fade.shrink`. The initial dot is optional. Alternatively, to allow for more complex transitions, the value may be a function that receives the `HTMLElement` to be removed from the DOM as its only argument. This function may perform any transitions and is then itself responsible for eventually removing the element from the DOM. See `transitions.ts` in the Aberdeen source code for some examples.
  * - **Two-way data binding:** When the key is `"bind"` a two-way binding between the `.value` property of the given proxied object, and the *current* input element (`<input>`, `<select>` or `<textarea>`) is created. This is often used together with {@link ref}, in order to use properties other than `.value`.
  * - **Text:**: If the key is `"text"`, the value will be appended as a `TextNode` to the *current* element. The same can also be done with the `#` syntax in string arguments, though `text=` allows additional properties to come after in the same string: `A('button text=Hello click=', alert)`.
  * - **Unsafe HTML:** When the key is `"html"`, the value will be added as HTML to the *current* element. This should only be used in exceptional situations. Beware of XSS! Never use this with untrusted user data.

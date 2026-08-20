@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.22.0 (2026-08-20)
+
+**Enhancements:**
+- A `destroy` transition class now removes its element from the DOM as soon as the transitions/animations it started have finished (or at most 3 seconds), instead of always waiting a flat 2 seconds. A class that starts no transition removes the element immediately. 
+
 ### 1.21.0 (2026-08-18)
 
 **Enhancements:**
