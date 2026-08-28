@@ -1,6 +1,6 @@
 {
   "name": "aberdeen",
-  "version": "1.22.0",
+  "version": "1.22.1",
   "author": "Frank van Viegen",
   "main": "dist/src/aberdeen.js",
   "devDependencies": {
@@ -58,7 +58,9 @@
     "dist",
     "dist-docs",
     "src",
-    "skill"
+    "skill",
+    "CHANGELOG.md",
+    "README.md"
   ],
   "license": "MIT",
   "scripts": {
