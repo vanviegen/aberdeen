@@ -98,6 +98,7 @@ test('modifying route.current route updates browser state', async () => {
     expect(route.current.path).toEqual('/new/path');
     expect(route.current.p).toEqual(['new', 'path']);
     expect(location.pathname).toEqual('/new/path');
+    expect(route.current.nav).toEqual('replace');
 });
 
 test('modifying route.current.p updates path', async () => {
@@ -634,6 +635,7 @@ test('setGuard: in-place state and hash tweaks are same-page changes that skip t
     expect(route.current.hash).toEqual('#section');
 
     expect(calls).toEqual(0);
+    expect(route.current.nav).toEqual('go'); // same-page tweaks aren't a "replace"
 });
 
 test('setGuard: an in-place search change is a navigation and can be vetoed', async () => {

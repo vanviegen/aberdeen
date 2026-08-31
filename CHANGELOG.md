@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.23.0 (2026-08-31)
+
+**Enhancements:**
+- New `route.current.nav` type `"replace"`: set when a direct mutation of `route.current` lands on a different page (a `path` or `search` change, applied as a `replaceState`). Previously such a change kept the nav type of whatever navigation came before it, misinforming page transition animations. Same-page `state`/`hash` tweaks still leave `nav` unchanged.
+
 ### 1.22.0 (2026-08-20)
 
 **Enhancements:**

@@ -1,6 +1,6 @@
 import A, {leakScope} from "./aberdeen.js";
 
-type NavType = "load" | "back" | "forward" | "go" | "push";
+type NavType = "load" | "back" | "forward" | "go" | "push" | "replace";
 
 /**
 * The class for the global `route` object.
@@ -23,6 +23,9 @@ export interface Route {
 	- `"back"` or `"forward"`: When we navigated backwards or forwards in the stack.
 	- `"go"`: When we added a new page on top of the stack.
 	- `"push"`: When we added a new page on top of the stack, merging with the current page.
+	- `"replace"`: When this page took the previous page's place in the stack — a direct
+	  `path`/`search` mutation of this object, applied as a `replaceState`. Same-page
+	  `state`/`hash` tweaks don't count and leave `nav` unchanged.
 	Mostly useful for page transition animations. Writing to this property has no effect.
 	*/
 	nav: NavType;
@@ -586,6 +589,10 @@ leakScope(() => {
 		// First normalize `route`
 		const stack = historyE.state?.stack || [];
 		const newRoute = toCanonRoute(current, A.unproxy(current).nav, stack.length + 1);
+		// A direct mutation that lands on a different page gets its own nav type.
+		// Routes that arrived through go()/back()/popstate are already `approved`
+		// here, and same-page tweaks don't count, so both keep their nav.
+		if (isNavigation(approved, newRoute)) newRoute.nav = "replace";
 		A.copy(current, newRoute);
 
 		// A direct mutation of the proxy may be a navigation (a `path` or
