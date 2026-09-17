@@ -432,3 +432,25 @@ test('A.onEach reruns', async () => {
   await passTime();
   assertBody(`div{"0"} div{"1"}`);
 })
+
+test('A.onEach un-hiding many items that all rendered nothing is fast', () => {
+  // Every item stays in the sorted set after redrawing to no nodes. Un-hiding
+  // then walks back over all those empty siblings to find the insert position,
+  // which must take linear rather than exponential time.
+  const N = 40;
+  const items = A.proxy({} as Record<number, {n: number}>);
+  for (let i = 1; i <= N; i++) items[i] = {n: i};
+  const hide = A.proxy({value: false});
+  A.mount(document.body, () => A.onEach(items, item => {
+    if (hide.value) return;
+    A('div text=', String(item.n));
+  }, (_, k) => -Number(k)));
+  hide.value = true;
+  A.runQueue();
+  assertBody(``);
+  hide.value = false;
+  const start = Date.now();
+  A.runQueue();
+  expect(Date.now() - start).toBeLessThan(200);
+  expect(getBody()).toEqual(Array.from({length: N}, (_, i) => `div{"${N - i}"}`).join(' '));
+});

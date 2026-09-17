@@ -816,8 +816,9 @@ class OnEachItemScope extends ContentScope {
 		this.parent.byIndex.set(this.itemIndex, this);
 
 		// Okay, this is hacky. In case our first (actual) child is a ChainedScope, we won't be able
-		// to provide it with a reliable prevSibling. Therefore, we'll pretend to be that sibling,
-		// doing what's need for this case in `getLastNode`.
+		// to provide it with a reliable prevSibling. Therefore, we'll pretend to be that sibling:
+		// one without nodes of its own (see `getLastNode`), so that a walk over preceding
+		// siblings continues at `getPrecedingNode`.
 		// For performance, we prefer not having to create additional 'fake sibling' objects for each item.
 		this.lastChild = this;
 
@@ -844,10 +845,13 @@ class OnEachItemScope extends ContentScope {
 		return this.parent.getPrecedingNode();
 	}
 
-	getLastNode(): Node | undefined {
-		// Hack! As explain in the constructor, this getLastNode method actually
-		// does not return the last node, but the preceding one.
-		return this.getPrecedingNode();
+	getLastNode(): undefined {
+		// Hack! As explained in the constructor, this is only called on us in our role as
+		// fake first sibling, which has no nodes. Returning the preceding node here instead
+		// would have `findLastNodeInPrevSiblings` walk our preceding siblings twice, once
+		// through this method and once through `getPrecedingNode`: exponential in the
+		// number of consecutive items without nodes. Use `getActualLastNode` for our nodes.
+		return undefined;
 	}
 
 	getActualLastNode(): Node | undefined {
@@ -874,8 +878,7 @@ class OnEachItemScope extends ContentScope {
 	fullRedraw() {
 		// We're not calling `remove` here, as we don't want to remove ourselves from
 		// the sorted set. `redraw` will take care of that, if needed.
-		// Also, we can't use `getLastNode` here, as we've hacked it to return the
-		// preceding node instead.
+		// Also, we can't use `getLastNode` here, as we've hacked it (see constructor).
 		if (this.sortKey != null) {
 			const lastNode = this.getActualLastNode();
 			if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
@@ -984,8 +987,7 @@ class OnEachItemScope extends ContentScope {
 	}
 
 	remove() {
-		// We can't use getLastNode here, as we've hacked it to return the preceding
-		// node instead.
+		// We can't use getLastNode here, as we've hacked it (see constructor).
 		if (this.sortKey != null) {
 			const lastNode = this.getActualLastNode();
 			if (lastNode) removeNodes(lastNode, this.getPrecedingNode());
