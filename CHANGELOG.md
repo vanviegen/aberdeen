@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.23.1 (2026-09-17)
+
+**Fixed:**
+- `onEach` no longer takes exponential time to find the insert position after a run of items whose render function emitted no nodes. Toggling the contents of a few dozen items off and back on could freeze the page.
+
 ### 1.23.0 (2026-08-31)
 
 **Enhancements:**
