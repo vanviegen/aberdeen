@@ -1,4 +1,4 @@
-# [Aberdeen](https://aberdeenjs.org/) [![](https://img.shields.io/badge/license-ISC-blue.svg)](https://github.com/vanviegen/aberdeen/blob/master/LICENSE.txt) [![](https://badge.fury.io/js/aberdeen.svg)](https://badge.fury.io/js/aberdeen) ![](https://img.shields.io/bundlejs/size/aberdeen) [![](https://img.shields.io/github/last-commit/vanviegen/aberdeen)](https://github.com/vanviegen/aberdeen)
+# [Aberdeen](https://wildloop.dev/projects/aberdeen/) [![](https://img.shields.io/badge/license-ISC-blue.svg)](https://github.com/vanviegen/aberdeen/blob/master/LICENSE.txt) [![](https://badge.fury.io/js/aberdeen.svg)](https://badge.fury.io/js/aberdeen) ![](https://img.shields.io/bundlejs/size/aberdeen) [![](https://img.shields.io/github/last-commit/vanviegen/aberdeen)](https://github.com/vanviegen/aberdeen)
 
 Reactive UIs in plain TypeScript. Simple to learn, fast to ship.
 
@@ -28,7 +28,7 @@ Aberdeen wraps your state in ES6 `Proxy` objects for fine-grained property acces
 
 ## Examples
 
-First, let's start with the obligatory reactive counter example. If you're reading this on [the official website](https://aberdeenjs.org) you should see a working demo below the code, and an 'edit' button in the top-right corner of the code, to play around.
+First, let's start with the obligatory reactive counter example. If you're reading this on [the official website](https://wildloop.dev/projects/aberdeen/) you should see a working demo below the code, and an 'edit' button in the top-right corner of the code, to play around.
 
 ```javascript
 import A from 'aberdeen';
@@ -153,17 +153,17 @@ drawMain();
 
 Some further examples:
 
-- [Input demo](https://aberdeenjs.org/examples/input/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/input)
-- [Tic Tac Toe demo](https://aberdeenjs.org/examples/tictactoe/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/tictactoe)
-- [List demo](https://aberdeenjs.org/examples/list/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/list)
-- [Routing demo](https://aberdeenjs.org/examples/route/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/route)
-- [JS Framework Benchmark demo](https://aberdeenjs.org/examples/js-framework-benchmark/) - [Source](https://github.com/vanviegen/aberdeen/tree/master/examples/js-framework-benchmark)
+- [Input](https://github.com/vanviegen/aberdeen/tree/master/examples/input)
+- [Tic Tac Toe](https://github.com/vanviegen/aberdeen/tree/master/examples/tictactoe)
+- [List](https://github.com/vanviegen/aberdeen/tree/master/examples/list)
+- [Routing](https://github.com/vanviegen/aberdeen/tree/master/examples/route)
+- [JS Framework Benchmark](https://github.com/vanviegen/aberdeen/tree/master/examples/js-framework-benchmark)
 
 
 ## Learning Aberdeen
 
-- [Tutorial](https://aberdeenjs.org/Tutorial/)
-- [Reference documentation](https://aberdeenjs.org/modules.html)
+- [Tutorial](https://wildloop.dev/projects/aberdeen/tutorial/)
+- [Reference documentation](https://wildloop.dev/api/aberdeen/api/aberdeen/functions/a/)
 
 And you may want to study the examples above, of course!
 

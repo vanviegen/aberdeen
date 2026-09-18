@@ -1,0 +1,19 @@
+# Dev container image: bun to build and test the library, node for the
+# readme-tsdoc based skill build.
+FROM docker.io/library/node:22-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl git sudo bash procps ripgrep less nano unzip \
+    && rm -rf /var/lib/apt/lists/*
+RUN npm install -g bun@1 serve@14
+RUN echo 'node ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/node
+
+LABEL tps.cache="/home/node/.bun/install/cache /home/node/.npm"
+LABEL tps.service.test="bun install && bun test"
+
+USER node
+WORKDIR /work
+
+# The examples import the library from dist/, so build it before serving them.
+EXPOSE 3000
+CMD ["bash", "-c", "bun install && bun run build && serve -l tcp://0.0.0.0:3000 ."]

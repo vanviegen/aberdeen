@@ -19,9 +19,9 @@ if (!srcPath || !outDir || !outFile) {
 }
 const extract = new Set(extractTitles);
 
-// Strip leading YAML frontmatter, then split into segments at `## ` headings
-// (the text before the first heading - the `# Tutorial` h1 and intro - is kept as-is).
-const text = readFileSync(srcPath, 'utf8').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '');
+// Split into segments at `## ` headings (the text before the first heading - the
+// `# Tutorial` h1 and intro - is kept as-is).
+const text = readFileSync(srcPath, 'utf8');
 const segments = [];
 let current = { title: null, lines: [] };
 for (const line of text.split('\n')) {

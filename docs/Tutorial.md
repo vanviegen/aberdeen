@@ -1,7 +1,3 @@
----
-title: Tutorial
----
-
 # Tutorial
 
 ## Creating elements
@@ -938,5 +934,5 @@ function drawContactDetail(id: number) {
 
 If you've understood all/most of the above, you should be ready to get going with Aberdeen! You may also find these links helpful:
 
-- [Reference documentation](https://aberdeenjs.org/modules.html)
-- [Examples](https://aberdeenjs.org/#examples)
+- [Reference documentation](https://wildloop.dev/api/aberdeen/api/aberdeen/functions/a/)
+- [Examples](https://wildloop.dev/projects/aberdeen/#examples)

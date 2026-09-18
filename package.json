@@ -56,7 +56,6 @@
   "description": "Build fast reactive UIs in pure TypeScript/JavaScript without a virtual DOM.",
   "files": [
     "dist",
-    "dist-docs",
     "src",
     "skill",
     "CHANGELOG.md",
@@ -65,7 +64,7 @@
   "license": "MIT",
   "scripts": {
     "build": "bun run build:clean && bun run build:src && bun run build:src:dev && bun run build:types && bun run build:tests && bun run build:skill",
-    "build:clean": "rm -rf dist dist-docs",
+    "build:clean": "rm -rf dist",
     "build:src": "bun build src/aberdeen.ts src/dispatcher.ts src/prediction.ts src/route.ts src/transitions.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/src/",
     "build:src:dev": "bun build src/devtools.ts --sourcemap --target browser --external '*/aberdeen.js' --outdir dist/src --entry-naming 'aberdeen.dev.[ext]'",
     "build:types": "tsc",
